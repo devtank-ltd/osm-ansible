@@ -1,0 +1,11 @@
+---
+
+- name: Install influx
+  apt:
+    name: influxdb
+    state: latest
+    update_cache: yes
+
+- name: Set up database
+  influxdb_database:
+    
