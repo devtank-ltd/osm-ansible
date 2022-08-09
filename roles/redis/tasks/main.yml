@@ -1,0 +1,14 @@
+---
+
+- name: "Install Redis"
+  apt:
+    name: redis
+    state: latest
+    update_cache: yes
+
+- name: "Enable and start redis.service"
+  systemd:
+    name: redis.service
+    state: started
+    enabled: yes
+

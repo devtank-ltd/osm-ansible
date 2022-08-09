@@ -1,0 +1,4 @@
+---
+# defaults file for mosquitto
+
+mosquitto_listener_port: 1883
