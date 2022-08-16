@@ -2,3 +2,4 @@
   roles:
     - redis
     - mosquitto
+    - influx

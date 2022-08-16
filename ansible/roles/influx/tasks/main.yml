@@ -1,11 +1,26 @@
 ---
 
-- name: Install influx
+# We need GPG for apt_key
+- name: Install GPG
   apt:
-    name: influxdb
+    name: gpg
     state: latest
     update_cache: yes
 
-- name: Set up database
-  influxdb_database:
-    
+- name: Import influx key
+  apt_key:
+    id: "05CE15085FC09D18E99EFB22684A14CF2582E0C5"
+    url: "https://repos.influxdata.com/influxdb.key"
+    keyring: "{{ influx_keyring }}"
+
+- name: Add influx repository
+  apt_repository:
+    filename: influxdata
+    repo: "deb [signed-by={{ influx_keyring }}] https://repos.influxdata.com/debian stable main"
+
+- name: Install influxdb
+  apt:
+    name: influxdb2
+    state: latest
+    update_cache: yes
+
