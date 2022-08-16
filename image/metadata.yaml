@@ -1,0 +1,6 @@
+architecture: x86_64
+creation_date: TIMESTAMP
+properties:
+  description: Devtank Open Smart Monitor Service LXC Image (Debian Bullseye)
+  os: Debian
+  release: bullseye
