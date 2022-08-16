@@ -24,3 +24,15 @@
     state: latest
     update_cache: yes
 
+- name: Start and enable influxdb
+  systemd:
+    name: influxdb.service
+    state: started
+    enabled: yes
+
+- name: Create influx config
+  command: "influx config create -n default -u http://localhost:{{ influx_port }} -o {{ customer_name }}"
+
+- name: Create organisations
+  command: "influx org create -n {{ item }}"
+  loop: "{{ influx_create_users }}"

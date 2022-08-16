@@ -1,3 +1,7 @@
 ---
 
 influx_keyring: "/etc/apt/trusted.gpg.d/influxdb.gpg"
+
+influx_create_users:
+  - "grafana"
+  - "chirpstack"

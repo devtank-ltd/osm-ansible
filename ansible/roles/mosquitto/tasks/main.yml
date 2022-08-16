@@ -25,7 +25,7 @@
     msg: "Moquitto password is: {{ mosquitto_passwd }}"
 
 - name: Set password
-  command: "mosquitto_passwd -c -b /etc/mosquitto/passwd {{ customername }} '{{ mosquitto_passwd }}'"
+  command: "mosquitto_passwd -c -b /etc/mosquitto/passwd {{ customer_name }} '{{ mosquitto_passwd }}'"
  # creates: /etc/mosquitto/passwd
 
 - name: "Start and enable mosquitto"
