@@ -2,7 +2,9 @@
 
 - name: Install mosquitto
   apt:
-    name: mosquitto
+    name:
+      - mosquitto
+      - mosquitto-clients
     state: latest
     update_cache: yes
 

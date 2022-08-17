@@ -3,4 +3,5 @@
     - { role: redis, tags: redis }
     - { role: mosquitto, tags: mosquitto }
     - { role: influx, tags: influx }
+    - { role: postgres, tags: postgres }
     - { role: cleanup, tags: cleanup }

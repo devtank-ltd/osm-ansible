@@ -53,5 +53,6 @@
         --password {{ influx_passwords['devtank'] }} 
         --org devtank 
         --bucket dtbucket 
-  
-  when: influx_config_list.stdout_lines | length == 0
+      ignore_errors: True # TODO REMOVE THIS!
+
+  when: influx_config_list.stdout_lines | length == 0 or overwrite_passwords

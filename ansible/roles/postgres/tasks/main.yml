@@ -1,0 +1,52 @@
+---
+
+- name: Install postgres
+  apt:
+    name: postgresql
+    state: latest
+    update_cache: yes
+
+- name: Start and enable postgres
+  systemd:
+    name: postgresql.service
+    state: started
+    enabled: yes
+
+# Ansible needs this for the postgres modules below
+- name: Install postgres libraries
+  apt:
+    name: python3-psycopg2
+    state: latest
+    update_cache: yes
+
+# This block is run as the user postgres
+- name: Postgres operations
+  block:
+    - name: Set postgres chirpstack user
+      block:
+
+        - name: Generate passwords
+          set_fact:
+            postgres_passwords: "{{ postgres_passwords | default({}) | combine({ item: lookup('ansible.builtin.password', '/dev/null', length=16) }) }}"
+          loop:
+            - chirpstack
+
+        - name: Add chirpstack postgres user
+          postgresql_user:
+            name: chirpstack
+            password: "{{ postgres_passwords['chirpstack'] }}"
+
+      when: overwrite_passwords
+
+    - name: Create chirpstack database
+      postgresql_db:
+        name: chirpstack
+        owner: chirpstack
+
+    - name: Add extensions to chirpstack DB
+      postgresql_ext:
+        name: pg_trgm
+        db: chirpstack
+
+  become: true
+  become_user: postgres

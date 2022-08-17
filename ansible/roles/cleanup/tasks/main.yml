@@ -1,6 +1,12 @@
 ---
-- name: Print passwords
+- name: Print influx passwords
   debug:
     msg: "Influx password for {{ item.key }}: {{ item.value }}"
   loop: "{{ influx_passwords | dict2items }}"
-  when: influx_config_list.stdout_lines | length == 0
+  when: influx_config_list.stdout_lines | length == 0 or overwrite_passwords
+
+- name: Print postgres passwords
+  debug:
+    msg: "Postgres password for {{ item.key }}: {{ item.value }}"
+  loop: "{{ postgres_passwords | dict2items }}"
+  when: overwrite_passwords
