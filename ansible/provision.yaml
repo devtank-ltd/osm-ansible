@@ -4,4 +4,5 @@
     - { role: mosquitto, tags: mosquitto }
     - { role: influx, tags: influx }
     - { role: postgres, tags: postgres }
+    - { role: chirpstack, tags: chirpstack }
     - { role: cleanup, tags: cleanup }
