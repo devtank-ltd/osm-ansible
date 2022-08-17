@@ -30,9 +30,28 @@
     state: started
     enabled: yes
 
-- name: Create influx config
-  command: "influx config create -n default -u http://localhost:{{ influx_port }} -o {{ customer_name }}"
+- name: Detect existing config
+  command: "influx config list --hide-headers"
+  register: influx_config_list
 
-- name: Create organisations
-  command: "influx org create -n {{ item }}"
-  loop: "{{ influx_create_users }}"
+- name: Initial influx setup
+  block:
+
+    - name: Generate passwords
+      set_fact:
+        influx_passwords: "{{ influx_passwords | default({}) | combine({ item: lookup('ansible.builtin.password', '/dev/null', length=16) }) }}"
+      loop:
+        - devtank
+        - grafana
+        - chirpstack
+
+    - name: Setup influx
+      command: >
+        influx setup 
+        --force 
+        --username devtank 
+        --password {{ influx_passwords['devtank'] }} 
+        --org devtank 
+        --bucket dtbucket 
+  
+  when: influx_config_list.stdout_lines | length == 0

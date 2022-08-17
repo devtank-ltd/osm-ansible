@@ -1,5 +1,6 @@
 - hosts: "{{ target }}"
   roles:
-    - redis
-    - mosquitto
-    - influx
+    - { role: redis, tags: redis }
+    - { role: mosquitto, tags: mosquitto }
+    - { role: influx, tags: influx }
+    - { role: cleanup, tags: cleanup }

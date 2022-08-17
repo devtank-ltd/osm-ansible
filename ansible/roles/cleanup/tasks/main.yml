@@ -1,0 +1,6 @@
+---
+- name: Print passwords
+  debug:
+    msg: "Influx password for {{ item.key }}: {{ item.value }}"
+  loop: "{{ influx_passwords | dict2items }}"
+  when: influx_config_list.stdout_lines | length == 0
