@@ -1,0 +1,5 @@
+lxc.include = {{ lxc_root }}/include/common.conf
+
+lxc.rootfs.path = overlayfs:{{ lxc_root }}/os-bases/{{ os_base }}:{{ lxc_root }}/containers/{{ container_hostname }}/rootfs-layer
+lxc.uts.name = {{ container_hostname }}
+lxc.net.0.ipv4.address = {{ container_ip_address }}

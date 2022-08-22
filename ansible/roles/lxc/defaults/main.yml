@@ -1,0 +1,4 @@
+---
+# defaults file for lxc
+
+lxc_root: "/srv/osm-lxc/lxc"
