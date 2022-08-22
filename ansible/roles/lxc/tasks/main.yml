@@ -8,30 +8,31 @@
     - container_hostname is not defined
 
 - name: "Get latest OS base"
-  command: "ls {{ lxc_root/os-bases}} | sort -n | tail -n1"
+  shell: "ls {{ lxc_root }}/os-bases | sort -n | tail -n1"
   register: latest_os_base
-
-- name: "Get list of container IPs"
-  command: "find {{ lxc_root }}/containers -name 'lxc.container.conf' -exec awk '/lxc.net.0.ipv4.address/ { print $3 }' {} + | sort -n | tail -n1"
-  register: last_container_ip
 
 - name: "Set facts"
   set_fact:
     container_dir: "{{ lxc_root }}/containers/{{ container_hostname }}"
 
+- name: "Get list of container IPs"
+  shell: "find {{ lxc_root }}/containers -name 'lxc.container.conf' -not -path '{{ container_dir }}/*' -exec awk '/lxc.net.0.ipv4.address/ { print $3 }' {} + | sort -n | tail -n1"
+  register: last_container_ip
+
 - name: "Set OS base fact"
   set_fact:
     os_base: "{{ latest_os_base.stdout }}"
-  when: os_base not defined
+  when: os_base is not defined
 
 - name: "Set container IP fact"
   set_fact:
-    container_ip_address: "{{ last_container_ip.stdout_lines[0] | default(10.0.3.1) | ipmath(1) }}"
-  when: container_ip_address not defined
+    container_ip_address: "{{ last_container_ip.stdout_lines[0] | default('10.0.3.1') | ipmath(1) }}"
+  when: container_ip_address is not defined
 
 - name: "Create a btrfs subvolume for the container root/config"
   command: "btrfs subvolume create {{ container_dir }}"
-  creates: "{{ container_dir }}"
+  args:
+    creates: "{{ container_dir }}"
 
 - name: "Create rootfs directory"
   file:
@@ -41,18 +42,15 @@
 - name: "Write container configuration file"
   template:
     src: "{{ lxc_root }}/templates/lxc.container.conf.j2"
-    dest: "{{ container_dir }}"
+    dest: "{{ container_dir }}/lxc.container.conf"
 
 - name: "Add entry to /etc/hosts"
   lineinfile:
     path: "/etc/hosts"
-    regexp: "{{ container_ip_address }} {{ container_hostname }}"
+    regexp: "^.+{{ container_hostname }}"
     line: "{{ container_ip_address }} {{ container_hostname }}"
     state: present
 
 - name: "Start the LXC container"
-  lxc_container:
-    name: "{{ container_hostname }}"
-    config: "{{ container_dir }}/lxc.container.conf"
-    state: started
+  command: "lxc-start -n '{{ container_hostname }}' -f '{{ container_dir }}/lxc.container.conf'"
 

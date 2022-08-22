@@ -1,3 +1,4 @@
-hosts: localhost
-roles:
-  - { role: lxc, tags: lxc }
+- hosts: localhost
+  connection: local
+  roles:
+    - { role: lxc, tags: lxc }

@@ -1,5 +1,5 @@
 backups/*
-lxc/containers/*/rootfs-layer
+lxc/containers/*
 lxc/os-bases/*
 image/image.tar.gz
 debian-rootfs
