@@ -1,0 +1,34 @@
+---
+
+- name: "Set facts"
+  set_fact:
+    container_dir: "{{ lxc_root }}/containers/{{ container_hostname }}"
+
+- name: "Get MAC address"
+  command: "awk '/lxc.net.0.hwaddr/ { print $3 }' '{{ container_dir }}/lxc.container.conf'"
+  register: container_hwaddr
+
+- name: "Stop the container"
+  command: "lxc-stop '{{ container_hostname }}'"
+
+- name: "Delete the container subvolume"
+  command: "btrfs subvolume delete '{{ container_dir }}'"
+
+- name: "Delete DHCP entry"
+  lineinfile:
+    path: "/etc/lxc/dnsmasq.conf"
+    regexp: "dhcp-host={{ container_hwaddr.stdout }}.+"
+    state: absent
+
+- name: "Delete hosts entry"
+  lineinfile:
+    path: "/etc/hosts"
+    regexp: ".*{{ container_hostname }}.*"
+    state: absent
+
+- name: "Restart lxc-net"
+  systemd:
+    name: lxc-net.service
+    state: restarted
+    enabled: yes
+

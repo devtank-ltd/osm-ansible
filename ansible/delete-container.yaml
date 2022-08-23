@@ -1,6 +1,6 @@
 - hosts: localhost
   connection: local
   vars:
-    create_container: True
+    delete_container: True
   roles:
     - { role: lxc, tags: lxc }

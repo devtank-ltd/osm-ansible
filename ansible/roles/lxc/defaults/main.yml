@@ -1,4 +1,6 @@
 ---
 # defaults file for lxc
 
+create_container: False
+delete_container: False
 lxc_root: "/srv/osm-lxc/lxc"

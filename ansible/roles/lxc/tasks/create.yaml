@@ -1,11 +1,5 @@
 ---
 
-- name: "Check all variables are set"
-  fail:
-    msg: "All needed parameters are not set!"
-  when:
-    - container_hostname is not defined
-
 - name: "Get latest OS base"
   shell: "ls {{ lxc_root }}/os-bases | sort -n | tail -n1"
   register: latest_os_base
