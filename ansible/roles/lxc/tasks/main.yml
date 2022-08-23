@@ -20,7 +20,7 @@
     container_dir: "{{ lxc_root }}/containers/{{ container_hostname }}"
 
 - name: "Get list of container IPs"
-  shell: "find {{ lxc_root }}/containers -name 'lxc.container.conf' -not -path '{{ container_dir }}/*' -exec awk '/lxc.net.0.ipv4.address/ { print $3 }' {} + | sort -n | tail -n1"
+  shell: "cut -d, -f2 /etc/lxc/dnsmasq.conf | sort -n | tail -n1"
   register: last_container_ip
 
 - name: "Set OS base fact"
@@ -33,9 +33,14 @@
     container_ip_address: "{{ last_container_ip.stdout_lines[0] | default('10.0.3.1') | ipmath(1) }}"
   when: container_ip_address is not defined
 
+- name: "Set container mac address fact"
+  set_fact:
+    container_hwaddr: "{{ '00:16:3e' | random_mac }}"
+  when: container_hwaddr is not defined
+
 - name: "Ensure container directory exists"
   file:
-    path: "{{ container_dir }}"
+    path: "{{ lxc_root }}/containers"
     state: directory
 
 - name: "Create a btrfs subvolume for the container root/config"
@@ -53,12 +58,25 @@
     src: "{{ lxc_root }}/templates/lxc.container.conf.j2"
     dest: "{{ container_dir }}/lxc.container.conf"
 
+- name: "Add DHCP entry"
+  lineinfile:
+    path: "/etc/lxc/dnsmasq.conf"
+    regexp: "^dhcp-host={{ container_hostname }}.+"
+    line: "dhcp-host={{ container_hwaddr }},{{ container_ip_address }}"
+    state: present
+
 - name: "Add entry to /etc/hosts"
   lineinfile:
     path: "/etc/hosts"
     regexp: "^.+{{ container_hostname }}"
     line: "{{ container_ip_address }} {{ container_hostname }}"
     state: present
+
+- name: "Restart lxc-net"
+  systemd:
+    name: "lxc-net.service"
+    state: restarted
+    enabled: yes
 
 - name: "Start the LXC container"
   command: "lxc-start -n '{{ container_hostname }}' -f '{{ container_dir }}/lxc.container.conf'"
