@@ -1,5 +1,4 @@
 ---
-# tasks file for lxc
 
 - name: "Check all variables are set"
   fail:
@@ -10,6 +9,11 @@
 - name: "Get latest OS base"
   shell: "ls {{ lxc_root }}/os-bases | sort -n | tail -n1"
   register: latest_os_base
+
+- name: "Ensure OS bases exist"
+  fail:
+    msg: "No OS bases are present!"
+  when: "latest_os_base.stdout_lines | length == 0"
 
 - name: "Set facts"
   set_fact:
@@ -28,6 +32,11 @@
   set_fact:
     container_ip_address: "{{ last_container_ip.stdout_lines[0] | default('10.0.3.1') | ipmath(1) }}"
   when: container_ip_address is not defined
+
+- name: "Ensure container directory exists"
+  file:
+    path: "{{ container_dir }}"
+    state: directory
 
 - name: "Create a btrfs subvolume for the container root/config"
   command: "btrfs subvolume create {{ container_dir }}"
