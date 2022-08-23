@@ -20,6 +20,12 @@
     regexp: "dhcp-host={{ container_hwaddr.stdout }}.+"
     state: absent
 
+- name: "Delete cached DHCP lease"
+  lineinfile:
+    path: "/var/lib/misc/dnsmasq.lxcbr0.leases"
+    regexp: ".*{{ container_hwaddr.stdout }}.*"
+    state: absent
+
 - name: "Delete hosts entry"
   lineinfile:
     path: "/etc/hosts"
