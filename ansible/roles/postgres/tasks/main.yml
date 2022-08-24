@@ -1,8 +1,12 @@
 ---
 
-- name: Install postgres
+# Ansible needs this for the postgres modules below
+- name: Install needed packages
   apt:
-    name: postgresql
+    name:
+      - postgresql
+      - python3-psycopg2
+      - sudo
     state: latest
     update_cache: yes
 
@@ -11,13 +15,6 @@
     name: postgresql.service
     state: started
     enabled: yes
-
-# Ansible needs this for the postgres modules below
-- name: Install postgres libraries
-  apt:
-    name: python3-psycopg2
-    state: latest
-    update_cache: yes
 
 # This block is run as the user postgres
 - name: Postgres operations
