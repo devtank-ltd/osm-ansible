@@ -18,6 +18,7 @@
   lineinfile:
     path: "/etc/apt/sources.list.d/grafana.list"
     line: "deb [signed-by=/usr/share/keyrings/grafana.key] https://packages.grafana.com/oss/deb stable main"
+    create: yes
 
 - name: "Install Grafana"
   apt:
