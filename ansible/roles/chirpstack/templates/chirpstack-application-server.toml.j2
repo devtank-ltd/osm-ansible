@@ -1,3 +1,5 @@
+#jinja2:variable_start_string:'[%' , variable_end_string:'%]'
+{#- Chirpstack config is full of {{ }}, so we switch to non-standard variable delimiters :) -#}
 # This configuration sets the required settings and configures an integration
 # with a MQTT broker. Many options and defaults have been omitted for
 # simplicity.
@@ -36,7 +38,7 @@
 # * require - Always SSL (skip verification)
 # * verify-ca - Always SSL (verify that the certificate presented by the server was signed by a trusted CA)
 # * verify-full - Always SSL (verify that the certification presented by the server was signed by a trusted CA and the server host name matches the one in the certificate)
-dsn="postgres://chirpstack_as:{{ postgres_passwords['chirpstack_as'] }}@localhost/database?sslmode=disable"
+dsn="postgres://chirpstack_as:[% postgres_passwords['chirpstack_as'] %]@localhost/chirpstack_as?sslmode=disable"
 
 
 # Redis settings
@@ -82,10 +84,10 @@ url="redis://localhost:6379"
     server="tcp://localhost:1883"
 
     # Connect with the given username (optional)
-    username=""
+    username="[% customer_name %]"
 
     # Connect with the given password (optional)
-    password=""
+    password="[% mosquitto_passwd %]"
 
 
     # Settings for the "internal api"
@@ -121,7 +123,7 @@ url="redis://localhost:6379"
 
     # JWT secret used for api authentication / authorization
     # You could generate this by executing 'openssl rand -base64 32' for example
-    jwt_secret=""
+    jwt_secret="verysecret"
 
 
 # Join-server configuration.
