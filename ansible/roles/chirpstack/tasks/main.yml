@@ -45,7 +45,7 @@
 - name: Start and enable chirpstack services
   systemd:
     name: chirpstack-{{ item }}-server
-    state: started
+    state: restarted
     enabled: yes
   loop:
     - "application"

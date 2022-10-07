@@ -13,7 +13,7 @@
 - name: Start and enable postgres
   systemd:
     name: postgresql@13-main.service
-    state: started
+    state: restarted
     enabled: yes
 
 # This block is run as the user postgres

@@ -33,5 +33,5 @@
 - name: "Start and enable mosquitto"
   systemd:
     name: mosquitto.service
-    state: started
+    state: restarted
     enabled: yes

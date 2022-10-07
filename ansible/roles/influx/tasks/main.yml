@@ -27,7 +27,7 @@
 - name: Start and enable influxdb
   systemd:
     name: influxdb.service
-    state: started
+    state: restarted
     enabled: yes
 
 - name: Detect existing config
