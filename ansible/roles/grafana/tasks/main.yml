@@ -1,0 +1,33 @@
+---
+
+- name: "Install dependances"
+  apt:
+    name:
+      - "apt-transport-https"
+      - "software-properties-common"
+      - "wget"
+    state: latest
+    update_cache: yes
+
+- name: "Download Grafana GPG key"
+  get_url:
+    url: "https://packages.grafana.com/gpg.key"
+    dest: "/usr/share/keyrings/grafana.key"
+
+- name: "Make sure Grafana apt source exists"
+  lineinfile:
+    path: "/etc/apt/sources.list.d/grafana.list"
+    line: "deb [signed-by=/usr/share/keyrings/grafana.key] https://packages.grafana.com/oss/deb stable main"
+
+- name: "Install Grafana"
+  apt:
+    name: "grafana"
+    state: latest
+    update_cache: yes
+
+- name: "Start and enable Grafana"
+  systemd:
+    name: "grafana-server"
+    state: started
+    enabled: yes
+    daemon_reload: yes
