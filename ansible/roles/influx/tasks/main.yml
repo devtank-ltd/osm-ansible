@@ -1,7 +1,9 @@
+---
+
 - name: "Install InfluxDB"
-  import_playbook: "install.yml"
-  when: upgrade_influx_and_delete_everything == False
+  include_tasks: "install.yml"
+  when: not upgrade_influx_and_delete_everything
 
 - name: "Upgrade InfluxDB"
-  import_playbook: "migrate.yml"
-  when: upgrade_influx_and_delete_everything == True
+  include_tasks: "migrate.yml"
+  when: upgrade_influx_and_delete_everything

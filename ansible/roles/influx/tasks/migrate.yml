@@ -26,7 +26,7 @@
 
     - name: "Install influxdb2"
       apt:
-        name: influixdb2
+        name: influxdb2
         state: present
         update_cache: yes
 
@@ -35,19 +35,19 @@
         name: influxdb
         state: stopped
 
-    - name: "Upgrade influxdb2"
-      command: "influxd upgrade -f --v1-dir /root/influx1db --username devtank --password {{ influx_passwords['devtank'] }} --org Devtank -b sf -r 0"
-
-    - name: "Remove existing influxdb1 DB"
+    - name: "Remove existing .influxdb2 directory"
       file:
-        path: /var/lib/influxdb"
+        path: "/root/.influxdbv2"
         state: absent
+
+    - name: "Upgrade influxdb2"
+      command: "influxd upgrade -f --v1-dir /root/influx1db --username devtank --password {{ influx_passwords['devtank'] | default('changeme') }} --org Devtank -b sf -r 0"
 
     - name: "Copy migrated data"
       copy:
         remote_src: yes
-        src: "/root/.influxdbv2"
-        dest: "/var/lib/influxdb"
+        src: "/root/.influxdbv2/"
+        dest: "/var/lib/influxdb/"
         owner: influxdb
         group: influxdb
 
@@ -62,4 +62,4 @@
         state: started
         enabled: yes
 
-  when: statresult.stat.isdir
+  when: statresult.stat.exists
