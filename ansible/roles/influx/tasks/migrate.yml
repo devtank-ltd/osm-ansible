@@ -1,0 +1,65 @@
+---
+
+- name: "Check for /root/influx1db"
+  stat:
+    path: "/root/influx1db"
+  register: statresult
+
+- name: "Upgrade data to Influx 2 block"
+  block:
+
+    - name: "Purge influxdb"
+      apt:
+        name: "influxdb2"
+        state: absent
+        purge: yes
+
+    - name: "Remove influxdb2 directories"
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/var/log/influxdb"
+        - "/var/lib/influxdb"
+        - "/etc/influxdb"
+        - "/root/continuous_queries.txt"
+
+    - name: "Install influxdb2"
+      apt:
+        name: influixdb2
+        state: present
+        update_cache: yes
+
+    - name: "Stop influxdb"
+      systemd:
+        name: influxdb
+        state: stopped
+
+    - name: "Upgrade influxdb2"
+      command: "influxd upgrade -f --v1-dir /root/influx1db --username devtank --password {{ influx_passwords['devtank'] }} --org Devtank -b sf -r 0"
+
+    - name: "Remove existing influxdb1 DB"
+      file:
+        path: /var/lib/influxdb"
+        state: absent
+
+    - name: "Copy migrated data"
+      copy:
+        remote_src: yes
+        src: "/root/.influxdbv2"
+        dest: "/var/lib/influxdb"
+        owner: influxdb
+        group: influxdb
+
+    - name: "Remove src directory"
+      file:
+        path: "/root/.influxdbv2"
+        state: absent
+
+    - name: "Start influxdb2"
+      systemd:
+        name: influxdb
+        state: started
+        enabled: yes
+
+  when: statresult.stat.isdir

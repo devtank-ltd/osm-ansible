@@ -1,0 +1,62 @@
+---
+
+# We need GPG for apt_key
+- name: Install GPG
+  apt:
+    name: gpg
+    state: latest
+    update_cache: yes
+
+- name: Import influx key
+  apt_key:
+    id: "05CE15085FC09D18E99EFB22684A14CF2582E0C5"
+    url: "https://repos.influxdata.com/influxdb.key"
+    keyring: "{{ influx_keyring }}"
+
+- name: Add influx repository
+  apt_repository:
+    filename: influxdata
+    repo: "deb [signed-by={{ influx_keyring }}] https://repos.influxdata.com/debian stable main"
+
+- name: Install influxdb
+  apt:
+    name: influxdb2
+    state: latest
+    update_cache: yes
+
+- name: Start and enable influxdb
+  systemd:
+    name: influxdb.service
+    state: restarted
+    enabled: yes
+
+- name: Detect existing config
+  command: "influx config list --hide-headers"
+  register: influx_config_list
+
+- name: Initial influx setup
+  block:
+
+    - name: Generate passwords
+      set_fact:
+        influx_passwords: "{{ influx_passwords | default({}) | combine({ item: lookup('ansible.builtin.password', '/dev/null', length=16) }) }}"
+      loop:
+        - devtank
+        - grafana
+        - chirpstack
+
+    - name: Setup influx
+      command: >
+        influx setup 
+        --force 
+        --username devtank 
+        --password {{ influx_passwords['devtank'] }} 
+        --org devtank 
+        --bucket dtbucket 
+      ignore_errors: True # TODO REMOVE THIS!
+
+  when: influx_config_list.stdout_lines | length == 0 or overwrite_passwords
+
+- name: Create other influx users
+  shell: "influx user create -n {{ item.key }} -p {{ item.value }} || influx user password -n {{ item.key }} -p {{ item.value }}" 
+  loop: "{{ influx_passwords | dict2items }}"
