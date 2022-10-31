@@ -1,8 +1,8 @@
 ---
 
-- name: "Check for /root/influx1db"
+- name: "Check for {{ influx_v1_data }}"
   stat:
-    path: "/root/influx1db"
+    path: "{{ influx_v1_data }}"
   register: statresult
 
 - name: "Upgrade data to Influx 2 block"
@@ -41,7 +41,7 @@
         state: absent
 
     - name: "Upgrade influxdb2"
-      command: "influxd upgrade -f --v1-dir /root/influx1db --username devtank --password {{ influx_passwords['devtank'] | default('changeme') }} --org Devtank -b sf -r 0"
+      command: "influxd upgrade -f --v1-dir {{ influx_v1_data }} --username devtank --password {{ influx_passwords['devtank'] | default('changeme') }} --org Devtank -b sf -r 0"
 
     - name: "Copy migrated data"
       copy:
