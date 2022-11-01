@@ -26,6 +26,14 @@
     state: latest
     update_cache: yes
 
+- name: "Configure Grafana"
+  template:
+    src: grafana.ini.j2
+    dest: /etc/grafana/grafana.ini
+    owner: root
+    group: grafana
+    mode: "640"
+
 - name: "Start and enable Grafana"
   systemd:
     name: "grafana-server"
