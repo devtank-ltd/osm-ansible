@@ -41,5 +41,5 @@
 
 - name: "Note"
   debug:
-    msg: "*** REMEMBER TO REMOVE ALL REFERENCE TO {{ container_hostname }} from nginx.conf and reload! ***"
+    msg: "*** REMEMBER TO REMOVE ALL REFERENCE TO {{ container_hostname }} from nginx configs and reload! ***"
 
