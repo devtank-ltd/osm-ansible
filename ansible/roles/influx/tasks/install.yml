@@ -4,7 +4,6 @@
 - name: Install GPG
   apt:
     name: gpg
-    state: latest
     update_cache: yes
 
 - name: Import influx key
@@ -21,7 +20,6 @@
 - name: Install influxdb
   apt:
     name: influxdb2
-    state: latest
     update_cache: yes
 
 - name: Start and enable influxdb

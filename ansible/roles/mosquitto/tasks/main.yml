@@ -5,7 +5,6 @@
     name:
       - mosquitto
       - mosquitto-clients
-    state: latest
     update_cache: yes
 
 - name: Configure mosquitto

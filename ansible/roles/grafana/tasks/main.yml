@@ -6,7 +6,6 @@
       - "apt-transport-https"
       - "software-properties-common"
       - "wget"
-    state: latest
     update_cache: yes
 
 - name: "Download Grafana GPG key"
@@ -23,7 +22,6 @@
 - name: "Install Grafana"
   apt:
     name: "grafana"
-    state: latest
     update_cache: yes
 
 - name: "Configure Grafana"

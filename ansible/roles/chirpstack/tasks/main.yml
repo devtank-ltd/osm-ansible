@@ -5,7 +5,6 @@
     name:
       - apt-transport-https
       - dirmngr
-    state: latest
     update_cache: yes
 
 - name: Add chirpstack apt key
@@ -23,7 +22,6 @@
     name:
       - chirpstack-application-server
       - chirpstack-network-server
-    state: latest
 
 # These started as a loop, but ownership added complication.
 - name: "Rollout application config file"
