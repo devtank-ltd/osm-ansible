@@ -1,6 +1,3 @@
-backups/*
 lxc/containers/*
 lxc/os-bases/*
-image/image.tar.gz
-debian-rootfs
 *.lck
