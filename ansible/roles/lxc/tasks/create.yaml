@@ -14,7 +14,7 @@
     container_dir: "{{ lxc_root }}/containers/{{ container_hostname }}"
 
 - name: "Get list of container IPs"
-  shell: "cut -d, -f2 /etc/lxc/dnsmasq.conf | sort -n | tail -n1"
+  shell: "cut -d, -f2 /etc/lxc/dnsmasq.conf | sort -t . -k 3,3n -k 4,4n | tail -n1"
   register: last_container_ip
 
 - name: "Set OS base fact"
