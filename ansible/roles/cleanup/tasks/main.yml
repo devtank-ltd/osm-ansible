@@ -10,3 +10,7 @@
     msg: "Postgres password for {{ item.key }}: {{ item.value }}"
   loop: "{{ postgres_passwords | dict2items }}"
   when: overwrite_passwords
+
+- name: Print MQTT password
+  debug:
+    msg: "MQTT password for {{ customer_name }}: {{ mosquitto_passwd }}"
