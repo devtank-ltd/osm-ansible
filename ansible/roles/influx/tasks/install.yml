@@ -144,7 +144,7 @@
   tags: influx_gen_new_token
 
 - name: Create other influx users
-  shell: "influx user create -n {{ item.key }} -p {{ item.value }} || influx user password -n {{ item.key }} -p {{ item.value }}" 
+  shell: "influx user create -n '{{ item.key }}' -p '{{ item.value }}' || influx user password -n '{{ item.key }}' -p '{{ item.value }}'" 
   loop: "{{ influx_passwords | dict2items }}"
 
 - name: Create sf bucket
