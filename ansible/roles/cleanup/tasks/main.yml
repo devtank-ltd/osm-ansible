@@ -5,6 +5,11 @@
   loop: "{{ influx_passwords | dict2items }}"
   when: influx_passwords is defined and (influx_config_list.stdout_lines | length == 0 or overwrite_passwords)
 
+- name: Print Influx token
+  debug:
+    msg: "InfluxDB Token: {{ new_token }}"
+  when: new_token is defined
+
 - name: Print postgres passwords
   debug:
     msg: "Postgres password for {{ item.key }}: {{ item.value }}"

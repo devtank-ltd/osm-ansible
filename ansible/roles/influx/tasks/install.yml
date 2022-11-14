@@ -40,6 +40,7 @@
         influx_passwords: "{{ influx_passwords | default({}) | combine({ item: lookup('ansible.builtin.password', '/dev/null', length=16) }) }}"
       loop:
         - devtank
+        - customer
         - grafana
         - chirpstack
 
@@ -54,6 +55,93 @@
       ignore_errors: True
 
   when: influx_config_list.stdout_lines | length == 0 or overwrite_passwords
+
+
+- name: Generate a new authentication token
+  block:
+
+    - name: "Get current token"
+      command: 'influx auth list --json'
+      register: influx_auths
+
+    - name: "Save current token"
+      set_fact:
+        old_token: "{{ influx_auths.stdout | from_json | first | json_query('token') }}"
+        old_token_id: "{{ influx_auths.stdout | from_json | first | json_query('id') }}"
+
+    # Influx did what it does best, and introduced a bug which means I have to run this ridiculous command in order to create an all-access token.
+    # If you're reading this in the future when the bug is fixed, you may consider cleaning this up, or better yet, refining the permissions and having a read-only Grafana user.
+    # Wanna know something else??? Grafana is also horrible. If you're reading this ~ish late 2022 or so, the latest Grafana has a bug which means you can't import an InlfuxQL data source.
+    # 9.0.8 works so I had to downgrade to that just to insert the new key!!! (Working with Influx and Grafana can break a man)
+    - name: "Generate new token"
+      command: |
+        influx auth create               \
+        --json                           \
+        --org=devtank                    \
+        --description=devtank-all-access \
+        --read-authorizations            \
+        --write-authorizations           \
+        --read-buckets                   \
+        --write-buckets                  \
+        --read-dashboards                \
+        --write-dashboards               \
+        --read-tasks                     \
+        --write-tasks                    \
+        --read-telegrafs                 \
+        --write-telegrafs                \
+        --read-users                     \
+        --write-users                    \
+        --read-variables                 \
+        --write-variables                \
+        --read-secrets                   \
+        --write-secrets                  \
+        --read-labels                    \
+        --write-labels                   \
+        --read-views                     \
+        --write-views                    \
+        --read-documents                 \
+        --write-documents                \
+        --read-notificationRules         \
+        --write-notificationRules        \
+        --read-notificationEndpoints     \
+        --write-notificationEndpoints    \
+        --read-checks                    \
+        --write-checks                   \
+        --read-dbrp                      \
+        --write-dbrp                     \
+        --read-annotations               \
+        --write-annotations              \
+        --read-sources                   \
+        --write-sources                  \
+        --read-scrapers                  \
+        --write-scrapers                 \
+        --read-notebooks                 \
+        --write-notebooks                \
+        --read-remotes                   \
+        --write-remotes                  \
+        --read-replications              \
+        --write-replications             \
+        --read-orgs                      \
+        --write-orgs
+      register: create_auth_output
+
+    - name: "Parse JSON output"
+      set_fact:
+        new_token: "{{ create_auth_output.stdout | from_json | json_query('token') }}"
+
+    - name: "Change default token"
+      replace:
+        path: "/root/.influxdbv2/configs"
+        regexp: "{{ old_token }}"
+        replace: "{{ new_token }}"
+
+    - name: "Deactivate old token"
+      command: "influx auth inactive --id {{ old_token_id }}"
+
+    - name: "Delete old token"
+      command: "influx auth delete --id {{ old_token_id }}"
+
+  tags: influx_gen_new_token
 
 - name: Create other influx users
   shell: "influx user create -n {{ item.key }} -p {{ item.value }} || influx user password -n {{ item.key }} -p {{ item.value }}" 
