@@ -8,7 +8,9 @@ img {
     margin: 0 auto;
 }
 
-p {
-    margin-right: 500px;
-    margin-left: 500px;
+.center {
+    margin: auto;
+    width: 48%;
+    padding-left: 15px;
+    padding-right: 15px;
 }
