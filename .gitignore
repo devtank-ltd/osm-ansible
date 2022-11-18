@@ -2,3 +2,4 @@ lxc/containers/*
 lxc/os-bases/*
 *.lck
 README.html
+.snapshots
