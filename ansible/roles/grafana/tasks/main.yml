@@ -1,6 +1,6 @@
 ---
 
-- name: "Install dependances"
+- name: "Install dependences"
   apt:
     name:
       - "apt-transport-https"
