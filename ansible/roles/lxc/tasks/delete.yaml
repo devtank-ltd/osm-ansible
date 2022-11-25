@@ -12,6 +12,14 @@
   command: "lxc-stop '{{ container_hostname }}'"
   ignore_errors: yes
 
+- name: "Delete snapshots"
+  command: "snapper -c {{ container_hostname }} list --columns number | tail -n +4 | xargs snapper -c {{ container_hostname }} delete"
+  ignore_errors: yes
+
+- name: "Delete snapper config"
+  command: "snapper -c {{ container_hostname }} delete-config"
+  ignore_errors: yes
+
 - name: "Delete the container subvolume"
   command: "btrfs subvolume delete '{{ container_dir }}'"
 
