@@ -66,6 +66,9 @@
     line: "{{ container_ip_address }} {{ container_hostname }}"
     state: present
 
+- name: "Create a snapper config"
+  shell: "snapper -c {{ container_hostname }} create-config {{ container_dir }}"
+
 - name: "Restart lxc-net"
   systemd:
     name: "lxc-net.service"
