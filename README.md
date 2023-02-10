@@ -54,6 +54,7 @@ Internet access from containers is achieved via NAT.
 This means the containers can communicate with eachother, as well as the host.  
 NGINX uses these internal addresses to pass traffic to the containers.  
 The addresses are given to the containers via DHCP. LXC spawns a dnsmasq instance using addresses defined in `/etc/lxc/dnsmasq.conf`.  
+Ansible defines each container's hostname in `/etc/hosts`.  
 
 ### Container storage and configuration
 
@@ -114,7 +115,7 @@ Example:
 
 ### Provisioning a container
 
-To provision a container after creation, the `provision-container.yaml` playbook takes the manditory following options:  
+To provision a container after creation, the `provision-container.yaml` playbook takes the following options:  
 | Option             | Description                                                                 |
 | ------------------ | --------------------------------------------------------------------------- |
 | target             | The hostname of the container to provision                                  |
@@ -140,9 +141,9 @@ Example:
 ## Backups
 
 Server backups are hosted on an "osmbackup" container in the Devtank office.  
-Every night, a cron job defined in `/etc/cron.d/osm-backup` runs a `btrbk` backup to `/srv/backups/lxc/` and logs the job to `/var/log/osm-backup`.
+Every night, a cron job defined in `/etc/cron.d/osm-backup` runs a [btrbk](https://github.com/digint/btrbk) backup to `/srv/backups/lxc/` and logs the job to `/var/log/osm-backup`.
 
 ## Possible improvements
 
-- We currently use the IONOS firewall, which only allow max. 15 ports for any given protocol. We need to implement our own firewall on the server.
+- We currently use the IONOS firewall, which only allow a maximum of 15 ports for any given protocol. We need to implement our own firewall on the server.
 - Monitoring and alerting could be improved.
