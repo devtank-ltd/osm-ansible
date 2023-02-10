@@ -72,7 +72,11 @@ To stop a container, just run:
 `lxc-stop <container>`
 
 ### Snapshots
-WRITE THIS OUT  
+[Snapper](http://snapper.io/) is used to take BTRFS filesystem snapshots of each container's subvolume.  
+The configurations are stored in `/etc/snapper/configs/`.  
+Please see the snapper documentation for more information.  
+To restore a snapshot, the snapshot data can be copied to the container rootfs. USE CAUTION:  
+`rsync -av --delete /srv/osm-lxc/lxc/containers/<container>/.snapshots/<snap>/snapshot/rootfs-layer/ /srv/osm-lxc/lxc/containers/<container>/rootfs-layer/`  
 
 ## NGINX
 
@@ -87,6 +91,26 @@ For HTTP configurations, you will usually only need to change the `CUSTOMERNAME`
 Or edit the file manually for more complex configurations.  
 Once NGINX has been configured, reload it to apply the changes:
 `nginx -s reload`  
+
+## Ansible
+
+### Introduction
+[Ansible](https://en.wikipedia.org/wiki/Ansible_(software)) is used to automatically create, destroy, and provision containers, which includes installing and configuring the software stack.  
+The ansible files are located at `/srv/osm-lxc/ansible`.  
+To start, come up with a server name, in this example customer-svr.  
+This hostname will need to be added to the `hosts` file of the ansible directory.
+
+### Creating a container
+
+The `create-container.yaml` script takes the following options:  
+| Option             | Description                   |
+| ------------------ | ----------------------------- |
+| container_hostname | The hostname of the container |
+
+Example:
+`ansible-playbook -i hosts -e 'container_hostname=customer-svr' create-container.yaml`
+
+## Backups
 
 ## Possible improvements
 
