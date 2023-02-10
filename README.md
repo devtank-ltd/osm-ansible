@@ -102,13 +102,38 @@ This hostname will need to be added to the `hosts` file of the ansible directory
 
 ### Creating a container
 
-The `create-container.yaml` script takes the following options:  
+The `create-container.yaml` playbook takes the following options:  
 | Option             | Description                   |
 | ------------------ | ----------------------------- |
 | container_hostname | The hostname of the container |
 
 Example:
 `ansible-playbook -i hosts -e 'container_hostname=customer-svr' create-container.yaml`
+
+### Provisioning a container
+
+To provision a container after creation, the `provision-container.yaml` playbook takes the manditory following options:  
+| Option             | Description                                                                 |
+| ------------------ | --------------------------------------------------------------------------- |
+| target             | The hostname of the container to provision                                  |
+| customer_name      | Used as the MQTT username, and other configurations                         |
+| base_domain        | The web domain for the Grafana instance                                     |
+| mosquitto_passwd   | Optional. The password to use for MQTT. Randomly generated if not provided. |
+
+For `base_domain`, this should be the domain to use for Grafana.
+
+Example:
+`ansible-playbook -i hosts -e 'target=customer-svr customer_name=customer base_domain=customer.opensmartmonitor.devtank.co.uk' provision-container.yaml`
+
+### Deleting a container
+
+To delete a container with Ansible, the `delete-container.yaml` playbook takes the following options:  
+| Option             | Description                   |
+| ------------------ | ----------------------------- |
+| container_hostname | The hostname of the container |
+
+Example:
+`ansible-playbook -i hosts -e 'container_hostname=customer-svr' delete-container.yaml`
 
 ## Backups
 
