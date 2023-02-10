@@ -100,7 +100,7 @@ The ansible files are located at `/srv/osm-lxc/ansible`.
 To start, come up with a server name, in this example customer-svr.  
 This hostname will need to be added to the `hosts` file of the ansible directory.  
 
-After a container has been created an provisioned, it will need an nginx config file as explained in [NGINX](#NGINX), and a port will need to be opened the custom MQTT port on the IONOS web console firewall.  
+After a container has been created an provisioned, it will need an nginx config file as explained in [NGINX](#nginx), and a port will need to be opened the custom MQTT port on the IONOS web console firewall.  
 
 ### Creating a container
 
