@@ -69,10 +69,8 @@
         old_token: "{{ influx_auths.stdout | from_json | first | json_query('token') }}"
         old_token_id: "{{ influx_auths.stdout | from_json | first | json_query('id') }}"
 
-    # Influx did what it does best, and introduced a bug which means I have to run this ridiculous command in order to create an all-access token.
-    # If you're reading this in the future when the bug is fixed, you may consider cleaning this up, or better yet, refining the permissions and having a read-only Grafana user.
-    # Wanna know something else??? Grafana is also horrible. If you're reading this ~ish late 2022 or so, the latest Grafana has a bug which means you can't import an InlfuxQL data source.
-    # 9.0.8 works so I had to downgrade to that just to insert the new key!!! (Working with Influx and Grafana can break a man)
+    # The command to create and all-access token is broken due to an Influx2 bug.
+    # TODO fix this when the bug is fixed and/or revise permissions.
     - name: "Generate new token"
       command: |
         influx auth create               \
