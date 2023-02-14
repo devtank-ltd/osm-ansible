@@ -22,7 +22,7 @@ The overall process of collecting and viewing data is as follows:
 
 
 The DNS wildcard **\*.opensmartmonitor.devtank.co.uk** is pointed to the OSM server.  
-Each customer gets a few subdomains of opensmartmonitor.devtank.co.uk  
+Each customer gets a few subdomains of opensmartmonitor.devtank.co.uk.  
 Generally, these are:
 
 - customer.opensmartmonitor.devtank.co.uk
