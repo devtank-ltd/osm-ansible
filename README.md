@@ -142,7 +142,7 @@ Example:
 ## Backups
 
 Server backups are hosted on an "osmbackup" container in the Devtank office.  
-Every night, a cron job defined in `/etc/cron.d/osm-backup` runs an rsync backup to `/srv/backups/lxc/` and logs the job to `/var/log/osm-backup`.  
+Every night, a cron job defined in `/etc/cron.d/osm-backup` on the OSM server runs an rsync backup to `/srv/backups/lxc/` on the backup server and logs the job to `/var/log/osm-backup`.  
 Snapper takes snapshots of these backups.
 
 ## Possible improvements
