@@ -3,3 +3,4 @@ lxc/os-bases/*
 *.lck
 README.html
 .snapshots
+lxc.2023*
