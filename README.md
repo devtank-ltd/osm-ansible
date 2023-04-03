@@ -29,7 +29,7 @@ Generally, these are:
 - customer-influx.opensmartmonitor.devtank.co.uk
 - customer-chirpstack.opensmartmonitor.devtank.co.uk
 
-Where *customer* is the chosen customer name, like *tiger-assemblies* or *pragmatic*.  
+Where *customer* is the chosen customer name.  
 These domains correspond to the Grafana, InfluxDB2 and Chirpstack web interfaces respectively.  
 The convention is to use a dash where a space would naturally be.  
 
