@@ -148,12 +148,12 @@ Snapper takes snapshots of these backups.
 
 ## Guide: Provisioning a new customer
 
-The following section will explain the steps required to fully provision a new customer container.
+The following section will explain the steps required to fully provision a new customer container.  
 
-Before we start, the shell commands in this guide assume you're logged into the OSM server as root with `/srv/osm-lxc/ansible/` as your working directory:
-`root@opensmartmonitor:~# cd /srv/osm-lxc/ansible/`
+Before we start, the shell commands in this guide assume you're logged into the OSM server as root with `/srv/osm-lxc/ansible/` as your working directory:  
+`root@opensmartmonitor:~# cd /srv/osm-lxc/ansible/`  
 
-The shell variables below can be modified and applied to your shell in order to execute the commands in this guide:
+The shell variables below can be modified and applied to your shell in order to execute the commands in this guide:  
 ```sh
 CONTAINER_HOSTNAME='customer-svr'
 CUSTOMER_NAME='customer' # Used as the MQTT username and the base domain.
@@ -161,28 +161,28 @@ BASE_DOMAIN="${CUSTOMER_NAME}.opensmartmonitor.devtank.co.uk" # The web domain f
 MQTT_PORT='1337' # Look at the customers container NEW sheet, assign the next free MQTT port; increment the highest used port by one.
 ```
 
-1. Create the container:
+1. Create the container:  
 `ansible-playbook -i hosts -e "container_hostname=${CONTAINER_HOSTNAME}" create-container.yaml`
-2. Add the new container to the ansible hosts file:
+2. Add the new container to the ansible hosts file:  
 `echo "${CONTAINER_HOSTNAME}" >> hosts`
-3. Provision the container (take note of the returned credentials):
+3. Provision the container (take note of the returned credentials):  
 `ansible-playbook -i hosts -e "target=${CONTAINER_HOSTNAME} customer_name=${CUSTOMER_NAME} base_domain=${BASE_DOMAIN}" provision-container.yaml`
-4. Configure the nginx HTTP config:
+4. Configure the nginx HTTP config:  
 `cp /etc/nginx/devtank/customers.http.d/{TEMPLATE,${CONTAINER_HOSTNAME}.conf}`
 `sed -i "s/CUSTOMERNAME/${CUSTOMER_NAME}/g" /etc/nginx/devtank/customers.http.d/${CONTAINER_HOSTNAME}.conf`
-5. Configure the nginx MQTT config:
+5. Configure the nginx MQTT config:  
 `cp /etc/nginx/devtank/customers.stream.d/{TEMPLATE,${CONTAINER_HOSTNAME}.conf}`
 `sed -i -e "s/1891/${MQTT_PORT}/g" -e "s/targetcontainer/${CONTAINER_HOSTNAME}/g" /etc/nginx/devtank/customers.stream.d/${CONTAINER_HOSTNAME}.conf`
-6. Open a firewall port for MQTT:
+6. Open a firewall port for MQTT:  
 `ufw allow ${MQTT_PORT}`
-7. Check and reload nginx:
+7. Check and reload nginx:  
 `nginx -t && nginx -s reload`
-9. Generate 2 random passwords. This can be done with `pwgen -sy 18 2`.
-8. In a browser, go to the Grafana domain you defined in $BASE_DOMAIN.
+8. Generate 2 random passwords. This can be done with `pwgen -sy 18 2`.  
+9. In a browser, go to the Grafana domain you defined in $BASE_DOMAIN.  
 You should see a Grafana instance load. Login as admin:admin. Change the password to one of the generated passwords.
-9. Repeat the previous step, but for Chirpstack.
-10. Fill out the [Customers Containers NEW](https://cloud.devtank.co.uk/openproject/projects/jn050-uod-smartfactorysensors/wiki/customers-containers-new) sheet with all of the server credentials
-11. Test the new instance.
+10. Repeat the previous step, but for Chirpstack.  
+11. Fill out the [Customers Containers NEW](https://cloud.devtank.co.uk/openproject/projects/jn050-uod-smartfactorysensors/wiki/customers-containers-new) sheet with all of the server credentials  
+12. Test the new instance.  
 
 ## Possible improvements
 
