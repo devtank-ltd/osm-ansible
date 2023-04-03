@@ -155,8 +155,8 @@ Before we start, the shell commands in this guide assume you're logged into the 
 
 The shell variables below can be modified and applied to your shell in order to execute the commands in this guide:  
 ```sh
-CONTAINER_HOSTNAME='customer-svr'
 CUSTOMER_NAME='customer' # Used as the MQTT username and the base domain.
+CONTAINER_HOSTNAME="${CUSTOMER_NAME}-svr"
 BASE_DOMAIN="${CUSTOMER_NAME}.opensmartmonitor.devtank.co.uk" # The web domain for the Grafana instance
 MQTT_PORT='1337' # Look at the customers container NEW sheet, assign the next free MQTT port; increment the highest used port by one.
 ```
