@@ -85,7 +85,7 @@ To restore a snapshot, the snapshot data can be copied to the container rootfs. 
 ### Configuration
 
 All customer/devtank nginx configurations are defined in `/etc/nginx/devtank/`, and are included in `/etc/nginx/nginx.conf`.  
-The config directory, is split into two parts, one for `http` and `stream` configurations respectively.  
+The config directory is split into two parts, one for `http` and `stream` configurations respectively.  
 To create a new configuration for a container within the http or stream directories, copy the `TEMPLATE` file to a new config:  
 `cp TEMPLATE customer-svr.conf`  
 For HTTP configurations, you will usually only need to change the `CUSTOMERNAME`, which will be the subdomain to use:  
