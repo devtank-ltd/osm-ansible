@@ -168,10 +168,10 @@ MQTT_PORT='1337' # Look at the customers container NEW sheet, assign the next fr
 3. Provision the container (take note of the returned credentials):  
 `ansible-playbook -i hosts -e "target=${CONTAINER_HOSTNAME} customer_name=${CUSTOMER_NAME} base_domain=${BASE_DOMAIN}" provision-container.yaml`
 4. Configure the nginx HTTP config:  
-`cp /etc/nginx/devtank/customers.http.d/{TEMPLATE,${CONTAINER_HOSTNAME}.conf}`
+`cp /etc/nginx/devtank/customers.http.d/{TEMPLATE,${CONTAINER_HOSTNAME}.conf}`  
 `sed -i "s/CUSTOMERNAME/${CUSTOMER_NAME}/g" /etc/nginx/devtank/customers.http.d/${CONTAINER_HOSTNAME}.conf`
 5. Configure the nginx MQTT config:  
-`cp /etc/nginx/devtank/customers.stream.d/{TEMPLATE,${CONTAINER_HOSTNAME}.conf}`
+`cp /etc/nginx/devtank/customers.stream.d/{TEMPLATE,${CONTAINER_HOSTNAME}.conf}`  
 `sed -i -e "s/1891/${MQTT_PORT}/g" -e "s/targetcontainer/${CONTAINER_HOSTNAME}/g" /etc/nginx/devtank/customers.stream.d/${CONTAINER_HOSTNAME}.conf`
 6. Open a firewall port for MQTT:  
 `ufw allow ${MQTT_PORT}`
