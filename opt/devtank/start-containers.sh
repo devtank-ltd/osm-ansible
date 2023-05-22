@@ -1,9 +1,16 @@
 #!/bin/bash
 
+mkdir -p /srv/osm-lxc/lxc/logs
+
 containers=(/srv/osm-lxc/lxc/containers/*)
 for container in "${containers[@]}"; do
-	lxc-ls | grep -q "$(basename $container)" && continue
-	lxc-start -n "$(basename $container)" -f "$container/lxc.container.conf" && \
+	name="$(basename $container)"
+	if [ ! -e "$container/lxc.container.conf" ]
+	then
+		continue
+	fi
+	lxc-ls | grep -q "$name" && continue
+	lxc-start -n "$name" -l WARN -o "/srv/osm-lxc/lxc/logs/$name.log" -f "$container/lxc.container.conf" && \
 		echo "Container $container started" || \
 		echo "Error starting container $container"
 done
