@@ -45,8 +45,8 @@ Then that OSM Host machine for that *customer* is connected to and the connectio
 ### Introduction
 
 The LXC setup on the server uses the lower-level LXC tools.
-The reason for this was a layered/overlayFS solution was desired (a [Union mount](https://en.wikipedia.org/wiki/Union_mount)), to keep disk usage to a minimum and ensure container OS/software upgrades could be applied without much duplication.
-This means the data for each customer's container simply consists of a "top layer", on top of a common, shared, debian OS filesystem.
+A *customer* container is an overlay on a common Debian base. (Using OverlayFS).
+This reduces resource use and means backups are purely *customer* data and configuration, not a whole OS.
 
 All commands in this tutorial are assumed to be run as root.
 
@@ -57,7 +57,6 @@ To view the running containers, run the following command:
 
 All containers are running in the same private `10.0.3.0/24` network via the host bridge lxcbr0, defined in `/etc/default/lxc-net`.
 Internet access from containers is achieved via NAT.
-This means the containers can communicate with eachother, as well as the host.
 NGINX uses these internal addresses to pass traffic to the containers.
 The addresses are given to the containers via DHCP. LXC spawns a dnsmasq instance using addresses defined in `/etc/lxc/dnsmasq.conf`.
 Ansible defines each container's hostname in `/etc/hosts`.
