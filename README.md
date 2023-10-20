@@ -7,9 +7,6 @@
 ---
 # Devtank Open Smart Monitor Hosting
 
-<img src="dns.png" width="200"/>
-<img src="osm-architecture.png" width="750"/>
-
 ## Overview
 
 Devtank manages OpenSmartMonitor infrastructure, which allows customers to view their collected monitoring data.
@@ -35,6 +32,13 @@ Generally, these are:
 Where *customer* is the chosen customer name.
 These domains correspond to the Grafana, InfluxDB2 and Chirpstack web interfaces respectively.
 The convention is to use a dash where a space would naturally be.
+
+So first there is a DNS lookup for which OSM Host the *customer* container is on:
+<br><img src="dns.png" width="200"/>
+
+Then that OSM Host machine for that *customer* is connected to and the connection is sent on to the *customer* container.
+<br><img src="osm-architecture.png" width="750"/>
+
 
 ## LXC
 
