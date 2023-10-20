@@ -7,6 +7,7 @@
 ---
 # Devtank Open Smart Monitor Hosting
 
+<img src="dns.png" width="750"/>
 <img src="osm-architecture.png" width="750"/>
 
 ## Overview
