@@ -40,7 +40,6 @@ The convention is to use a dash where a space would naturally be.
 The LXC setup on the server uses the older, lower-level LXC tools, instead of the newer LXD.  
 The reason for this was a layered/overlayFS solution was desired (a [Union mount](https://en.wikipedia.org/wiki/Union_mount)), to keep disk usage to a minimum and ensure container OS/software upgrades could be applied without much duplication.  
 This means the data for each customer's container simply consists of a "top layer", on top of a common, shared, debian OS filesystem.  
-The result of this requirement has resulted in something rather more... hacky than an LXD solution.  
 
 All commands in this tutorial are assumed to be run as root.  
 
