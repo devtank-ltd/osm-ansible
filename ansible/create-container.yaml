@@ -4,3 +4,12 @@
     create_container: True
   roles:
     - { role: lxc, tags: lxc }
+    - { role: system, tags: system }
+    - { role: redis, tags: redis }
+    - { role: mosquitto, tags: mosquitto }
+    - { role: influx, tags: influx }
+    - { role: postgres, tags: postgres }
+    - { role: chirpstack, tags: chirpstack }
+    - { role: grafana, tags: grafana }
+    - { role: finalize, tags: finalize }
+    - { role: cleanup, tags: cleanup }

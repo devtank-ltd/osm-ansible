@@ -4,6 +4,12 @@
   set_fact:
     container_dir: "{{ lxc_root }}/containers/{{ container_hostname }}"
 
+- name: "Remove NGINX configs"
+  command: "rm /etc/nginx/devtank/customers.*/{{ container_hostname }}.conf"
+
+- name: "Reload NGINX"
+  command: "nginx -t && nginx -s reload"
+
 - name: "Get MAC address"
   command: "awk '/lxc.net.0.hwaddr/ { print $3 }' '{{ container_dir }}/lxc.container.conf'"
   register: container_hwaddr

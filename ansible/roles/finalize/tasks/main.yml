@@ -1,0 +1,13 @@
+---
+
+- name: "Create NGINX HTTP configs"
+  command: "sed 's/CUSTOMERNAME/{{ container_hostname }}/g' /etc/nginx/devtank/customers.http.d/TEMPLATE > /etc/nginx/devtank/customers.http.d/{{ container_hostname }}.conf"
+
+- name: "Create NGINX MQTT config"
+  command: "sed -e "s/1891/{{ mqtt_port }}/g" -e "s/targetcontainer/{{ container_hostname }}/g" /etc/nginx/devtank/customers.stream.d/TEMPLATE > /etc/nginx/devtank/customers.stream.d/{{ container_hostname }}.conf"
+
+- name: "Open UFW port"
+  command: "ufw allow {{ mqtt_port }}"
+
+- name: "Reload NGINX"
+  command: "nginx -t && nginx -s reload"

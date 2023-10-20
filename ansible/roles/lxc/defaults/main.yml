@@ -3,4 +3,8 @@
 
 create_container: False
 delete_container: False
+root_domain: "opensmartmonitor.devtank.co.uk"
 lxc_root: "/srv/osm-lxc/lxc"
+container_hostname: "{{ customer_name }}-svr"
+target: "{{ container_hostname }}"
+base_domain: "{{ customer_name }}.{{ root_domain }}"
