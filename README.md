@@ -20,9 +20,11 @@ The overall process of collecting and viewing data is as follows:
 4. Within the container, chirpstack will use mosquitto to subscribe to OSM call-ins. Once chirpstack receives data, it processes it and inserts the data into an InfluxDB2 database.
 5. The Grafana instance can then graph this data using the local InfluxDB database. The customer can access Grafana via the aforementioned NGINX server, using [Name-based virtual hosting](https://en.wikipedia.org/wiki/Virtual_hosting#Name-based).
 
+Behind the scenes, different OpenSmartMonitor customers containers are running on different servers.
+The domains of the address of the OpenSmartMonitor customers is handled by a Devtank DNS server.
+This will return the right server for the customer.
 
-The DNS wildcard **\*.opensmartmonitor.devtank.co.uk** is pointed to the OSM server.
-Each customer gets a few subdomains of opensmartmonitor.devtank.co.uk.
+Each customer container may multiple domains to access different services.
 Generally, these are:
 
 - customer.opensmartmonitor.devtank.co.uk
@@ -37,7 +39,7 @@ The convention is to use a dash where a space would naturally be.
 
 ### Introduction
 
-The LXC setup on the server uses the older, lower-level LXC tools, instead of the newer LXD.
+The LXC setup on the server uses the lower-level LXC tools.
 The reason for this was a layered/overlayFS solution was desired (a [Union mount](https://en.wikipedia.org/wiki/Union_mount)), to keep disk usage to a minimum and ensure container OS/software upgrades could be applied without much duplication.
 This means the data for each customer's container simply consists of a "top layer", on top of a common, shared, debian OS filesystem.
 
