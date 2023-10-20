@@ -1,0 +1,4 @@
+server {
+	listen 1891 ssl;
+	proxy_pass targetcontainer:1883;
+}
