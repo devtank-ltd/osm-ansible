@@ -45,7 +45,7 @@ Then that OSM Host machine for that *customer* is connected to and the connectio
 ### Introduction
 
 The LXC setup on the server uses the lower-level LXC tools.
-A *customer* container is an overlay on a common Debian base. (Using OverlayFS).
+A *customer* container is an Btrfs subvolume overlay on a common Debian base. (Using OverlayFS).
 This reduces resource use and means backups are purely *customer* data and configuration, not a whole OS.
 
 All commands in this tutorial are assumed to be run as root.
