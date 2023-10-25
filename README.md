@@ -100,8 +100,6 @@ The ansible files are located at `/srv/osm-lxc/ansible`.
 To start, come up with a server name, in this example customer-svr.
 This hostname will need to be added to the `hosts` file of the ansible directory.
 
-After a container has been created an provisioned, it will need an nginx config file as explained in [NGINX](#nginx), and a port will need to be opened for the custom MQTT port on the UFW firewall.
-
 ### Creating a container
 
 The `create-container.yaml` playbook takes the following options:
@@ -112,7 +110,7 @@ The `create-container.yaml` playbook takes the following options:
 
 
 Example:
-`ansible-playbook -i hosts -e 'container_hostname=customer-svr' create-container.yaml`
+`ansible-playbook -i hosts -e 'container_hostname=customer-svr mqtt_port=1883' create-container.yaml`
 
 ### Deleting a container
 
