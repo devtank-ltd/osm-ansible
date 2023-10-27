@@ -3,6 +3,8 @@ import paramiko
 import argparse
 import weakref
 import logging
+import pymysql
+import yaml
 import sys
 import os
 from collections import namedtuple
@@ -143,7 +145,16 @@ class osm_orchestrator(object):
 
 
 def main():
-    osm_orch = osm_orchestrator(None)
+    config = yaml.safe_load(open("config.yaml"))
+
+    db = pymysql.connect(database=config["dbname"],
+                         user=config["user"],
+                         password=config["password"],
+                         host=config["host"],
+                         port=config.get("port", 3306),
+                         connect_timeout=10)
+
+    osm_orch = osm_orchestrator(db)
 
     cmd_entry = namedtuple("cmd_entry", ["help", "func"])
 
