@@ -11,5 +11,7 @@ CREATE TABLE osm_customers (
     osm_hosts_id    INTEGER NOT NULL,
     name    TEXT NOT NULL,
     host_mqtt_port  INTEGER NOT NULL,
+    active_since BIGINT NOT NULL,
+    active_before BIGINT,
     FOREIGN KEY(osm_hosts_id) REFERENCES osm_hosts (id)
 );
