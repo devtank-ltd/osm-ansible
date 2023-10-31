@@ -10,19 +10,19 @@ import os
 from collections import namedtuple
 
 
-SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, username, capacity) VALUES('%s', '%s', '%s', %u)"
+SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, username, capacity) VALUES(%s, %s, %s, %u)"
 SQL_DEL_HOST = "DELETE FROM osm_hosts WHERE id=%u"
-SQL_GET_HOST = "SELECT id FROM osm_hosts WHERE name='%s'"
+SQL_GET_HOST = "SELECT id FROM osm_hosts WHERE name=%s"
 
-SQL_GET_HOST_BY_CUSTOMER = "SELECT osm_customers.osm_hosts_id FROM osm_customers WHERE name='%s'"
+SQL_GET_HOST_BY_CUSTOMER = "SELECT osm_customers.osm_hosts_id FROM osm_customers WHERE name=%s"
 
 SQL_HOST_GET_NAME     = "SELECT name FROM osm_hosts WHERE id=%u"
 SQL_HOST_GET_IP_ADDR  = "SELECT ip_addr FROM osm_hosts WHERE id=%u"
 SQL_HOST_GET_USERNAME = "SELECT username FROM osm_hosts WHERE id=%u"
 SQL_HOST_GET_CAPACITY = "SELECT capacity FROM osm_hosts WHERE id=%u"
 
-SQL_ADD_CUSTOMER = "INSERT INTO osm_customers (osm_hosts_id, name, host_mqtt_port, active_since) VALUES(%u, '%s', %u, UNIX_TIMESTAMP())"
-SQL_DEL_CUSTOMER = "UPDATE osm_customers SET active_before=UNIX_TIMESTAMP() WHERE osm_hosts_id=%u AND name='%s'"
+SQL_ADD_CUSTOMER = "INSERT INTO osm_customers (osm_hosts_id, name, host_mqtt_port, active_since) VALUES(%u, %s, %u, UNIX_TIMESTAMP())"
+SQL_DEL_CUSTOMER = "UPDATE osm_customers SET active_before=UNIX_TIMESTAMP() WHERE osm_hosts_id=%u AND name=%s"
 
 SQL_GET_FREEST_HOST = """
 SELECT id, (
@@ -50,7 +50,7 @@ def get_ssh_connect(ip_addr, username):
     ssh = paramiko.SSHClient()
     ssh.load_host_keys(os.environ["HOME"] + '/.ssh/known_hosts')
     try:
-        ssh.connect(ip_addr, username=self.username, timeout=2)
+        ssh.connect(ip_addr, username=username, timeout=2)
         return ssh
     except TimeoutError:
         return None
@@ -61,21 +61,24 @@ def get_ssh_connect(ip_addr, username):
 
 
 def do_db_single_query(db, cmd, args):
-    logging.debug(cmd % args)
     with db.cursor() as c:
-        c.execute(cmd, args)
+        full_cmd = c.mogrify(cmd, args)
+        c.execute(full_cmd)
+        logging.debug(full_cmd)
         return c.fetchone()
 
 def do_db_update(db, cmd, args):
-    logging.debug(cmd % args)
     with db.cursor() as c:
-        c.execute(cmd, args)
+        full_cmd = c.mogrify(cmd, args)
+        c.execute(full_cmd)
+        logging.debug(full_cmd)
     db.commit()
 
 def do_db_insert(db, cmd, args):
-    logging.debug(cmd % args)
     with db.cursor() as c:
-        c.execute(cmd, args)
+        full_cmd = c.mogrify(cmd, args)
+        c.execute(full_cmd)
+        logging.debug(full_cmd)
         row_id = c.lastrowid
     db.commit()
     return row_id
