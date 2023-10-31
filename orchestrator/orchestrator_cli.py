@@ -60,6 +60,27 @@ def get_ssh_connect(ip_addr, username):
         return None
 
 
+def do_db_single_query(db, cmd, args):
+    logging.debug(cmd % args)
+    with db.cursor() as c:
+        c.execute(cmd, args)
+        return c.fetchone()
+
+def do_db_update(db, cmd, args):
+    logging.debug(cmd % args)
+    with db.cursor() as c:
+        c.execute(cmd, args)
+    db.commit()
+
+def do_db_insert(db, cmd, args):
+    logging.debug(cmd % args)
+    with db.cursor() as c:
+        c.execute(cmd, args)
+        row_id = c.lastrowid
+    db.commit()
+    return row_id
+
+
 
 class osm_host_t(object):
     def __init__(self, db, db_id):
@@ -71,10 +92,7 @@ class osm_host_t(object):
         self._capacity = None
 
     def _look_by_id(self, cmd):
-        with self.db as c:
-            c.execute(cmd, (self.id,))
-            row = c.fetchone()
-            return row[0]
+        return do_db_single_query(self.db, cmd, (self.id,))
 
     @property
     def name(self):
@@ -104,14 +122,10 @@ class osm_host_t(object):
         pass
 
     def _add_customer_to_database(self, customer_name, mqtt_port):
-        with self.db as c:
-            c.execute(SQL_ADD_CUSTOMER, (self.id, customer_name, mqtt_port))
-        self.db.commit()
+        do_db_insert(self.db, SQL_ADD_CUSTOMER, (self.id, customer_name, mqtt_port))
 
     def _del_customer_to_database(self, customer_name):
-        with self.db as c:
-            c.execute(SQL_DEL_CUSTOMER, (self.id, customer_name))
-        self.db.commit()
+        do_db_update(self.db, SQL_DEL_CUSTOMER, (self.id, customer_name))
 
     def get_ssh(self):
         current = self._ssh_ref()
@@ -177,30 +191,24 @@ class osm_orchestrator_t(object):
         self.db = db
 
     def _find_free_osm_host(self):
-        with self.db as c:
-            c.execute(SQL_GET_FREEST_HOST, (customer_name,))
-            row = c.fetchone()
-            if row:
-                osm_host = osm_host_t(self.db, row[0])
-                if osm_host:
-                    utilization = row[1]
-                    used = int(utilization * osm_host.capacity)
-                    if used < osm_host.capacity:
-                        return osm_host
+        row = do_db_single_query(self.db, SQL_GET_FREEST_HOST, (customer_name,))
+        if row:
+            osm_host = osm_host_t(self.db, row[0])
+            if osm_host:
+                utilization = row[1]
+                used = int(utilization * osm_host.capacity)
+                if used < osm_host.capacity:
+                    return osm_host
 
     def _find_osm_host_of(self, customer_name):
-        with self.db as c:
-            c.execute(SQL_GET_HOST_BY_CUSTOMER, (customer_name,))
-            row = c.fetchone()
-            if row:
-                return osm_host_t(self.db, row[0])
+        row = do_db_single_query(self.db, SQL_GET_HOST_BY_CUSTOMER, (customer_name,))
+        if row:
+            return osm_host_t(self.db, row[0])
 
     def find_osm_host(self, name):
-        with self.db as c:
-            c.execute(SQL_GET_HOST, (name,))
-            row = c.fetchone()
-            if row:
-                return osm_host_t(self.db, row[0])
+        row = do_db_single_query(self.db, SQL_GET_HOST, (name,))
+        if row:
+            return osm_host_t(self.db, row[0])
 
     def add_osm_customer(self, customer_name):
         osm_host = self._find_osm_host_of(customer_name)
@@ -236,9 +244,7 @@ class osm_orchestrator_t(object):
             return os.EX_CONFIG
         del ssh
 
-        with self.db as c:
-            c.execute(SQL_ADD_HOST, (host_name, ip_addr, username, capcaity))
-        self.db.commit()
+        do_db_insert(self.db, SQL_ADD_HOST, (host_name, ip_addr, username, capcaity))
 
     def del_osm_host(self, host_name):
         osm_host = self.find_osm_host(host_name)
@@ -246,9 +252,7 @@ class osm_orchestrator_t(object):
             logging.warning(f'No osm host of name "{host_name}"')
             return os.EX_CONFIG
 
-        with self.db as c:
-            c.execute(SQL_DEL_HOST, (osm_host.id))
-        self.db.commit()
+        do_db_update(self.db, SQL_DEL_HOST, (osm_host.id))
 
 
 
@@ -286,7 +290,8 @@ def main():
         sys.exit(os.EX_USAGE)
 
     cmd_func = commands[args.command[0]].func
-    sys.exit(cmd_func(args.command[1:]))
+    func_args = args.command[1:]
+    sys.exit(cmd_func(*func_args))
 
 
 if __name__ == "__main__":
