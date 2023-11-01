@@ -181,10 +181,13 @@ class osm_host_t(object):
 
         ssh = self.get_ssh()
 
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f"echo {mqtt_port} >> ~/remote_requests/new_host/{customer_name}")
-        if is_not_empty(ssh_stdout, "No stdout expected") or \
-           is_not_empty(ssh_stderr, "No stderr expected"):
-               return False
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f'/srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}')
+        error_code = ssh.recv_exit_status()
+        if error_code:
+            logging.error(f"Container creation failed : {os.strerror(error_code)}")
+            return False
+        if is_not_empty(ssh_stderr, "No stderr expected"):
+            return False
 
         start_end = time.monotonic() + timeout
 
@@ -197,14 +200,16 @@ class osm_host_t(object):
         return False
 
 
-
     def del_osm_customer(self, customer_name, timeout=4):
         ssh = self.get_ssh()
 
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f"touch ~/remote_requests/del_host/{customer_name}")
-        if is_not_empty(ssh_stdout, "No stdout expected") or \
-           is_not_empty(ssh_stderr, "No stderr expected"):
-               return False
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f'/srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}"')
+        error_code = ssh.recv_exit_status()
+        if error_code:
+            logging.error(f"Container creation failed : {os.strerror(error_code)}")
+            return False
+        if is_not_empty(ssh_stderr, "No stderr expected"):
+            return False
 
         start_end = time.monotonic() + timeout
 
