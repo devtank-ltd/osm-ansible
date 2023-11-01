@@ -34,6 +34,16 @@ SELECT id, (
 ORDER BY utilization ASC LIMIT 1
 """
 
+SQL_PDNS_ADD_CUSTOMER = """
+INSERT INTO records
+(domain_id, name, content, type, ttl, prio)
+VALUES(%u, %s, %s, 'CNAME', 10800, 0)
+"""
+
+SQL_PDNS_DEL_CUSTOMER = """
+DELETE FROM records WHERE domain_id=%u AND name=%s AND content=%s
+"""
+
 
 parser = argparse.ArgumentParser(description='OSM Servers Orchestrator')
 parser.add_argument('-v','--verbose', help='Info log information', action='store_true')
@@ -98,8 +108,9 @@ def do_db_insert(db, cmd, args):
 
 
 class osm_host_t(object):
-    def __init__(self, db, db_id):
-        self.db = db
+    def __init__(self, orchestrator, db_id):
+        self._orchestrator = orchestrator
+        self.db = orchestrator.db
         self.id = db_id
         self._name = None
         self._ip_addr = None
@@ -143,9 +154,11 @@ class osm_host_t(object):
 
     def _add_customer_to_database(self, customer_name, mqtt_port):
         do_db_insert(self.db, SQL_ADD_CUSTOMER, (self.id, customer_name, mqtt_port))
+        self._orchestrator.add_dns_customer(self, customer_name)
 
     def _del_customer_to_database(self, customer_name):
         do_db_update(self.db, SQL_DEL_CUSTOMER, (self.id, customer_name))
+        self._orchestrator.del_dns_customer(self, customer_name)
 
     def get_ssh(self):
         current = self._ssh_ref()
@@ -207,13 +220,39 @@ class osm_host_t(object):
 
 
 class osm_orchestrator_t(object):
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, config):
+        self._config = config
+        orch_config = config["orchestrator"]
+        self.db = pymysql.connect(**orch_config, connect_timeout=10)
+        pdns_config = config["pdns"]
+        self._pdns_db = pymysql.connect(**pdns_config, connect_timeout=10)
+
+    def add_dns_customer(self, osm_host, customer):
+        domain_id = self._config["pdns_domain_id"]
+        domain = self._config["pdns_domain"]
+
+        do_db_insert(self._pdns_db, SQL_PDNS_ADD_CUSTOMER,
+                     (domain_id, "%s.%s" % (customer, domain), osm_host.ip_addr))
+        do_db_insert(self._pdns_db, SQL_PDNS_ADD_CUSTOMER,
+                     (domain_id, "%s-chirpstack.%s" % (customer, domain), osm_host.ip_addr))
+        do_db_insert(self._pdns_db, SQL_PDNS_ADD_CUSTOMER,
+                     (domain_id, "%s-influx.%s" % (customer, domain), osm_host.ip_addr))
+
+    def del_dns_customer(self, osm_host, customer):
+        domain_id = self._config["pdns_domain_id"]
+        domain = self._config["pdns_domain"]
+
+        do_db_update(self._pdns_db, SQL_PDNS_DEL_CUSTOMER,
+                     (domain_id, "%s.%s" % (customer, domain), osm_host.ip_addr))
+        do_db_update(self._pdns_db, SQL_PDNS_DEL_CUSTOMER,
+                     (domain_id, "%s-chirpstack.%s" % (customer, domain), osm_host.ip_addr))
+        do_db_update(self._pdns_db, SQL_PDNS_DEL_CUSTOMER,
+                     (domain_id, "%s-influx.%s" % (customer, domain), osm_host.ip_addr))
 
     def _find_free_osm_host(self):
         row = do_db_single_query(self.db, SQL_GET_FREEST_HOST, (customer_name,))
         if row:
-            osm_host = osm_host_t(self.db, row[0])
+            osm_host = osm_host_t(self, row[0])
             if osm_host:
                 utilization = row[1]
                 used = int(utilization * osm_host.capacity)
@@ -223,12 +262,12 @@ class osm_orchestrator_t(object):
     def _find_osm_host_of(self, customer_name):
         row = do_db_single_query(self.db, SQL_GET_HOST_BY_CUSTOMER, (customer_name,))
         if row:
-            return osm_host_t(self.db, row[0])
+            return osm_host_t(self, row[0])
 
     def find_osm_host(self, name):
         row = do_db_single_query(self.db, SQL_GET_HOST, (name,))
         if row:
-            return osm_host_t(self.db, row[0])
+            return osm_host_t(self, row[0])
 
     def add_osm_customer(self, customer_name):
         osm_host = self._find_osm_host_of(customer_name)
@@ -279,14 +318,7 @@ class osm_orchestrator_t(object):
 def main():
     config = yaml.safe_load(open("config.yaml"))
 
-    db = pymysql.connect(database=config["dbname"],
-                         user=config["user"],
-                         password=config["password"],
-                         host=config["host"],
-                         port=config.get("port", 3306),
-                         connect_timeout=10)
-
-    osm_orch = osm_orchestrator_t(db)
+    osm_orch = osm_orchestrator_t(config)
 
     cmd_entry = namedtuple("cmd_entry", ["help", "func"])
 
