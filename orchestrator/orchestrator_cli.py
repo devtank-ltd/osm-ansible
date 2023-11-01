@@ -4,6 +4,7 @@ import argparse
 import weakref
 import logging
 import pymysql
+import crcmod
 import yaml
 import sys
 import os
@@ -21,6 +22,8 @@ SQL_HOST_GET_IP_ADDR  = "SELECT ip_addr FROM osm_hosts WHERE id=%u"
 SQL_HOST_GET_USERNAME = "SELECT username FROM osm_hosts WHERE id=%u"
 SQL_HOST_GET_CAPACITY = "SELECT capacity FROM osm_hosts WHERE id=%u"
 
+SQL_HOST_GET_USED_MQTT_PORTS = "SELECT host_mqtt_port FROM osm_customers WHERE osm_hosts_id=%u"
+
 SQL_ADD_CUSTOMER = "INSERT INTO osm_customers (osm_hosts_id, name, host_mqtt_port, active_since) VALUES(%u, %s, %u, UNIX_TIMESTAMP())"
 SQL_DEL_CUSTOMER = "UPDATE osm_customers SET active_before=UNIX_TIMESTAMP() WHERE osm_hosts_id=%u AND name=%s"
 
@@ -37,6 +40,8 @@ parser.add_argument('-v','--verbose', help='Info log information', action='store
 parser.add_argument('-d','--debug', help='Debug log information', action='store_true')
 parser.add_argument('command', type=str, help='command followed by arguments.', nargs='*')
 
+
+crc8_func = crcmod.predefined.mkCrcFun('crc-8')
 
 
 def is_not_empty(f, msg):
@@ -59,6 +64,13 @@ def get_ssh_connect(ip_addr, username):
     except OSError:
         return None
 
+
+def do_db_query(db, cmd, args):
+    with db.cursor() as c:
+        full_cmd = c.mogrify(cmd, args)
+        c.execute(full_cmd)
+        logging.debug(full_cmd)
+        return c.fetchall()
 
 def do_db_single_query(db, cmd, args):
     with db.cursor() as c:
@@ -121,8 +133,13 @@ class osm_host_t(object):
             self._capacity = self._look_by_id(SQL_HOST_GET_CAPACITY)
         return self._capacity
 
-    def find_free_mqtt_port(self):
-        pass
+    def _find_free_mqtt_port(self, customer_name):
+        rows = do_db_query(self.db, SQL_HOST_GET_USED_MQTT_PORTS, (self.id,))
+        ports = [ row[0] for row in rows ]
+        port = 8883 + crc8_func(customer_name.encode())
+        while port in ports:
+            port += 1
+        return port
 
     def _add_customer_to_database(self, customer_name, mqtt_port):
         do_db_insert(self.db, SQL_ADD_CUSTOMER, (self.id, customer_name, mqtt_port))
@@ -147,7 +164,7 @@ class osm_host_t(object):
 
     def add_osm_customer(self, customer_name, timeout=4):
 
-        mqtt_port = self.find_free_mqtt_port()
+        mqtt_port = self._find_free_mqtt_port(customer_name)
 
         ssh = self.get_ssh()
 
