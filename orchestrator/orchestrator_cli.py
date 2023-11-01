@@ -122,25 +122,25 @@ class osm_host_t(object):
 
     @property
     def name(self):
-        if self._name is None:
+        if not self._name:
             self._name = self._look_by_id(SQL_HOST_GET_NAME)
         return self._name
 
     @property
     def username(self):
-        if self._username is None:
+        if not self._username:
             self._username = self._look_by_id(SQL_HOST_GET_USERNAME)
         return self._username
 
     @property
     def ip_addr(self):
-        if self._ip_addr is None:
+        if not self._ip_addr:
             self._ip_addr = self._look_by_id(SQL_HOST_GET_IP_ADDR)
         return self._ip_addr
 
     @property
     def capacity(self):
-        if self._capacity is None:
+        if not self._capacity:
             self._capacity = self._look_by_id(SQL_HOST_GET_CAPACITY)
         return self._capacity
 
@@ -227,10 +227,22 @@ class osm_host_t(object):
 class osm_orchestrator_t(object):
     def __init__(self, config):
         self._config = config
-        orch_config = config["orchestrator"]
-        self.db = pymysql.connect(**orch_config, connect_timeout=10)
-        pdns_config = config["pdns"]
-        self._pdns_db = pymysql.connect(**pdns_config, connect_timeout=10)
+        self._db = None
+        self._pdns_db = None
+
+    @property
+    def db(self):
+        if not self._db:
+            orch_config = config["orchestrator"]
+            self._db = pymysql.connect(**orch_config, connect_timeout=10)
+        return self._db
+
+    @property
+    def pdns_db(self):
+        if not self._pdns_db:
+            pdns_config = config["pdns"]
+            self._pdns_db = pymysql.connect(**pdns_config, connect_timeout=10)
+        return self._pdns_db
 
     def add_dns_customer(self, osm_host, customer):
         domain_id = self._config["pdns_domain_id"]
@@ -321,6 +333,10 @@ class osm_orchestrator_t(object):
 
 
 def main():
+    if not os.path.exists("config.yaml"):
+        logging.error("No config.yaml found.")
+        sys.exit(os.EX_NOTFOUND)
+
     config = yaml.safe_load(open("config.yaml"))
 
     osm_orch = osm_orchestrator_t(config)
