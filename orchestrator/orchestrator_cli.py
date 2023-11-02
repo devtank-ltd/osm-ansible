@@ -65,7 +65,7 @@ def get_ssh_connect(ip_addr):
     ssh = paramiko.SSHClient()
     ssh.load_host_keys(os.environ["HOME"] + '/.ssh/known_hosts')
     try:
-        ssh.connect(ip_addr, username="osmorchestrator", timeout=2)
+        ssh.connect(ip_addr, username="osm_orchestrator", timeout=2)
         return ssh
     except TimeoutError:
         return None
