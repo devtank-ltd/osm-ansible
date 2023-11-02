@@ -1,0 +1,26 @@
+---
+- name: Get host domain
+  shell "ls /etc/letsencrypt/live/ | grep -v README"
+  register lxc_host_domain_detected
+
+- name: Check host domain
+  set_fact:
+    lxc_host_domain: "{{ lxc_host_domain_detected.stdout }}"
+  when: lxc_host_domain is not defined
+
+- name: Extract domain
+  set_fact:
+    lxc_domain: {{ lxc_host_domain | split(".")[1:] | join(".") }}
+  when: lxc_domain is not defined
+
+- name: Detect extra domains
+  shell: "lxc-ls -1 | sed 's|-svr||g' | awk '{print "-d "$1".{{ lxc_domain }}\n -d "$1"-chirpstack.{{ lxc_domain }}\n -d "$1"-influx.{{ lxc_domain }}"}'"
+  register lxc_domains_detected
+
+- name: Check extra domains
+  set_fact:
+    lxc_domains_list: "{{ lxc_domains_detected.stdout }}"
+  when: lxc_domains_list is not defined
+
+- name: Set current domains
+  shell: "certbot --nginx -d {{ lxc_host_domain }} {{ lxc_domains_list }}" 

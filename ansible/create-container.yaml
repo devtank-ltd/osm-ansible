@@ -13,3 +13,4 @@
     - { role: grafana, tags: grafana }
     - { role: finalize, tags: finalize }
     - { role: cleanup, tags: cleanup }
+    - { role: letsencrypt, tags: letsencrypt }
