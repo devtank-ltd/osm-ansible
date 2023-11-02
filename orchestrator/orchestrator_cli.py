@@ -11,7 +11,7 @@ import os
 from collections import namedtuple
 
 
-SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, username, capacity, active_since) VALUES(%s, %s, %s, %u, UNIX_TIMESTAMP())"
+SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, capacity, active_since) VALUES(%s, %s, %u, UNIX_TIMESTAMP())"
 SQL_DEL_HOST = "UPDATE osm_hosts SET active_before=UNIX_TIMESTAMP() WHERE id=%u"
 SQL_GET_HOST = "SELECT id FROM osm_hosts WHERE name=%s"
 
@@ -19,7 +19,6 @@ SQL_GET_HOST_BY_CUSTOMER = "SELECT osm_customers.osm_hosts_id FROM osm_customers
 
 SQL_HOST_GET_NAME     = "SELECT name FROM osm_hosts WHERE id=%u"
 SQL_HOST_GET_IP_ADDR  = "SELECT ip_addr FROM osm_hosts WHERE id=%u"
-SQL_HOST_GET_USERNAME = "SELECT username FROM osm_hosts WHERE id=%u"
 SQL_HOST_GET_CAPACITY = "SELECT capacity FROM osm_hosts WHERE id=%u"
 
 SQL_HOST_GET_USED_MQTT_PORTS = "SELECT host_mqtt_port FROM osm_customers WHERE osm_hosts_id=%u"
@@ -62,11 +61,11 @@ def is_not_empty(f, msg):
         return True
 
 
-def get_ssh_connect(ip_addr, username):
+def get_ssh_connect(ip_addr):
     ssh = paramiko.SSHClient()
     ssh.load_host_keys(os.environ["HOME"] + '/.ssh/known_hosts')
     try:
-        ssh.connect(ip_addr, username=username, timeout=2)
+        ssh.connect(ip_addr, username="osmorchestrator", timeout=2)
         return ssh
     except TimeoutError:
         return None
@@ -115,7 +114,6 @@ class osm_host_t(object):
         self.id = db_id
         self._name = None
         self._ip_addr = None
-        self._username = None
         self._capacity = None
 
     def _look_by_id(self, cmd):
@@ -126,12 +124,6 @@ class osm_host_t(object):
         if not self._name:
             self._name = self._look_by_id(SQL_HOST_GET_NAME)
         return self._name
-
-    @property
-    def username(self):
-        if not self._username:
-            self._username = self._look_by_id(SQL_HOST_GET_USERNAME)
-        return self._username
 
     @property
     def ip_addr(self):
@@ -165,7 +157,7 @@ class osm_host_t(object):
         current = self._ssh_ref()
         if current:
             return current
-        ssh = get_ssh_connect(self.ip_addr, self.username)
+        ssh = get_ssh_connect(self.ip_addr)
         self._ssh_ref = weakref.ref(ssh)
         return ssh
 
@@ -313,19 +305,23 @@ class osm_orchestrator_t(object):
         else:
             return os.EX_UNAVAILABLE
 
-    def add_osm_host(self, host_name, ip_addr, username, capcaity):
+    def add_osm_host(self, host_name, ip_addr, capcaity):
         osm_host = self.find_osm_host(host_name)
         if osm_host:
             logging.warning(f'Already osm host of name "{host_name}"')
             return os.EX_CONFIG
 
-        ssh = get_ssh_connect(ip_addr, username)
+        ssh = get_ssh_connect(ip_addr)
         if not ssh:
-            logging.error("Unable to ssh in on given username.")
+            logging.error(f"Unable to ssh in as osmorchestrator to host {host_name}.")
             return os.EX_CONFIG
-        del ssh
 
-        do_db_insert(self.db, SQL_ADD_HOST, (host_name, ip_addr, username, capcaity))
+        ssh.exec_command(f'ls /srv/osm-lxc/ansible/')
+        error_code = ssh.recv_exit_status()
+        if error_code:
+            logging.error(f"Unable to find expected ansible tools.")
+
+        do_db_insert(self.db, SQL_ADD_HOST, (host_name, ip_addr, capcaity))
 
     def del_osm_host(self, host_name):
         osm_host = self.find_osm_host(host_name)
@@ -354,7 +350,7 @@ def main():
 
     cmd_entry = namedtuple("cmd_entry", ["help", "func"])
 
-    commands = {"add_host" : cmd_entry("add_host <name> <ip_addr> <username> <capacity> : Add host to OSM system", osm_orch.add_osm_host),
+    commands = {"add_host" : cmd_entry("add_host <name> <ip_addr> <capacity> : Add host to OSM system", osm_orch.add_osm_host),
                 "del_host" : cmd_entry("del_host <name> : Remove host from OSM system", osm_orch.del_osm_host),
                 "add_customer" : cmd_entry("add_customer <name> : Add customer to OSM system", osm_orch.add_osm_customer),
                 "del_customer" : cmd_entry("del_customer <name> : Remove customer from OSM system", osm_orch.del_osm_customer)}
