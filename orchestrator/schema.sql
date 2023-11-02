@@ -3,7 +3,9 @@ CREATE TABLE osm_hosts (
     name    TEXT NOT NULL,
     ip_addr TEXT NOT NULL,
     username    TEXT NOT NULL,
-    capacity    INTEGER NOT NULL
+    capacity    INTEGER NOT NULL,
+    active_since BIGINT NOT NULL,
+    active_before BIGINT
 );
 
 CREATE TABLE osm_customers (

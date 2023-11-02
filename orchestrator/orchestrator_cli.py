@@ -11,8 +11,8 @@ import os
 from collections import namedtuple
 
 
-SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, username, capacity) VALUES(%s, %s, %s, %u)"
-SQL_DEL_HOST = "DELETE FROM osm_hosts WHERE id=%u"
+SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, username, capacity, active_since) VALUES(%s, %s, %s, %u, UNIX_TIMESTAMP())"
+SQL_DEL_HOST = "UPDATE osm_hosts SET active_before=UNIX_TIMESTAMP() WHERE id=%u"
 SQL_GET_HOST = "SELECT id FROM osm_hosts WHERE name=%s"
 
 SQL_GET_HOST_BY_CUSTOMER = "SELECT osm_customers.osm_hosts_id FROM osm_customers WHERE name=%s"
