@@ -23,6 +23,7 @@ SQL_HOST_GET_USERNAME = "SELECT username FROM osm_hosts WHERE id=%u"
 SQL_HOST_GET_CAPACITY = "SELECT capacity FROM osm_hosts WHERE id=%u"
 
 SQL_HOST_GET_USED_MQTT_PORTS = "SELECT host_mqtt_port FROM osm_customers WHERE osm_hosts_id=%u"
+SQL_HOST_GET_CUSTOMERS = "SELECT name FROM osm_customers WHERE osm_hosts_id=%u AND active_before is NULL"
 
 SQL_ADD_CUSTOMER = "INSERT INTO osm_customers (osm_hosts_id, name, host_mqtt_port, active_since) VALUES(%u, %s, %u, UNIX_TIMESTAMP())"
 SQL_DEL_CUSTOMER = "UPDATE osm_customers SET active_before=UNIX_TIMESTAMP() WHERE osm_hosts_id=%u AND name=%s"
@@ -221,6 +222,10 @@ class osm_host_t(object):
         logging.error(f'Unable to delete customer "{customer_name} from OSM-Host". Please debug OSM-Host {self.name}.')
         return False
 
+    @property
+    def customers(self):
+        rows = do_db_query(self.db, SQL_HOST_GET_CUSTOMERS, (self.id,))
+        return [row[0] for row in rows]
 
 
 
@@ -328,6 +333,12 @@ class osm_orchestrator_t(object):
             logging.warning(f'No osm host of name "{host_name}"')
             return os.EX_CONFIG
 
+        customers = osm_host.customers
+        if customers:
+            customers = ",".join(customers)
+            logging.warning(f'Host of name "{host_name}" has active customers: {customers}')
+            return os.EX_CONFIG
+
         do_db_update(self.db, SQL_DEL_HOST, (osm_host.id))
 
 
@@ -369,6 +380,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
