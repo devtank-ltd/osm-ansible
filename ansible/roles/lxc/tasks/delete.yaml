@@ -9,7 +9,7 @@
     state: absent
     path: "{{ item }}"
   with_fileglob:
-    path: "/etc/nginx/devtank/customers.*/{{ container_hostname }}.conf"
+    path: "/etc/nginx/devtank/customers.*/{{ customer_name }}.conf"
 
 - name: "Reload NGINX"
   command: "{{ item }}"
