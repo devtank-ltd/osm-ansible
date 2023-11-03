@@ -7,6 +7,8 @@
 ---
 # Devtank Open Smart Monitor Hosting
 
+<img src="osm-architecture.png" width="750"/>
+
 ## Overview
 
 Devtank manages OpenSmartMonitor infrastructure, which allows customers to view their collected monitoring data.
@@ -103,24 +105,39 @@ This hostname will need to be added to the `hosts` file of the ansible directory
 ### Creating a container
 
 The `create-container.yaml` playbook takes the following options:
-| Option             | Description                                                                 |
-| ------------------ | --------------------------------------------------------------------------- |
-| customer_name      | Used for container name, MQTT username, and other configurations            |
-| mqtt_port          | TCP port to use for container MQTT Port                                     |
+| Option             | Description                                   |
+| ------------------ | --------------------------------------------- |
+| customer_name      | Customer name to used for instance            |
+| mqtt_port          | TCP port to use for container MQTT Port       |
 
 
 Example:
-`ansible-playbook -i hosts -e 'container_hostname=customer-svr mqtt_port=1883' create-container.yaml`
+`ansible-playbook -i hosts -e 'customer_name=customer mqtt_port=1883' create-container.yaml`
+
+### Provisioning a container
+
+To provision a container after creation, the `provision-container.yaml` playbook takes the following options:
+| Option             | Description                                                                 |
+| ------------------ | --------------------------------------------------------------------------- |
+| target             | The hostname of the container to provision                                  |
+| customer_name      | Used as the MQTT username, and other configurations                         |
+| base_domain        | The web domain for the Grafana instance                                     |
+| mosquitto_passwd   | Optional. The password to use for MQTT. Randomly generated if not provided. |
+
+For `base_domain`, this should be the domain to use for Grafana.
+
+Example:
+`ansible-playbook -i hosts -e 'target=customer-svr customer_name=customer base_domain=customer.opensmartmonitor.devtank.co.uk' provision-container.yaml`
 
 ### Deleting a container
 
 To delete a container with Ansible, the `delete-container.yaml` playbook takes the following options:
 | Option             | Description                   |
 | ------------------ | ----------------------------- |
-| container_hostname | The hostname of the container |
+| customer_name      | Customer name of instance     |
 
 Example:
-`ansible-playbook -i hosts -e 'container_hostname=customer-svr' delete-container.yaml`
+`ansible-playbook -i hosts -e 'customer_name=customer' delete-container.yaml`
 
 ## Backups
 
@@ -136,14 +153,11 @@ The following section will explain the steps required to a new customer containe
 Before we start, the shell commands in this guide assume you're logged into the OSM server as root with `/srv/osm-lxc/ansible/` as your working directory:
 `root@opensmartmonitor:~# cd /srv/osm-lxc/ansible/`
 
-The shell variables below can be modified and applied to your shell in order to execute the commands in this guide:
-```sh
-CUSTOMER_NAME='customer' # name for customer container
-MQTT_PORT='1337' # TCP port for customer container MQTT
-```
 
 1. Create the container:
-`ansible-playbook -i hosts -e "customer_name=${CUSTOMER_NAME} mqtt_port=${MQTT_PORT}" create-container.yaml`
+```sh
+./do-create-container.sh CUSTOMER_NAME MQTT_PORT
+```
 2. Add credentials into password manager for customer.
 3. Test the new instance.
 
