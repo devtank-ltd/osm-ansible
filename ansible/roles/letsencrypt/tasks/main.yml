@@ -5,7 +5,7 @@
 
 - name: Check host domain
   set_fact:
-    lxc_host_domain: "{{ lxc_host_domain_detected.stdout }}"
+    lxc_host_domain: "{{ lxc_host_domain_detected.stdout_lines[0] }}"
   when: lxc_host_domain is not defined
 
 - name: Extract domain
