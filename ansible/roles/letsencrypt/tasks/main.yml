@@ -23,4 +23,4 @@
   when: lxc_domains_list is not defined
 
 - name: Set current domains
-  shell: "certbot --nginx --renew-with-new-domains -d {{ le_host_domain }} {{ lxc_domains_list }}"
+  shell: "certbot --nginx --expand --renew-by-default --renew-with-new-domains -d {{ le_host_domain }} {{ lxc_domains_list }}"
