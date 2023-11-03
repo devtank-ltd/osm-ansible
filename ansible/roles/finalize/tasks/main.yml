@@ -1,15 +1,35 @@
 ---
 
+- name: Get host domain
+  shell: "ls /etc/letsencrypt/live/ | grep -v README"
+  register: le_host_domain_detected
+
+- name: Check host domain
+  set_fact:
+    le_host_domain: "{{ le_host_domain_detected.stdout_lines[0] }}"
+  when: le_host_domain is not defined
+
+- name: Extract domain
+  set_fact:
+    le_domain: "{{ le_host_domain.split('.')[1:] | join('.') }}"
+  when: le_domain is not defined
+
 - name: "Create NGINX HTTP config"
   ansible.builtin.copy:
     src: /etc/nginx/devtank/customers.http.d/TEMPLATE
     dest: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
 
-- name: "Setup NGINX HTTP config"
+- name: "Setup NGINX HTTP config with customer name"
   ansible.builtin.replace:
     path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
     regexp: 'CUSTOMERNAME'
     replace: "{{ customer_name }}"
+
+- name: "Setup NGINX HTTP config with OSM domain"
+  ansible.builtin.replace:
+    path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+    regexp: 'OSMDOMAIN'
+    replace: "{{ le_domain }}"
 
 - name: "Create NGINX MQTT configs"
   ansible.builtin.copy:
