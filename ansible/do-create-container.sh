@@ -12,4 +12,4 @@ cd "$owndir"
 
 git pull
 
-ansible-playbook -i hosts -e "container_hostname=$customer_name-svr mqtt_port=$mqtt_port" create-container.yaml
+ansible-playbook -i hosts -e "customer_name=$customer_name mqtt_port=$mqtt_port" create-container.yaml

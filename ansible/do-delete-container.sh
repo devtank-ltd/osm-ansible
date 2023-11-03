@@ -12,4 +12,4 @@ cd "$owndir"
 
 git pull
 
-ansible-playbook -i hosts -e "container_hostname=$customer_name-svr" delete-container.yaml
+ansible-playbook -i hosts -e "customer_name=$customer_name" delete-container.yaml

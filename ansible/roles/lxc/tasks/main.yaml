@@ -2,7 +2,11 @@
   fail:             
     msg: "All needed parameters are not set!" 
   when:                                     
-    - container_hostname is not defined
+    - customer_name is not defined
+
+- name: "Set container name variable."
+  ansible.builtin.set_fact:
+    container_hostname: "{{ customer_name }}-svr"
 
 - name: "Create container"
   import_tasks: create.yaml
