@@ -13,3 +13,5 @@ cd "$owndir"
 git pull
 
 ansible-playbook -i hosts -e "customer_name=$customer_name" delete-container.yaml
+
+sed -i "/$customer_name-svr/d" hosts
