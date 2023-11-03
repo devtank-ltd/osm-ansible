@@ -12,7 +12,10 @@
     path: "/etc/nginx/devtank/customers.*/{{ container_hostname }}.conf"
 
 - name: "Reload NGINX"
-  command: "nginx -t && nginx -s reload"
+  command: "{{ item }}"
+  with_items:
+    - "nginx -t"
+    - "nginx -s reload"
 
 - name: "Get MAC address"
   command: "awk '/lxc.net.0.hwaddr/ { print $3 }' '{{ container_dir }}/lxc.container.conf'"
