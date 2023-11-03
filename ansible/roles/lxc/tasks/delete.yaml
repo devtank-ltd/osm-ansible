@@ -18,7 +18,7 @@
     - "nginx -s reload"
 
 - name: "Get MAC address"
-  command: "awk '/lxc.net.0.hwaddr/ { print $3 }' '{{ container_dir }}/lxc.container.conf'"
+  command: "awk '/lxc.net.0.hwaddr/ { print $3 }' \"{{ container_dir }}/lxc.container.conf\""
   register: container_hwaddr
 
 - name: "Stop the container"
