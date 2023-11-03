@@ -5,7 +5,11 @@
     container_dir: "{{ lxc_root }}/containers/{{ container_hostname }}"
 
 - name: "Remove NGINX configs"
-  command: "rm /etc/nginx/devtank/customers.*/{{ container_hostname }}.conf"
+  ansible.builtin.file:
+    state: absent
+    path: "{{ item }}"
+  with_fileglob:
+    path: "/etc/nginx/devtank/customers.*/{{ container_hostname }}.conf"
 
 - name: "Reload NGINX"
   command: "nginx -t && nginx -s reload"
