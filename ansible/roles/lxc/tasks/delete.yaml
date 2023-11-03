@@ -4,12 +4,18 @@
   set_fact:
     container_dir: "{{ lxc_root }}/containers/{{ container_hostname }}"
 
+- name: "Find customer NGINX configs"
+  find:
+    paths: "/etc/nginx/devtank/"
+    patterns: "{{ customer_name }}.conf"
+    recurse: yes
+  register: customer_nginx_files
+
 - name: "Remove NGINX configs"
-  ansible.builtin.file:
+  file:
     state: absent
     path: "{{ item }}"
-  with_fileglob:
-    path: "/etc/nginx/devtank/customers.*/{{ customer_name }}.conf"
+  loop: "{{ customer_nginx_files.files|map(attribute='path')|list }}"
 
 - name: "Reload NGINX"
   command: "{{ item }}"
