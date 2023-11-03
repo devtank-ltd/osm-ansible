@@ -1,17 +1,6 @@
 ---
-- name: Get host domain
-  shell: "ls /etc/letsencrypt/live/ | grep -v README"
-  register: le_host_domain_detected
-
-- name: Check host domain
-  set_fact:
-    le_host_domain: "{{ le_host_domain_detected.stdout_lines[0] }}"
-  when: le_host_domain is not defined
-
-- name: Extract domain
-  set_fact:
-    le_domain: "{{ le_host_domain.split('.')[1:] | join('.') }}"
-  when: le_domain is not defined
+- name: "Get Domain"
+  import_tasks: ../../domain.yaml
 
 - name: Detect extra domains
   shell: "lxc-ls -1 | sed 's|-svr||g' | awk '{print \"-d \"$1\".{{ le_domain }} -d \"$1\"-chirpstack.{{ le_domain }} -d \"$1\"-influx.{{ le_domain }}\"}'"
