@@ -19,3 +19,7 @@
 - name: Print MQTT password
   debug:
     msg: "MQTT password for {{ customer_name }}: {{ mosquitto_passwd }}"
+
+- name: Print Grafana password
+  debug:
+    msg: "Grafana admin for {{ customer_name }}: {{ grafana_admin_password }}"
