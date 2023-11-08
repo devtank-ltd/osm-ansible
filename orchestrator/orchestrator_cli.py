@@ -5,6 +5,7 @@ import weakref
 import logging
 import pymysql
 import crcmod
+import time
 import yaml
 import sys
 import os
@@ -212,7 +213,7 @@ class osm_host_t(object):
 
         mqtt_port = self._find_free_mqtt_port(customer_name)
 
-        if not self.ssh_command(f'/srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
+        if not self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
             logging.error("Container creation failed")
             return False
 
@@ -229,7 +230,7 @@ class osm_host_t(object):
 
     def del_osm_customer(self, customer_name, timeout=4):
 
-        if not self.ssh_command(f'/srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}"'):
+        if not self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}"'):
             logging.error(f"Container creation failed")
             return False
 
