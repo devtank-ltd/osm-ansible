@@ -34,10 +34,16 @@ SELECT id, (
 ORDER BY utilization ASC LIMIT 1
 """
 
-SQL_PDNS_ADD_CUSTOMER = """
+SQL_PDNS_ADD_HOST = """
 INSERT INTO records
 (domain_id, name, content, type, ttl, prio)
 VALUES(%u, %s, %s, 'CNAME', 10800, 0)
+"""
+
+SQL_PDNS_ADD_CUSTOMER = """
+INSERT INTO records
+(domain_id, name, content, type, ttl, prio)
+VALUES(%u, %s, %s, 'A', 10800, 0)
 """
 
 SQL_PDNS_DEL_CUSTOMER = """
@@ -110,11 +116,22 @@ def do_db_insert(db, cmd, args):
 class osm_host_t(object):
     def __init__(self, orchestrator, db_id):
         self._orchestrator = orchestrator
-        self.db = orchestrator.db
         self.id = db_id
         self._name = None
         self._ip_addr = None
         self._capacity = None
+
+    @property
+    def db(self):
+        return orchestrator.db
+
+    @property
+    def pdns_db(self):
+        return orchestrator.pdns_db
+
+    @property
+    def config(self):
+        return orchestrator.config
 
     def _look_by_id(self, cmd):
         return do_db_single_query(self.db, cmd, (self.id,))
@@ -147,11 +164,29 @@ class osm_host_t(object):
 
     def _add_customer_to_database(self, customer_name, mqtt_port):
         do_db_insert(self.db, SQL_ADD_CUSTOMER, (self.id, customer_name, mqtt_port))
-        self._orchestrator.add_dns_customer(self, customer_name)
+        domain_id = self.config["pdns_domain_id"]
+        domain = self.config["pdns_domain"]
+
+        do_db_insert(self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
+                     (domain_id, "%s.%s" % (customer_name, domain), self.ip_addr))
+        do_db_insert(self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
+                     (domain_id, "%s-chirpstack.%s" % (customer_name, domain), self.ip_addr))
+        do_db_insert(self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
+                     (domain_id, "%s-influx.%s" % (customer_name, domain), self.ip_addr))
+
 
     def _del_customer_to_database(self, customer_name):
         do_db_update(self.db, SQL_DEL_CUSTOMER, (self.id, customer_name))
         self._orchestrator.del_dns_customer(self, customer_name)
+        domain_id = self.config["pdns_domain_id"]
+        domain = self.config["pdns_domain"]
+
+        do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
+                     (domain_id, "%s.%s" % (customer_name, domain), self.ip_addr))
+        do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
+                     (domain_id, "%s-chirpstack.%s" % (customer_name, domain), self.ip_addr))
+        do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
+                     (domain_id, "%s-influx.%s" % (customer_name, domain), self.ip_addr))
 
     def get_ssh(self):
         current = self._ssh_ref()
@@ -166,7 +201,6 @@ class osm_host_t(object):
         ssh.exec_command(f"ping -c1 {customer_name}-svr")
         rc = ssh.recv_exit_status()
         return rc == 0
-
 
     def add_osm_customer(self, customer_name, timeout=4):
 
@@ -223,7 +257,7 @@ class osm_host_t(object):
 
 class osm_orchestrator_t(object):
     def __init__(self, config):
-        self._config = config
+        self.config = config
         self._db = None
         self._pdns_db = None
 
@@ -241,27 +275,10 @@ class osm_orchestrator_t(object):
             self._pdns_db = pymysql.connect(**pdns_config, connect_timeout=10)
         return self._pdns_db
 
-    def add_dns_customer(self, osm_host, customer):
-        domain_id = self._config["pdns_domain_id"]
-        domain = self._config["pdns_domain"]
-
-        do_db_insert(self._pdns_db, SQL_PDNS_ADD_CUSTOMER,
-                     (domain_id, "%s.%s" % (customer, domain), osm_host.ip_addr))
-        do_db_insert(self._pdns_db, SQL_PDNS_ADD_CUSTOMER,
-                     (domain_id, "%s-chirpstack.%s" % (customer, domain), osm_host.ip_addr))
-        do_db_insert(self._pdns_db, SQL_PDNS_ADD_CUSTOMER,
-                     (domain_id, "%s-influx.%s" % (customer, domain), osm_host.ip_addr))
-
-    def del_dns_customer(self, osm_host, customer):
-        domain_id = self._config["pdns_domain_id"]
-        domain = self._config["pdns_domain"]
-
-        do_db_update(self._pdns_db, SQL_PDNS_DEL_CUSTOMER,
-                     (domain_id, "%s.%s" % (customer, domain), osm_host.ip_addr))
-        do_db_update(self._pdns_db, SQL_PDNS_DEL_CUSTOMER,
-                     (domain_id, "%s-chirpstack.%s" % (customer, domain), osm_host.ip_addr))
-        do_db_update(self._pdns_db, SQL_PDNS_DEL_CUSTOMER,
-                     (domain_id, "%s-influx.%s" % (customer, domain), osm_host.ip_addr))
+    def add_dns_host(self, osm_host, ip_addr):
+        domain_id = self.config["pdns_domain_id"]
+        domain = self.config["pdns_domain"]
+        do_db_update(self._pdns_db, SQL_PDNS_ADD_HOST, (domain_id, "%s.%s" % (customer, domain), ip_addr))
 
     def _find_free_osm_host(self):
         row = do_db_single_query(self.db, SQL_GET_FREEST_HOST, (customer_name,))
@@ -322,6 +339,7 @@ class osm_orchestrator_t(object):
             logging.error(f"Unable to find expected ansible tools.")
 
         do_db_insert(self.db, SQL_ADD_HOST, (host_name, ip_addr, capcaity))
+        self.add_dns_host(host_name, ip_addr)
 
     def del_osm_host(self, host_name):
         osm_host = self.find_osm_host(host_name)
