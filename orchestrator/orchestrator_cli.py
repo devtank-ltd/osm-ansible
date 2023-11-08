@@ -14,9 +14,9 @@ from collections import namedtuple
 
 SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, capacity, active_since) VALUES(%s, %s, %s, UNIX_TIMESTAMP())"
 SQL_DEL_HOST = "UPDATE osm_hosts SET active_before=UNIX_TIMESTAMP() WHERE id=%s"
-SQL_GET_HOST = "SELECT id FROM osm_hosts WHERE name=%s"
+SQL_GET_HOST = "SELECT id FROM osm_hosts WHERE name=%s AND active_before IS NULL"
 
-SQL_GET_HOST_BY_CUSTOMER = "SELECT osm_customers.osm_hosts_id FROM osm_customers WHERE name=%s"
+SQL_GET_HOST_BY_CUSTOMER = "SELECT osm_customers.osm_hosts_id FROM osm_customers WHERE name=%s AND active_before IS NULL"
 
 SQL_HOST_GET_NAME     = "SELECT name FROM osm_hosts WHERE id=%s"
 SQL_HOST_GET_IP_ADDR  = "SELECT ip_addr FROM osm_hosts WHERE id=%s"
@@ -38,13 +38,13 @@ ORDER BY utilization ASC LIMIT 1
 SQL_PDNS_ADD_HOST = """
 INSERT INTO records
 (domain_id, name, content, type, ttl, prio)
-VALUES(%s, %s, %s, 'A', 10800, 0)
+VALUES(%s, %s, %s, 'A', 1800, 0)
 """
 
 SQL_PDNS_ADD_CUSTOMER = """
 INSERT INTO records
 (domain_id, name, content, type, ttl, prio)
-VALUES(%s, %s, %s, 'CNAME', 10800, 0)
+VALUES(%s, %s, %s, 'CNAME', 1800, 0)
 """
 
 SQL_PDNS_DEL_CUSTOMER = """
@@ -102,6 +102,7 @@ class osm_host_t(object):
         self._ip_addr = ip_addr
         self._capacity = capacity
         self._ssh_ref = None
+        self._dns_entry = None
         self.logger = logging.getLogger(self.name)
 
     @property
@@ -134,6 +135,13 @@ class osm_host_t(object):
         return self._ip_addr
 
     @property
+    def dns_entry(self):
+        if not self._dns_entry:
+            domain = self.config["pdns_domain"]
+            self._dns_entry = "%s.%s" % (self.name, domain)
+        return self._dns_entry
+
+    @property
     def capacity(self):
         if not self._capacity:
             self._capacity = self._look_by_id(SQL_HOST_GET_CAPACITY)
@@ -153,11 +161,11 @@ class osm_host_t(object):
         domain = self.config["pdns_domain"]
 
         do_db_insert(self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
-                     (domain_id, "%s.%s" % (customer_name, domain), self.ip_addr))
+                     (domain_id, "%s.%s" % (customer_name, domain), self.dns_entry))
         do_db_insert(self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
-                     (domain_id, "%s-chirpstack.%s" % (customer_name, domain), self.ip_addr))
+                     (domain_id, "%s-chirpstack.%s" % (customer_name, domain), self.dns_entry))
         do_db_insert(self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
-                     (domain_id, "%s-influx.%s" % (customer_name, domain), self.ip_addr))
+                     (domain_id, "%s-influx.%s" % (customer_name, domain), self.dns_entry))
 
 
     def _del_customer_to_database(self, customer_name):
@@ -166,11 +174,11 @@ class osm_host_t(object):
         domain = self.config["pdns_domain"]
 
         do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
-                     (domain_id, "%s.%s" % (customer_name, domain), self.ip_addr))
+                     (domain_id, "%s.%s" % (customer_name, domain), self.dns_entry))
         do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
-                     (domain_id, "%s-chirpstack.%s" % (customer_name, domain), self.ip_addr))
+                     (domain_id, "%s-chirpstack.%s" % (customer_name, domain), self.dns_entry))
         do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
-                     (domain_id, "%s-influx.%s" % (customer_name, domain), self.ip_addr))
+                     (domain_id, "%s-influx.%s" % (customer_name, domain), self.dns_entry))
 
     def get_ssh(self):
         if self._ssh_ref:
