@@ -102,6 +102,7 @@ class osm_host_t(object):
         self._ip_addr = ip_addr
         self._capacity = capacity
         self._ssh_ref = None
+        self.logger = logging.getLogger(self.name)
 
     @property
     def db(self):
@@ -122,6 +123,8 @@ class osm_host_t(object):
     def name(self):
         if not self._name:
             self._name = self._look_by_id(SQL_HOST_GET_NAME)
+            if self._name:
+                self.logger = logging.getLogger("HOST:" + self._name)
         return self._name
 
     @property
@@ -196,12 +199,12 @@ class osm_host_t(object):
             return False
         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
         for line in ssh_stdout:
-            logging.debug(line.rstrip())
+            self.logger.debug(line.rstrip())
         error_code = ssh_stdout.channel.recv_exit_status()
         if error_code:
-            logging.error(f"Command '{cmd}' failed : {error_code}:{os.strerror(error_code)}")
+            self.logger.error(f"Command '{cmd}' failed : {error_code}:{os.strerror(error_code)}")
             for line in ssh_stderr:
-                logging.error(line.rstrip())
+                self.logger.error(line.rstrip())
             return False
         return True
 
@@ -213,7 +216,7 @@ class osm_host_t(object):
         mqtt_port = self._find_free_mqtt_port(customer_name)
 
         if not self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
-            logging.error("Container creation failed")
+            self.logger.error("Container creation failed")
             return False
 
         start_end = time.monotonic() + timeout
@@ -223,14 +226,14 @@ class osm_host_t(object):
                 self._add_customer_to_database(customer_name, mqtt_port)
                 return True
 
-        logging.error(f'Unable to create customer "{customer_name} on OSM-Host". Please debug OSM-Host {self.name}.')
+        self.logger.error(f'Unable to create customer "{customer_name} on OSM-Host". Please debug OSM-Host {self.name}.')
         return False
 
 
     def del_osm_customer(self, customer_name, timeout=4):
 
         if not self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}"'):
-            logging.error(f"Container creation failed")
+            self.logger.error(f"Container creation failed")
             return False
 
         start_end = time.monotonic() + timeout
@@ -240,7 +243,7 @@ class osm_host_t(object):
                 self._del_customer_to_database(customer_name)
                 return True
 
-        logging.error(f'Unable to delete customer "{customer_name} from OSM-Host". Please debug OSM-Host {self.name}.')
+        self.logger.error(f'Unable to delete customer "{customer_name} from OSM-Host". Please debug OSM-Host {self.name}.')
         return False
 
     @property
@@ -257,6 +260,7 @@ class osm_orchestrator_t(object):
         self._db = pymysql.connect(**orch_config, connect_timeout=10)
         pdns_config = self.config["pdns"]
         self._pdns_db = pymysql.connect(**pdns_config, connect_timeout=10)
+        self.logger = logging.getLogger("OSMORCH")
 
     @property
     def db(self):
@@ -294,7 +298,7 @@ class osm_orchestrator_t(object):
     def add_osm_customer(self, customer_name):
         osm_host = self._find_osm_host_of(customer_name)
         if osm_host:
-            logging.warning(f'Already customer "{customer_name}"')
+            self.logger.warning(f'Already customer "{customer_name}"')
             return os.EX_CONFIG
 
         osm_host = self._find_free_osm_host()
@@ -306,7 +310,7 @@ class osm_orchestrator_t(object):
     def del_osm_customer(self, customer_name):
         osm_host = self._find_osm_host_of(customer_name)
         if not osm_host:
-            logging.warning(f'No customer "{customer_name}"')
+            self.logger.warning(f'No customer "{customer_name}"')
             return os.EX_NOTFOUND
         if osm_host.del_osm_customer(customer_name):
             return os.EX_OK
@@ -317,26 +321,26 @@ class osm_orchestrator_t(object):
         try:
             capcaity = int(capcaity)
         except ValueError:
-            logging.error(f'Invalid number "{capcaity}" for capcaity')
+            self.logger.error(f'Invalid number "{capcaity}" for capcaity')
             return os.EX_CONFIG
 
         if capcaity < 1:
-            logging.error(f'Invalid number "{capcaity}" for capcaity')
+            self.logger.error(f'Invalid number "{capcaity}" for capcaity')
             return os.EX_CONFIG
 
         osm_host = self.find_osm_host(host_name)
         if osm_host:
-            logging.warning(f'Already osm host of name "{host_name}"')
+            self.logger.warning(f'Already osm host of name "{host_name}"')
             return os.EX_CONFIG
 
         osm_host = osm_host_t(self, 0, host_name, ip_addr, capcaity)
 
         if not osm_host.get_ssh():
-            logging.error(f"Unable to ssh in as osmorchestrator to host {host_name}.")
+            self.logger.error(f"Unable to ssh in as osmorchestrator to host {host_name}.")
             return os.EX_CONFIG
 
         if not osm_host.ssh_command('ls /srv/osm-lxc/ansible/'):
-            logging.error(f"Unable to find expected ansible tools.")
+            self.logger.error(f"Unable to find expected ansible tools.")
             return os.EX_CONFIG
 
         do_db_insert(self.db, SQL_ADD_HOST, (host_name, ip_addr, capcaity))
@@ -345,13 +349,13 @@ class osm_orchestrator_t(object):
     def del_osm_host(self, host_name):
         osm_host = self.find_osm_host(host_name)
         if not osm_host:
-            logging.warning(f'No osm host of name "{host_name}"')
+            self.logger.warning(f'No osm host of name "{host_name}"')
             return os.EX_CONFIG
 
         customers = osm_host.customers
         if customers:
             customers = ",".join(customers)
-            logging.warning(f'Host of name "{host_name}" has active customers: {customers}')
+            self.logger.warning(f'Host of name "{host_name}" has active customers: {customers}')
             return os.EX_CONFIG
 
         do_db_update(self.db, SQL_DEL_HOST, (osm_host.id))
