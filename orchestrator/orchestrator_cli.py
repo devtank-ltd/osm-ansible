@@ -310,7 +310,7 @@ class osm_orchestrator_t(object):
         osm_host = self._find_osm_host_of(customer_name)
         if not osm_host:
             self.logger.warning(f'No customer "{customer_name}"')
-            return os.EX_NOTFOUND
+            return os.EX_UNAVAILABLE
         if osm_host.del_osm_customer(customer_name):
             return os.EX_OK
         else:
@@ -364,7 +364,7 @@ class osm_orchestrator_t(object):
 def main():
     if not os.path.exists("config.yaml"):
         logging.error("No config.yaml found.")
-        sys.exit(os.EX_NOTFOUND)
+        sys.exit(os.EX_UNAVAILABLE)
 
     config = yaml.safe_load(open("config.yaml"))
 
