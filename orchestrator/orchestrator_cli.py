@@ -37,13 +37,13 @@ ORDER BY utilization ASC LIMIT 1
 SQL_PDNS_ADD_HOST = """
 INSERT INTO records
 (domain_id, name, content, type, ttl, prio)
-VALUES(%s, %s, %s, 'CNAME', 10800, 0)
+VALUES(%s, %s, %s, 'A', 10800, 0)
 """
 
 SQL_PDNS_ADD_CUSTOMER = """
 INSERT INTO records
 (domain_id, name, content, type, ttl, prio)
-VALUES(%s, %s, %s, 'A', 10800, 0)
+VALUES(%s, %s, %s, 'CNAME', 10800, 0)
 """
 
 SQL_PDNS_DEL_CUSTOMER = """
