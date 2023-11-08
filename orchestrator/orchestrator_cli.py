@@ -60,13 +60,6 @@ parser.add_argument('command', type=str, help='command followed by arguments.', 
 crc8_func = crcmod.predefined.mkCrcFun('crc-8')
 
 
-def is_not_empty(f, msg):
-    d = f.read()
-    if len(d) != 0:
-        logging.error(f"UNEXPECTED FILE DATA : {d}")
-        return True
-
-
 def get_ssh_connect(ip_addr):
     ssh = paramiko.SSHClient()
     ssh.load_host_keys(os.environ["HOME"] + '/.ssh/known_hosts')
@@ -79,6 +72,17 @@ def get_ssh_connect(ip_addr):
         return None
     except OSError:
         return None
+
+
+def ssh_command(ssh, cmd):
+    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+    error_code = ssh_stdout.channel.recv_exit_status()
+    if error_code:
+        logging.error(f"Command '{cmd}' failed : {os.strerror(error_code)}")
+        for line in ssh_stderr:
+            logging.error(line)
+        return False
+    return True
 
 
 def do_db_query(db, cmd, args):
@@ -196,24 +200,18 @@ class osm_host_t(object):
         self._ssh_ref = weakref.ref(ssh)
         return ssh
 
+    def ssh_command(self, cmd):
+        return ssh_command(self.get_ssh(), cmd)
+
     def can_ping_customer(self, customer_name):
-        ssh = self.get_ssh()
-        ssh.exec_command(f"ping -c1 {customer_name}-svr")
-        rc = ssh.recv_exit_status()
-        return rc == 0
+        return self.ssh_command(f"ping -c1 {customer_name}-svr")
 
     def add_osm_customer(self, customer_name, timeout=4):
 
         mqtt_port = self._find_free_mqtt_port(customer_name)
 
-        ssh = self.get_ssh()
-
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f'/srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}')
-        error_code = ssh.recv_exit_status()
-        if error_code:
-            logging.error(f"Container creation failed : {os.strerror(error_code)}")
-            return False
-        if is_not_empty(ssh_stderr, "No stderr expected"):
+        if not self.ssh_command(f'/srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
+            logging.error("Container creation failed")
             return False
 
         start_end = time.monotonic() + timeout
@@ -228,14 +226,9 @@ class osm_host_t(object):
 
 
     def del_osm_customer(self, customer_name, timeout=4):
-        ssh = self.get_ssh()
 
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f'/srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}"')
-        error_code = ssh.recv_exit_status()
-        if error_code:
-            logging.error(f"Container creation failed : {os.strerror(error_code)}")
-            return False
-        if is_not_empty(ssh_stderr, "No stderr expected"):
+        if not self.ssh_command(f'/srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}"'):
+            logging.error(f"Container creation failed")
             return False
 
         start_end = time.monotonic() + timeout
@@ -264,14 +257,14 @@ class osm_orchestrator_t(object):
     @property
     def db(self):
         if not self._db:
-            orch_config = config["orchestrator"]
+            orch_config = self.config["orchestrator"]
             self._db = pymysql.connect(**orch_config, connect_timeout=10)
         return self._db
 
     @property
     def pdns_db(self):
         if not self._pdns_db:
-            pdns_config = config["pdns"]
+            pdns_config = self.config["pdns"]
             self._pdns_db = pymysql.connect(**pdns_config, connect_timeout=10)
         return self._pdns_db
 
@@ -323,6 +316,16 @@ class osm_orchestrator_t(object):
             return os.EX_UNAVAILABLE
 
     def add_osm_host(self, host_name, ip_addr, capcaity):
+        try:
+            capcaity = int(capcaity)
+        except ValueError:
+            logging.error(f'Invalid number "{capcaity}" for capcaity')
+            return os.EX_CONFIG
+
+        if capcaity < 1:
+            logging.error(f'Invalid number "{capcaity}" for capcaity')
+            return os.EX_CONFIG
+
         osm_host = self.find_osm_host(host_name)
         if osm_host:
             logging.warning(f'Already osm host of name "{host_name}"')
@@ -333,10 +336,9 @@ class osm_orchestrator_t(object):
             logging.error(f"Unable to ssh in as osmorchestrator to host {host_name}.")
             return os.EX_CONFIG
 
-        ssh.exec_command(f'ls /srv/osm-lxc/ansible/')
-        error_code = ssh.recv_exit_status()
-        if error_code:
+        if not ssh_command(ssh, 'ls /srv/osm-lxc/ansible/'):
             logging.error(f"Unable to find expected ansible tools.")
+            return os.EX_CONFIG
 
         do_db_insert(self.db, SQL_ADD_HOST, (host_name, ip_addr, capcaity))
         self.add_dns_host(host_name, ip_addr)
