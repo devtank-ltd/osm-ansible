@@ -61,32 +61,6 @@ parser.add_argument('command', type=str, help='command followed by arguments.', 
 crc8_func = crcmod.predefined.mkCrcFun('crc-8')
 
 
-def get_ssh_connect(ip_addr):
-    ssh = paramiko.SSHClient()
-    ssh.load_host_keys(os.environ["HOME"] + '/.ssh/known_hosts')
-    try:
-        ssh.connect(ip_addr, username="osm_orchestrator", timeout=2)
-        return ssh
-    except TimeoutError:
-        return None
-    except paramiko.ssh_exception.AuthenticationException:
-        return None
-    except OSError:
-        return None
-
-
-def ssh_command(ssh, cmd):
-    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
-    for line in ssh_stdout:
-        logging.debug(line.rstrip())
-    error_code = ssh_stdout.channel.recv_exit_status()
-    if error_code:
-        logging.error(f"Command '{cmd}' failed : {error_code}:{os.strerror(error_code)}")
-        for line in ssh_stderr:
-            logging.error(line.rstrip())
-        return False
-    return True
-
 
 def do_db_query(db, cmd, args):
     with db.cursor() as c:
@@ -121,12 +95,12 @@ def do_db_insert(db, cmd, args):
 
 
 class osm_host_t(object):
-    def __init__(self, orchestrator, db_id):
+    def __init__(self, orchestrator, db_id, name=None, ip_addr=None, capacity=None):
         self._orchestrator = orchestrator
         self.id = db_id
-        self._name = None
-        self._ip_addr = None
-        self._capacity = None
+        self._name = name
+        self._ip_addr = ip_addr
+        self._capacity = capacity
         self._ssh_ref = None
 
     @property
@@ -201,12 +175,35 @@ class osm_host_t(object):
             current = self._ssh_ref()
             if current:
                 return current
-        ssh = get_ssh_connect(self.ip_addr)
+        ssh = paramiko.SSHClient()
+        ssh.load_host_keys(os.environ["HOME"] + '/.ssh/known_hosts')
+        try:
+            ssh.connect(self.ip_addr, username="osm_orchestrator", timeout=2)
+        except TimeoutError:
+            ssh = None
+        except paramiko.ssh_exception.AuthenticationException:
+            ssh = None
+        except OSError:
+            ssh = None
+        if not ssh:
+            return None
         self._ssh_ref = weakref.ref(ssh)
         return ssh
 
     def ssh_command(self, cmd):
-        return ssh_command(self.get_ssh(), cmd)
+        ssh = self.get_ssh()
+        if not ssh:
+            return False
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+        for line in ssh_stdout:
+            logging.debug(line.rstrip())
+        error_code = ssh_stdout.channel.recv_exit_status()
+        if error_code:
+            logging.error(f"Command '{cmd}' failed : {error_code}:{os.strerror(error_code)}")
+            for line in ssh_stderr:
+                logging.error(line.rstrip())
+            return False
+        return True
 
     def can_ping_customer(self, customer_name):
         return self.ssh_command(f"ping -c1 {customer_name}-svr")
@@ -332,12 +329,13 @@ class osm_orchestrator_t(object):
             logging.warning(f'Already osm host of name "{host_name}"')
             return os.EX_CONFIG
 
-        ssh = get_ssh_connect(ip_addr)
-        if not ssh:
+        osm_host = osm_host_t(self, 0, host_name, ip_addr, capcaity)
+
+        if not osm_host.get_ssh():
             logging.error(f"Unable to ssh in as osmorchestrator to host {host_name}.")
             return os.EX_CONFIG
 
-        if not ssh_command(ssh, 'ls /srv/osm-lxc/ansible/'):
+        if not osm_host.ssh_command('ls /srv/osm-lxc/ansible/'):
             logging.error(f"Unable to find expected ansible tools.")
             return os.EX_CONFIG
 
