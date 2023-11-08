@@ -77,6 +77,8 @@ def get_ssh_connect(ip_addr):
 
 def ssh_command(ssh, cmd):
     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+    for line in ssh_stdout:
+        logging.debug(line.rstrip())
     error_code = ssh_stdout.channel.recv_exit_status()
     if error_code:
         logging.error(f"Command '{cmd}' failed : {error_code}:{os.strerror(error_code)}")
@@ -137,7 +139,7 @@ class osm_host_t(object):
 
     @property
     def config(self):
-        return orchestrator.config
+        return self._orchestrator.config
 
     def _look_by_id(self, cmd):
         return do_db_single_query(self.db, cmd, (self.id,))[0]
