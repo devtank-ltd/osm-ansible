@@ -78,9 +78,9 @@ def ssh_command(ssh, cmd):
     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
     error_code = ssh_stdout.channel.recv_exit_status()
     if error_code:
-        logging.error(f"Command '{cmd}' failed : {os.strerror(error_code)}")
+        logging.error(f"Command '{cmd}' failed : {error_code}:{os.strerror(error_code)}")
         for line in ssh_stderr:
-            logging.error(line)
+            logging.error(line.rstrip())
         return False
     return True
 
