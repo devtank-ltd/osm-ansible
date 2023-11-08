@@ -11,21 +11,21 @@ import os
 from collections import namedtuple
 
 
-SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, capacity, active_since) VALUES(%s, %s, %u, UNIX_TIMESTAMP())"
-SQL_DEL_HOST = "UPDATE osm_hosts SET active_before=UNIX_TIMESTAMP() WHERE id=%u"
+SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, capacity, active_since) VALUES(%s, %s, %s, UNIX_TIMESTAMP())"
+SQL_DEL_HOST = "UPDATE osm_hosts SET active_before=UNIX_TIMESTAMP() WHERE id=%s"
 SQL_GET_HOST = "SELECT id FROM osm_hosts WHERE name=%s"
 
 SQL_GET_HOST_BY_CUSTOMER = "SELECT osm_customers.osm_hosts_id FROM osm_customers WHERE name=%s"
 
-SQL_HOST_GET_NAME     = "SELECT name FROM osm_hosts WHERE id=%u"
-SQL_HOST_GET_IP_ADDR  = "SELECT ip_addr FROM osm_hosts WHERE id=%u"
-SQL_HOST_GET_CAPACITY = "SELECT capacity FROM osm_hosts WHERE id=%u"
+SQL_HOST_GET_NAME     = "SELECT name FROM osm_hosts WHERE id=%s"
+SQL_HOST_GET_IP_ADDR  = "SELECT ip_addr FROM osm_hosts WHERE id=%s"
+SQL_HOST_GET_CAPACITY = "SELECT capacity FROM osm_hosts WHERE id=%s"
 
-SQL_HOST_GET_USED_MQTT_PORTS = "SELECT host_mqtt_port FROM osm_customers WHERE osm_hosts_id=%u"
-SQL_HOST_GET_CUSTOMERS = "SELECT name FROM osm_customers WHERE osm_hosts_id=%u AND active_before is NULL"
+SQL_HOST_GET_USED_MQTT_PORTS = "SELECT host_mqtt_port FROM osm_customers WHERE osm_hosts_id=%s"
+SQL_HOST_GET_CUSTOMERS = "SELECT name FROM osm_customers WHERE osm_hosts_id=%s AND active_before is NULL"
 
-SQL_ADD_CUSTOMER = "INSERT INTO osm_customers (osm_hosts_id, name, host_mqtt_port, active_since) VALUES(%u, %s, %u, UNIX_TIMESTAMP())"
-SQL_DEL_CUSTOMER = "UPDATE osm_customers SET active_before=UNIX_TIMESTAMP() WHERE osm_hosts_id=%u AND name=%s"
+SQL_ADD_CUSTOMER = "INSERT INTO osm_customers (osm_hosts_id, name, host_mqtt_port, active_since) VALUES(%s, %s, %s, UNIX_TIMESTAMP())"
+SQL_DEL_CUSTOMER = "UPDATE osm_customers SET active_before=UNIX_TIMESTAMP() WHERE osm_hosts_id=%s AND name=%s"
 
 SQL_GET_FREEST_HOST = """
 SELECT id, (
@@ -37,17 +37,17 @@ ORDER BY utilization ASC LIMIT 1
 SQL_PDNS_ADD_HOST = """
 INSERT INTO records
 (domain_id, name, content, type, ttl, prio)
-VALUES(%u, %s, %s, 'CNAME', 10800, 0)
+VALUES(%s, %s, %s, 'CNAME', 10800, 0)
 """
 
 SQL_PDNS_ADD_CUSTOMER = """
 INSERT INTO records
 (domain_id, name, content, type, ttl, prio)
-VALUES(%u, %s, %s, 'A', 10800, 0)
+VALUES(%s, %s, %s, 'A', 10800, 0)
 """
 
 SQL_PDNS_DEL_CUSTOMER = """
-DELETE FROM records WHERE domain_id=%u AND name=%s AND content=%s
+DELETE FROM records WHERE domain_id=%s AND name=%s AND content=%s
 """
 
 
@@ -251,27 +251,23 @@ class osm_host_t(object):
 class osm_orchestrator_t(object):
     def __init__(self, config):
         self.config = config
-        self._db = None
-        self._pdns_db = None
+        orch_config = self.config["orchestrator"]
+        self._db = pymysql.connect(**orch_config, connect_timeout=10)
+        pdns_config = self.config["pdns"]
+        self._pdns_db = pymysql.connect(**pdns_config, connect_timeout=10)
 
     @property
     def db(self):
-        if not self._db:
-            orch_config = self.config["orchestrator"]
-            self._db = pymysql.connect(**orch_config, connect_timeout=10)
         return self._db
 
     @property
     def pdns_db(self):
-        if not self._pdns_db:
-            pdns_config = self.config["pdns"]
-            self._pdns_db = pymysql.connect(**pdns_config, connect_timeout=10)
         return self._pdns_db
 
     def add_dns_host(self, osm_host, ip_addr):
         domain_id = self.config["pdns_domain_id"]
         domain = self.config["pdns_domain"]
-        do_db_update(self._pdns_db, SQL_PDNS_ADD_HOST, (domain_id, "%s.%s" % (customer, domain), ip_addr))
+        do_db_update(self._pdns_db, SQL_PDNS_ADD_HOST, (domain_id, "%s.%s" % (osm_host, domain), ip_addr))
 
     def _find_free_osm_host(self):
         row = do_db_single_query(self.db, SQL_GET_FREEST_HOST, (customer_name,))

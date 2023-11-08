@@ -16,3 +16,5 @@ CREATE TABLE osm_customers (
     active_before BIGINT,
     FOREIGN KEY(osm_hosts_id) REFERENCES osm_hosts (id)
 );
+
+GRANT ALL PRIVILEGES ON pdns.records TO 'osm_orchestrator'@'localhost'
