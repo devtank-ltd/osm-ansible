@@ -47,6 +47,10 @@ INSERT INTO records
 VALUES(%s, %s, %s, 'CNAME', 1800, 0)
 """
 
+SQL_PDNS_DEL_HOST = """
+DELETE FROM records WHERE domain_id=%s AND name=%s AND content=%s
+"""
+
 SQL_PDNS_DEL_CUSTOMER = """
 DELETE FROM records WHERE domain_id=%s AND name=%s AND content=%s
 """
@@ -365,7 +369,10 @@ class osm_orchestrator_t(object):
             self.logger.warning(f'Host of name "{host_name}" has active customers: {customers}')
             return os.EX_CONFIG
 
+        domain_id = self.config["pdns_domain_id"]
         do_db_update(self.db, SQL_DEL_HOST, (osm_host.id))
+        do_db_update(self.pdns_db, SQL_PDNS_DEL_HOST,
+             (domain_id, osm_host.dns_entry, osm_host.ip_addr))
 
 
 
