@@ -162,7 +162,6 @@ class osm_host_t(object):
 
     def _del_customer_to_database(self, customer_name):
         do_db_update(self.db, SQL_DEL_CUSTOMER, (self.id, customer_name))
-        self._orchestrator.del_dns_customer(self, customer_name)
         domain_id = self.config["pdns_domain_id"]
         domain = self.config["pdns_domain"]
 
