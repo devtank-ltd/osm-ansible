@@ -124,21 +124,22 @@ class osm_host_t(object):
         self._name = None
         self._ip_addr = None
         self._capacity = None
+        self._ssh_ref = None
 
     @property
     def db(self):
-        return orchestrator.db
+        return self._orchestrator.db
 
     @property
     def pdns_db(self):
-        return orchestrator.pdns_db
+        return self._orchestrator.pdns_db
 
     @property
     def config(self):
         return orchestrator.config
 
     def _look_by_id(self, cmd):
-        return do_db_single_query(self.db, cmd, (self.id,))
+        return do_db_single_query(self.db, cmd, (self.id,))[0]
 
     @property
     def name(self):
@@ -193,9 +194,10 @@ class osm_host_t(object):
                      (domain_id, "%s-influx.%s" % (customer_name, domain), self.ip_addr))
 
     def get_ssh(self):
-        current = self._ssh_ref()
-        if current:
-            return current
+        if self._ssh_ref:
+            current = self._ssh_ref()
+            if current:
+                return current
         ssh = get_ssh_connect(self.ip_addr)
         self._ssh_ref = weakref.ref(ssh)
         return ssh
@@ -270,7 +272,7 @@ class osm_orchestrator_t(object):
         do_db_update(self._pdns_db, SQL_PDNS_ADD_HOST, (domain_id, "%s.%s" % (osm_host, domain), ip_addr))
 
     def _find_free_osm_host(self):
-        row = do_db_single_query(self.db, SQL_GET_FREEST_HOST, (customer_name,))
+        row = do_db_single_query(self.db, SQL_GET_FREEST_HOST, tuple())
         if row:
             osm_host = osm_host_t(self, row[0])
             if osm_host:
@@ -295,7 +297,7 @@ class osm_orchestrator_t(object):
             logging.warning(f'Already customer "{customer_name}"')
             return os.EX_CONFIG
 
-        osm_host = self.find_free_osm_host()
+        osm_host = self._find_free_osm_host()
         if osm_host.add_osm_customer(customer_name):
             return os.EX_OK
         else:
