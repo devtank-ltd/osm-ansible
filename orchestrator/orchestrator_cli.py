@@ -356,6 +356,7 @@ class osm_orchestrator_t(object):
 
         do_db_insert(self.db, SQL_ADD_HOST, (host_name, ip_addr, capcaity))
         self.add_dns_host(host_name, ip_addr)
+        return os.EX_OK
 
     def del_osm_host(self, host_name):
         osm_host = self.find_osm_host(host_name)
@@ -373,7 +374,16 @@ class osm_orchestrator_t(object):
         do_db_update(self.db, SQL_DEL_HOST, (osm_host.id))
         do_db_update(self.pdns_db, SQL_PDNS_DEL_HOST,
              (domain_id, osm_host.dns_entry, osm_host.ip_addr))
+        return os.EX_OK
 
+    def find_osm_host_of(self, customer_name):
+        osm_host = self._find_osm_host_of(customer_name)
+        if osm_host:
+            print("Found on host : %s" % osm_host.name)
+            return os.EX_OK
+        else:
+            self.logger.warning(f'No customer "{customer_name}"')
+            return os.EX_CONFIG
 
 
 def main():
@@ -389,6 +399,7 @@ def main():
 
     commands = {"add_host" : cmd_entry("add_host <name> <ip_addr> <capacity> : Add host to OSM system", osm_orch.add_osm_host),
                 "del_host" : cmd_entry("del_host <name> : Remove host from OSM system", osm_orch.del_osm_host),
+                "find_host" : cmd_entry("find_host <name> : Find host of given customer in OSM system", osm_orch.find_osm_host_of),
                 "add_customer" : cmd_entry("add_customer <name> : Add customer to OSM system", osm_orch.add_osm_customer),
                 "del_customer" : cmd_entry("del_customer <name> : Remove customer from OSM system", osm_orch.del_osm_customer)}
 
@@ -408,7 +419,9 @@ def main():
 
     cmd_func = commands[args.command[0]].func
     func_args = args.command[1:]
-    sys.exit(cmd_func(*func_args))
+    exit_code = cmd_func(*func_args)
+    print("Command: %s : Result: %s" % (args.command[0], os.strerror(exit_code)))
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
