@@ -7,8 +7,6 @@
 ---
 # Devtank Open Smart Monitor Hosting
 
-<img src="osm-architecture.png" width="750"/>
-
 ## Overview
 
 Devtank manages OpenSmartMonitor infrastructure, which allows customers to view their collected monitoring data.
