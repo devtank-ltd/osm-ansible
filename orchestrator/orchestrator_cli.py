@@ -170,6 +170,9 @@ class osm_host_t(object):
                      (domain_id, "%s-chirpstack.%s" % (customer_name, domain), self.dns_entry))
         do_db_insert(self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
                      (domain_id, "%s-influx.%s" % (customer_name, domain), self.dns_entry))
+        do_db_insert(self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
+                     (domain_id, "%s-mqtt.%s" % (customer_name, domain), self.dns_entry))
+        return customer_id
 
 
     def _del_customer_to_database(self, customer_name):
@@ -183,6 +186,8 @@ class osm_host_t(object):
                      (domain_id, "%s-chirpstack.%s" % (customer_name, domain), self.dns_entry))
         do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
                      (domain_id, "%s-influx.%s" % (customer_name, domain), self.dns_entry))
+        do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
+                     (domain_id, "%s-mqtt.%s" % (customer_name, domain), self.dns_entry))
 
     def get_ssh(self):
         if self._ssh_ref:

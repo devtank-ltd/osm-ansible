@@ -3,7 +3,7 @@
   import_tasks: ../../domain.yaml
 
 - name: Detect extra domains
-  shell: "lxc-ls -1 | sed 's|-svr||g' | awk '{print \"-d \"$1\".{{ le_domain }} -d \"$1\"-chirpstack.{{ le_domain }} -d \"$1\"-influx.{{ le_domain }}\"}'"
+  shell: "lxc-ls -1 | sed 's|-svr||g' | awk '{print \"-d \"$1\".{{ le_domain }} -d \"$1\"-chirpstack.{{ le_domain }} -d \"$1\"-mqtt.{{ le_domain }} -d \"$1\"-influx.{{ le_domain }}\"}'"
   register: lxc_domains_detected
 
 - name: Check extra domains
