@@ -9,16 +9,9 @@
 
 ## Overview
 
-Devtank manages OpenSmartMonitor infrastructure, which allows customers to view their collected monitoring data.
-The overall process of collecting and viewing data is as follows:
+A OpenSmartMonitor device sends data to a OpenSmartMonitor customers container. The data is sent over MQTT over SSL encryption.
 
-1. Data is sent from an OpenSmartMonitor to it's local LoraWAN gateway
-2. The data is encrypted with TLS and sent from the gateway to a port on OSM server, unique to the customer
-3. NGINX, listening on the port, will remove the TLS layer and forward the traffic to a mosquitto server running inside the respective customer's container
-4. Within the container, chirpstack will use mosquitto to subscribe to OSM call-ins. Once chirpstack receives data, it processes it and inserts the data into an InfluxDB2 database.
-5. The Grafana instance can then graph this data using the local InfluxDB database. The customer can access Grafana via the aforementioned NGINX server, using [Name-based virtual hosting](https://en.wikipedia.org/wiki/Virtual_hosting#Name-based).
-
-Behind the scenes, different OpenSmartMonitor customers containers are running on different servers.
+Different OpenSmartMonitor customers containers are running on different servers.
 The domains of the address of the OpenSmartMonitor customers is handled by a Devtank DNS server.
 This will return the right server for the customer.
 
