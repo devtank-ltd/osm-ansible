@@ -74,6 +74,8 @@ cd orchestrator
 
 ### Adding a customer with orchestrator
 
+The orchestrator will deal with finding a OSM host with spare space, calling Ansible and updating the PDNS database.
+
 ```sh
 cd orchestrator
 ./orchestrator_cli.py add_customer somecustomer
@@ -81,6 +83,7 @@ cd orchestrator
 
 ### Removing a customer with orchestrator
 
+The orchestrator will deal with finding which OSM host the customer is on, and calling Ansible and updating the PDNS database.
 ```sh
 cd orchestrator
 ./orchestrator_cli.py del_customer somecustomer
