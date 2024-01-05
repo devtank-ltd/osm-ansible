@@ -9,10 +9,10 @@
 
 ## Overview
 
-A OpenSmartMonitor device sends data to a OpenSmartMonitor customers container. The data is sent over MQTT over SSL encryption.
+A OpenSmartMonitor (OSM) device sends data to a OSM customers container. The data is sent over MQTT over SSL encryption.
 
-Different OpenSmartMonitor customers containers are running on different servers.
-The domains of the address of the OpenSmartMonitor customers is handled by a Devtank DNS server.
+Different OSM customers containers are running on different servers. We call these servers OSM Hosts.
+The domains of the address of the OSM customers is handled by a Devtank DNS server.
 This will return the right server for the customer.
 
 Each customer container may multiple domains to access different services.
@@ -34,6 +34,10 @@ Then that OSM Host machine for that *customer* is connected to and the connectio
 
 
 ## Using Orchestrator
+
+The Orchestrator talks to the databases which tracks which OSM Host is used for which customer. These keeps the DNS updated and ensures OSM customers are spread across OSM Hosts according to the OSM Hosts capacity.
+
+### Using Orchestrator
 
 The orchestrator is used in the shell and used from within its folder.
 You will need a "config.yaml" file setup for the MySQL of the PDNS and Orchestrator databases.
