@@ -57,6 +57,7 @@ DELETE FROM records WHERE domain_id=%s AND name=%s AND content=%s
 
 
 parser = argparse.ArgumentParser(description='OSM Servers Orchestrator')
+parser.add_argument('-c','--config', help='Config to use', type=str)
 parser.add_argument('-v','--verbose', help='Info log information', action='store_true')
 parser.add_argument('-d','--debug', help='Debug log information', action='store_true')
 parser.add_argument('command', type=str, help='command followed by arguments.', nargs='*')

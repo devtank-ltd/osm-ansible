@@ -26,11 +26,13 @@ Where *customer* is the chosen customer name.
 These domains correspond to the Grafana, InfluxDB2 and Chirpstack web interfaces respectively.
 The convention is to use a dash where a space would naturally be.
 
-So first there is a DNS lookup for which OSM Host the *customer* container is on:
-<br><img src="dns.png" width="200"/>
+So first there is a DNS lookup for which OSM Host the *customer* container is on.
 
-Then that OSM Host machine for that *customer* is connected to and the connection is sent on to the *customer* container.
-<br><img src="osm-architecture.png" width="750"/>
+<br><p align="center"><img src="dns.png" width="640"/></p>
+
+Then that OSM Host machine for that OSM *customer* is connected to and the connection is sent on to the *customer* container.
+
+<br><p align="center"><img src="osm-architecture.png" width="750"/></p>
 
 
 ## Using Orchestrator
@@ -85,4 +87,3 @@ The orchestrator will deal with finding which OSM host the customer is on, and c
 cd orchestrator
 ./orchestrator_cli.py del_customer somecustomer
 ```
-
