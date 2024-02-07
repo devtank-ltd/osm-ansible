@@ -1,0 +1,6 @@
+INFLUXD_CONFIG_PATH=/etc/influxdb/config.toml
+
+GOMEMLIMIT=300MiB
+
+GOGC=50
+
