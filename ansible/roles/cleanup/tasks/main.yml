@@ -19,3 +19,12 @@
 - name: Print MQTT password
   debug:
     msg: "MQTT password for {{ customer_name }}: {{ mosquitto_passwd }}"
+
+- name: Print Grafana password
+  debug:
+    msg: "Grafana admin for {{ customer_name }}: {{ grafana_admin_password }}"
+
+- name: Write passwords to file
+  ansible.builtin.copy:
+    content: "Influx: {{ influx_passwords }}\nInflux Token: {{ new_token }}\nPostgres: {{ postgres_passwords }}\nMosquitto: {{ mosquitto_passwd }}\nGrafana Admin: {{ grafana_admin_password }}\n"
+    dest: "/root/passwords"

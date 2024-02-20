@@ -4,8 +4,27 @@
   set_fact:
     container_dir: "{{ lxc_root }}/containers/{{ container_hostname }}"
 
+- name: "Find customer NGINX configs"
+  find:
+    paths: "/etc/nginx/devtank/"
+    patterns: "{{ customer_name }}.conf"
+    recurse: yes
+  register: customer_nginx_files
+
+- name: "Remove NGINX configs"
+  file:
+    state: absent
+    path: "{{ item }}"
+  loop: "{{ customer_nginx_files.files|map(attribute='path')|list }}"
+
+- name: "Reload NGINX"
+  command: "{{ item }}"
+  with_items:
+    - "nginx -t"
+    - "nginx -s reload"
+
 - name: "Get MAC address"
-  command: "awk '/lxc.net.0.hwaddr/ { print $3 }' '{{ container_dir }}/lxc.container.conf'"
+  command: "awk '/lxc.net.0.hwaddr/ { print $3 }' \"{{ container_dir }}/lxc.container.conf\""
   register: container_hwaddr
 
 - name: "Stop the container"

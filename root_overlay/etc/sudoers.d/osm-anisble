@@ -1,0 +1,2 @@
+osm_orchestrator  ALL=NOPASSWD: /srv/osm-lxc/ansible/do-create-container.sh
+osm_orchestrator  ALL=NOPASSWD: /srv/osm-lxc/ansible/do-delete-container.sh

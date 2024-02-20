@@ -1,0 +1,15 @@
+---
+- name: "Get Domain"
+  import_tasks: ../../domain.yaml
+
+- name: Detect extra domains
+  shell: "lxc-ls -1 | sed 's|-svr||g' | awk '{print \"-d \"$1\".{{ le_domain }} -d \"$1\"-chirpstack.{{ le_domain }} -d \"$1\"-mqtt.{{ le_domain }} -d \"$1\"-influx.{{ le_domain }}\"}'"
+  register: lxc_domains_detected
+
+- name: Check extra domains
+  set_fact:
+    lxc_domains_list: "{{ lxc_domains_detected.stdout_lines | join(' ')}}"
+  when: lxc_domains_list is not defined
+
+- name: Set current domains
+  shell: "certbot --nginx --expand --renew-by-default --renew-with-new-domains -d {{ le_host_domain }} {{ lxc_domains_list }}"

@@ -1,0 +1,48 @@
+---
+
+- name: "Get Domain"
+  import_tasks: ../../domain.yaml
+
+- name: "Create NGINX HTTP config"
+  ansible.builtin.copy:
+    src: /etc/nginx/devtank/customers.http.d/TEMPLATE
+    dest: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+
+- name: "Setup NGINX HTTP config with customer name"
+  ansible.builtin.replace:
+    path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+    regexp: 'CUSTOMERNAME'
+    replace: "{{ customer_name }}"
+
+- name: "Setup NGINX HTTP config with OSM domain"
+  ansible.builtin.replace:
+    path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+    regexp: 'OSMDOMAIN'
+    replace: "{{ le_domain }}"
+
+- name: "Create NGINX MQTT configs"
+  ansible.builtin.copy:
+    src: /etc/nginx/devtank/customers.stream.d/TEMPLATE
+    dest: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+
+- name: "Setup NGINX MQTT Port config"
+  ansible.builtin.replace:
+    path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+    regexp: 'CUSTOMER_MQTT'
+    replace: "{{ mqtt_port }}"
+
+- name: "Setup NGINX MQTT Container config"
+  ansible.builtin.replace:
+    path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+    regexp: 'CUSTOMERNAME'
+    replace: "{{ customer_name }}"
+
+
+- name: "Open UFW port"
+  command: "ufw allow {{ mqtt_port }}"
+
+- name: "Reload NGINX"
+  command: "{{ item }}"
+  with_items:
+    - "nginx -t"
+    - "nginx -s reload"

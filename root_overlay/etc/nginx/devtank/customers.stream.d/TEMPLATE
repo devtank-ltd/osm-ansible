@@ -1,0 +1,4 @@
+server {
+	listen CUSTOMER_MQTT ssl;
+	proxy_pass CUSTOMERNAME-svr:1883;
+}
