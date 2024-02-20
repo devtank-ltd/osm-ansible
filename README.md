@@ -88,3 +88,16 @@ cd orchestrator
 ./orchestrator_cli.py del_customer somecustomer
 ```
 
+## History
+
+This is an evolution of the third iteration of this kind of hosting.
+
+Version 1 was everyone on the same Grafana, Influx, Mosquitto and ChirpStack.
+This had a few issues.
+It was too scary to have all the eggs in one big basket.
+We found we wanted to update the stack of some customers, but not others. Also, we found ourselves needing to do custom Grafana plugins for some but not others.
+Additionally, we found customers wanted to know they were isolated from others.
+
+Version 2 was Docker based, behind an Apache reverse proxy and stunnel4, but we didn't want the mess/bloat of 4+ Dockers per customer, so made Docker be multiple service, and found ourselves against the grain of Docker.
+
+Version 3 was LXC based using NGINX. It's basically what we have now but originally only supporting a single VPS.
