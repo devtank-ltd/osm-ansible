@@ -1,10 +1,3 @@
----
-  <style>
-    body {
-      font-family: sans-serif;
-    }
-  </style>
----
 # Devtank Open Smart Monitor Hosting
 
 ## Overview
