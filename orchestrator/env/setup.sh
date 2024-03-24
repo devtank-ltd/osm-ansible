@@ -11,12 +11,12 @@ DEBBIOSMEM=ovmf_vars.fd
 mkdir -p mnt
 mount $DEBISO mnt
 mkdir -p boot
-cp mnt/install.amd/{initrd.gz,vmlinuz} boot/
+cp -r mnt/install.amd boot/
 umount mnt
 
 # apt install ovmf qemu-system-x86
 
-dd if=/dev/zero of="$DEBBIOSMEM" bs=1024 count=127
+dd if=/dev/zero of="$DEBBIOSMEM" bs=131072 count=1
 
 qemu-img create "$DEBDISK" 16G
 
@@ -30,7 +30,7 @@ qemu-system-x86_64                 \
    -nic user,model=virtio-net-pci \
    -drive file="$DEBISO",format=raw,if=virtio,media=cdrom \
    -drive file="$DEBDISK",format=raw,if=virtio \
-   -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE.fd,readonly=on" \
+   -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE_4M.fd,readonly=on" \
    -drive "if=pflash,format=raw,unit=1,file=$DEBBIOSMEM" \
    -kernel boot/install.amd/vmlinuz \
    -initrd boot/install.amd/initrd.gz \
