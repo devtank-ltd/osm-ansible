@@ -14,19 +14,22 @@ mkdir -p boot
 cp -r mnt/install.amd boot/
 umount mnt
 
-gunzip boot/install.amd/initrd.gz
-echo preseed.cfg | cpio -H newc -o -A -F boot/install.amd/initrd
-gzip boot/install.amd/initrd
-
 # apt install ovmf qemu-system-x86
 
 dd if=/dev/zero of="$DEBBIOSMEM" bs=131072 count=1
 
 qemu-img create -f qcow2 "$DEBDISK" 16G
 
+IP_ADDR=$(ip route | awk '{print $9}' | head -n 1)
+
+python -m http.server -b $IP_ADDR&
+websvr=$!
+
+nc -u -l 10514 > log&
+logsvr=$!
+
 qemu-system-x86_64                 \
    -enable-kvm                     \
-   -nographic \
    -serial mon:stdio               \
    -m 4G                           \
    -device virtio-scsi-pci,id=scsi \
@@ -38,5 +41,6 @@ qemu-system-x86_64                 \
    -drive "if=pflash,format=raw,unit=1,file=$DEBBIOSMEM" \
    -kernel boot/install.amd/vmlinuz \
    -initrd boot/install.amd/initrd.gz \
-   -append "console=ttyS0 console=tty1"
+   -append "console=ttyS0 console=tty1 priority=critical auto=true DEBIAN_FRONTEND=text log_host=$IP_ADDR log_port=10514 url=http://$IP_ADDR:8000/preseed.cfg"
 
+kill $websvr $logavr
