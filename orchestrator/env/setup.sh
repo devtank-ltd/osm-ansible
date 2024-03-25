@@ -44,4 +44,4 @@ qemu-system-x86_64                 \
    -initrd boot/install.amd/initrd.gz \
    -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text log_host=$IP_ADDR log_port=10514 url=http://$IP_ADDR:8000/preseed.cfg"
 
-kill $websvr $logavr
+kill $websvr $logsvr
