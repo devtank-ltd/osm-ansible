@@ -30,6 +30,7 @@ logsvr=$!
 
 qemu-system-x86_64                 \
    -enable-kvm                     \
+   -nographic                      \
    -serial mon:stdio               \
    -m 4G                           \
    -device virtio-scsi-pci,id=scsi \
@@ -41,6 +42,6 @@ qemu-system-x86_64                 \
    -drive "if=pflash,format=raw,unit=1,file=$DEBBIOSMEM" \
    -kernel boot/install.amd/vmlinuz \
    -initrd boot/install.amd/initrd.gz \
-   -append "console=ttyS0 console=tty1 priority=critical auto=true DEBIAN_FRONTEND=text log_host=$IP_ADDR log_port=10514 url=http://$IP_ADDR:8000/preseed.cfg"
+   -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text log_host=$IP_ADDR log_port=10514 url=http://$IP_ADDR:8000/preseed.cfg"
 
 kill $websvr $logavr
