@@ -8,7 +8,7 @@ then
    exit -1
 fi
 
-if [ -e "/usr/share/OVMF/OVMF_CODE_4M.fd" ]
+if [ ! -e "/usr/share/OVMF/OVMF_CODE_4M.fd" ]
 then
    echo "Press install ovmf"
    exit -1
@@ -17,12 +17,26 @@ fi
 DEBISO=debian-12.5.0-amd64-netinst.iso
 DEBDISK=disk.qcow
 
+if [ ! -e "$DEBISO" ]
+then
+   wget https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/$DEBISO
+   wget https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS
+   grep "$(sha512sum $DEBISO)" SHA512SUMS
+   if [ "$?" != "0" ]
+   then
+     echo "ISO verification failed."
+     rm $DEBISO SHA512SUMS
+     exit -1
+   fi
+fi
+
 mkdir -p mnt
 mount $DEBISO mnt
 mkdir -p boot
 cp -r mnt/install.amd boot/
 umount mnt
 
+rm -rf "$DEBDISK"
 qemu-img create -f qcow2 "$DEBDISK" 16G
 
 chmod 666 "$DEBDISK"
@@ -51,3 +65,4 @@ qemu-system-x86_64                 \
    -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text log_host=$IP_ADDR log_port=10514 url=http://$IP_ADDR:8000/preseed.cfg"
 
 kill $websvr $logsvr
+echo "Install complete."
