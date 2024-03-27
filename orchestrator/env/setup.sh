@@ -25,6 +25,8 @@ umount mnt
 
 qemu-img create -f qcow2 "$DEBDISK" 16G
 
+chmod 666 "$DEBDISK"
+
 IP_ADDR=$(ip route | awk '{print $9}' | head -n 1)
 
 python -m http.server -b $IP_ADDR&
