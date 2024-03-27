@@ -1,7 +1,5 @@
 #! /bin/bash
 
-[ $(id -u) == 0 ] || exec sudo -- "$0" "$@"
-
 if [ -z "$(which qemu-system-x86_64)" ]
 then
    echo "Press install qemu-system-x86"
@@ -14,32 +12,35 @@ then
    exit -1
 fi
 
+if [ -z "$(which isoinfo)" ]
+then
+   echo "Press install isoinfo"
+   exit -1
+fi
+
 DEBISO=debian-12.5.0-amd64-netinst.iso
 DEBDISK=disk.qcow
 
 if [ ! -e "$DEBISO" ]
 then
-   wget https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/$DEBISO
-   wget https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS
-   grep "$(sha512sum $DEBISO)" SHA512SUMS
+   wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/$DEBISO"
+   wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS"
+   grep "$(sha512sum "$DEBISO")" SHA512SUMS
    if [ "$?" != "0" ]
    then
      echo "ISO verification failed."
-     rm $DEBISO SHA512SUMS
+     rm "$DEBISO" SHA512SUMS
      exit -1
    fi
 fi
 
-mkdir -p mnt
-mount $DEBISO mnt
+# To give our own preseed, we need to boot QEMU with the kernel and init ram disk so we can gives arguments.
 mkdir -p boot
-cp -r mnt/install.amd boot/
-umount mnt
+isoinfo -J -i "$DEBISO" -x /install.amd/vmlinuz > boot/vmlinuz
+isoinfo -J -i "$DEBISO" -x /install.amd/initrd.gz > boot/initrd.gz
 
 rm -rf "$DEBDISK"
 qemu-img create -f qcow2 "$DEBDISK" 16G
-
-chmod 666 "$DEBDISK"
 
 IP_ADDR=$(ip route | awk '{print $9}' | head -n 1)
 
@@ -60,8 +61,8 @@ qemu-system-x86_64                 \
    -drive file="$DEBISO",format=raw,if=virtio,media=cdrom \
    -drive file="$DEBDISK",format=qcow2,if=virtio \
    -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE_4M.fd,readonly=on" \
-   -kernel boot/install.amd/vmlinuz \
-   -initrd boot/install.amd/initrd.gz \
+   -kernel boot/vmlinuz \
+   -initrd boot/initrd.gz \
    -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text log_host=$IP_ADDR log_port=10514 url=http://$IP_ADDR:8000/preseed.cfg"
 
 kill $websvr $logsvr
