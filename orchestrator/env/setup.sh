@@ -24,8 +24,13 @@ fi
 # sudo qemu-nbd --connect=/dev/nbd0 disk.qcow
 # sudo kpartx -a /dev/nbd0
 # sudo mount /dev/mapper/nbd0p3 mnt # Root partition
+# sudo mount /dev/mapper/nbd0p2 mnt/@rootfs/boot # Boot partition
+# sudo mount /dev/mapper/nbd0p1 mnt/@rootfs/boot/efi # EFI partition
+
 
 # To unmount qcow disk do:
+# sudo umount mnt/@rootfs/boot/efi
+# sudo umount mnt/@rootfs/boot
 # sudo umount mnt
 # sudo kpartx -d /dev/nbd0
 # sudo qemu-nbd --disconnect /dev/nbd0
