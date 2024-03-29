@@ -37,6 +37,8 @@ fi
 
 DEBISO=debian-12.5.0-amd64-netinst.iso
 DEBDISK=disk.qcow
+DEBBIOSMEM=ovmf_vars.fd
+OVMF_VARS_ORIG="/usr/share/OVMF/OVMF_VARS_4M.fd"
 
 if [ ! -e "$DEBISO" ]
 then
@@ -50,6 +52,14 @@ then
      exit -1
    fi
 fi
+
+
+
+if [ ! -e "$DEBBIOSMEM" ]
+then
+    cp "$OVMF_VARS_ORIG" "$DEBBIOSMEM"
+fi
+
 
 # To give our own preseed, we need to boot QEMU with the kernel and init ram disk so we can gives arguments.
 mkdir -p boot
@@ -78,6 +88,7 @@ qemu-system-x86_64                 \
    -drive file="$DEBISO",format=raw,if=virtio,media=cdrom \
    -drive file="$DEBDISK",format=qcow2,if=virtio \
    -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE_4M.fd,readonly=on" \
+   -drive "if=pflash,format=raw,unit=1,file=$DEBBIOSMEM" \
    -kernel boot/vmlinuz \
    -initrd boot/initrd.gz \
    -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text log_host=$IP_ADDR log_port=10514 url=http://$IP_ADDR:8000/preseed.cfg"
