@@ -77,6 +77,8 @@ websvr=$!
 nc -u -l 10514 > log&
 logsvr=$!
 
+sed "s|IPADDR|$IP_ADDR|g" preseed.cfg > preseed.generated.cfg
+
 qemu-system-x86_64                 \
    -enable-kvm                     \
    -nographic                      \
@@ -91,7 +93,7 @@ qemu-system-x86_64                 \
    -drive "if=pflash,format=raw,unit=1,file=$DEBBIOSMEM" \
    -kernel boot/vmlinuz \
    -initrd boot/initrd.gz \
-   -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text log_host=$IP_ADDR log_port=10514 url=http://$IP_ADDR:8000/preseed.cfg"
+   -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text log_host=$IP_ADDR log_port=10514 url=http://$IP_ADDR:8000/preseed.generated.cfg"
 
 kill $websvr $logsvr
 echo "Install complete."
