@@ -1,7 +1,7 @@
 #! /bin/bash
 
 
-DEBDISK=disk.qcow
+if [ -z "$DEBDISK" ]; then DEBDISK=disk.qcow; fi
 DEBBIOSMEM=ovmf_vars.fd
 
 qemu-system-x86_64                 \

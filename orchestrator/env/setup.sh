@@ -19,9 +19,10 @@ then
 fi
 
 DEBISO=debian-12.5.0-amd64-netinst.iso
-DEBDISK=disk.qcow
+if [ -z "$DEBDISK" ]; then DEBDISK=disk.qcow; fi
 DEBBIOSMEM=ovmf_vars.fd
 OVMF_VARS_ORIG="/usr/share/OVMF/OVMF_VARS_4M.fd"
+if [ -z "$PRESEED" ]; then PRESEED=preseed.cfg; fi
 
 if [ ! -e "$DEBISO" ]
 then
@@ -60,7 +61,7 @@ websvr=$!
 nc -u -l 10514 > log&
 logsvr=$!
 
-sed "s|IPADDR|$IP_ADDR|g" preseed.cfg > preseed.generated.cfg
+sed "s|IPADDR|$IP_ADDR|g" "$PRESEED" > preseed.generated.cfg
 
 qemu-system-x86_64                 \
    -enable-kvm                     \
