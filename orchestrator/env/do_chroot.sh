@@ -8,7 +8,7 @@ then
    exit -1
 fi
 
-DEBDISK=disk.qcow
+if [ -z "$DEBDISK" ]; then DEBDISK=disk.qcow; fi
 
 mkdir -p mnt
 
@@ -23,3 +23,13 @@ mount --bind /sys mnt/sys
 mount --bind /dev mnt/dev
 mount --bind /dev/pts mnt/dev/pts
 chroot mnt/
+umount mnt/boot/efi
+umount mnt/boot
+umount mnt/proc
+umount mnt/sys
+umount mnt/dev/pts
+umount mnt/dev
+umount mnt
+kpartx -d /dev/nbd0
+qemu-nbd --disconnect /dev/nbd0
+
