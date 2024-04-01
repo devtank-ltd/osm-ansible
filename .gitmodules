@@ -1,0 +1,3 @@
+[submodule "orchestrator/env/upgrade/mk_initrc"]
+	path = orchestrator/env/upgrade/mk_initrc
+	url = ../mk_initrc.git
