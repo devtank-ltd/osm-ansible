@@ -2,7 +2,7 @@
 
 . /etc/disks 
 
-[ -n "$root_dev" ] || (echo No root given! ; exit -1)
+if [ -z "$root_dev" ]; then echo "No root given!" ; exit -1; fi
 
 root_uuid=$(blkid $root_dev -o udev | awk -F= '/ID_FS_UUID=/ {print $2}')
 
