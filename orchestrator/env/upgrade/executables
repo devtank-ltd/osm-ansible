@@ -1,0 +1,6 @@
+/usr/sbin/blkid
+/usr/sbin/e2fsck
+/usr/sbin/resize2fs
+/usr/bin/lsblk
+/usr/bin/btrfs
+/usr/bin/btrfs-convert
