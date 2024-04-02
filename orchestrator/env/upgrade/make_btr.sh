@@ -25,4 +25,4 @@ echo "root_dev=$root_dev" > base/etc/disks
 [ "$root_dev" == "$boot_dev" ] || echo "boot_dev=$boot_dev" >> base/etc/disks 
 [ -z "$efi_dev" ] || echo "efi_dev=$efi_dev" >> base/etc/disks
 ./mk_initrc/make_ram_disk.sh make_btrfs
-echo "If you are really sure you want to do this, now do: ./mk_initrc/kexec.sh make_btrfs.cpio.gz
+echo "If you are really sure you want to do this, now do: ./mk_initrc/kexec.sh make_btrfs.cpio.gz"
