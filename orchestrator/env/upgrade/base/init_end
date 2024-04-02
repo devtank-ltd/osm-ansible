@@ -18,17 +18,20 @@ rm -rf mnt/[a-z]*
 btrfs balance start --full-balance mnt
 sed -i -E "s|UUID=$root_uuid.+\$|UUID=$root_uuid	/	btrs	defaults,subvol=@rootfs	0	1|g" /mnt/@rootfs/etc/fstab
 
-[ -z "$boot_dev" ] || mount $boot_dev /mnt/@rootfs/boot
-[ -z "$efi_dev" ] || mount $efi_dev /mnt/@rootfs/boot/efi
+umount /mnt
+mount -t btrfs /dev/vda3 -o subvol=@rootfs mnt
 
-mount --bind /dev /mnt/@rootfs/dev
-mount --bind /dev/pts /mnt/@rootfs/dev/pts
-mount --bind /proc /mnt/@rootfs/proc
-mount --bind /sys /mnt/@rootfs/sys
+[ -z "$boot_dev" ] || mount $boot_dev /mnt/boot
+[ -z "$efi_dev" ] || mount $efi_dev /mnt/boot/efi
 
-chroot /mnt/@rootfs /usr/bin/apt install btrfs-progs
-chroot /mnt/@rootfs /usr/sbin/update-initramfs -k all -u
-chroot /mnt/@rootfs /usr/sbin/update-grub
+mount --bind /dev /mnt/dev
+mount --bind /dev/pts /mnt/dev/pts
+mount --bind /proc /mnt/proc
+mount --bind /sys /mnt/sys
+
+chroot /mnt /usr/bin/apt install btrfs-progs
+chroot /mnt /usr/sbin/update-initramfs -k all -u
+chroot /mnt /usr/sbin/update-grub
 
 reboot -f
 
