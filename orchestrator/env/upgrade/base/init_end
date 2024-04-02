@@ -4,22 +4,22 @@
 
 [ -n "$root_dev" ] || (echo No root given! ; exit -1)
 
-set -- $(echo $(blkid $root_dev -o value))
-root_uuid=$2
+root_uuid=$(blkid $root_dev -o udev | awk -F= '/ID_FS_UUID=/ {print $2}')
 
 e2fsck -fvy $root_dev
 btrfs-convert -L -p --uuid copy $root_dev
+btrfs check modprobe btrfs
 mkdir /mnt
+modprobe btrfs
 mount $root_dev /mnt
-btrfs check /mnt
 btrfs subv snap /mnt /mnt/@rootfs
 btrfs subv del /mnt/ext2_saved
 rm -rf mnt/[a-z]*
 btrfs balance start mnt
 sed -i -E "s|UUID=$root_uuid.+\$|UUID=$root_uuid	/	btrs	defaults,subvol=@rootfs	0	1|g" /mnt/@rootfs/etc/fstab
 
-[ -n "$boot_dev" ] || mount $boot_dev /mnt/@rootfs/boot
-[ -n "$efi_dev" ] || mount $efi_dev /mnt/@rootfs/boot/efi
+[ -z "$boot_dev" ] || mount $boot_dev /mnt/@rootfs/boot
+[ -z "$efi_dev" ] || mount $efi_dev /mnt/@rootfs/boot/efi
 
 mount --bind /dev /mnt/@rootfs/dev
 mount --bind /dev/pts /mnt/@rootfs/dev/pts
