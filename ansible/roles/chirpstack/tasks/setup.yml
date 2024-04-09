@@ -1,0 +1,27 @@
+---
+
+# These started as a loop, but ownership added complication.
+- name: "Rollout application config file"
+  template:
+    src: "chirpstack-application-server.toml.j2"
+    dest: "/etc/chirpstack-application-server/chirpstack-application-server.toml"
+    owner: "appserver"
+    group: "appserver"
+    mode: "0640"
+
+- name: "Rollout network config file"
+  template:
+    src: "chirpstack-network-server.toml.j2"
+    dest: "/etc/chirpstack-network-server/chirpstack-network-server.toml"
+    owner: "networkserver"
+    group: "networkserver"
+    mode: "0640"
+
+- name: Start and enable chirpstack services
+  systemd:
+    name: chirpstack-{{ item }}-server
+    state: restarted
+    enabled: yes
+  loop:
+    - "application"
+    - "network"

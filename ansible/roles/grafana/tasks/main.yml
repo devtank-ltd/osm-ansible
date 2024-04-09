@@ -1,47 +1,8 @@
 ---
 
-- name: "Install dependences"
-  apt:
-    name:
-      - "apt-transport-https"
-      - "software-properties-common"
-      - "wget"
-    update_cache: yes
-
-- name: "Download Grafana GPG key"
-  get_url:
-    url: "https://apt.grafana.com/gpg.key"
-    dest: "/usr/share/keyrings/grafana.key"
-
-- name: "Make sure Grafana apt source exists"
-  lineinfile:
-    path: "/etc/apt/sources.list.d/grafana.list"
-    line: "deb [signed-by=/usr/share/keyrings/grafana.key] https://packages.grafana.com/oss/deb stable main"
-    create: yes
-
 - name: "Install Grafana"
-  apt:
-    name: "grafana"
-    update_cache: yes
+  include_tasks: "install.yml"
 
-- name: "Configure Grafana"
-  template:
-    src: grafana.ini.j2
-    dest: /etc/grafana/grafana.ini
-    owner: root
-    group: grafana
-    mode: "640"
-
-- name: "Create Grafana Admin Password"
-  ansible.builtin.set_fact:
-    grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits', 'punctuation']) }}"
-
-- name: "Set Grafana Password"
-  command: "grafana-cli admin reset-admin-password {{ grafana_admin_password }}"
-
-- name: "Start and enable Grafana"
-  systemd:
-    name: "grafana-server"
-    state: restarted
-    enabled: yes
-    daemon_reload: yes
+- name: "Setup Grafana"
+  include_tasks: "setup.yml"
+  when: install_only is not defined or install_only == False

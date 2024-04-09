@@ -1,0 +1,23 @@
+---
+
+- name: "Configure Grafana"
+  template:
+    src: grafana.ini.j2
+    dest: /etc/grafana/grafana.ini
+    owner: root
+    group: grafana
+    mode: "640"
+
+- name: "Create Grafana Admin Password"
+  ansible.builtin.set_fact:
+    grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits', 'punctuation']) }}"
+
+- name: "Set Grafana Password"
+  command: "grafana-cli admin reset-admin-password {{ grafana_admin_password }}"
+
+- name: "Start and enable Grafana"
+  systemd:
+    name: "grafana-server"
+    state: restarted
+    enabled: yes
+    daemon_reload: yes

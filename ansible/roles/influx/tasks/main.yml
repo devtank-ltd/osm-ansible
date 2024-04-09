@@ -4,6 +4,10 @@
   include_tasks: "install.yml"
   when: upgrade_influx_and_delete_everything is not defined 
 
+- name: "Setup InfluxDB"
+  include_tasks: "setup.yml"
+  when: install_only is not defined or install_only == False
+
 - name: "Upgrade InfluxDB"
   include_tasks: "migrate.yml"
   when: upgrade_influx_and_delete_everything is defined and upgrade_influx_and_delete_everything == True

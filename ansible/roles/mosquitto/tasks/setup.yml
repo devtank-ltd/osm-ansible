@@ -1,0 +1,29 @@
+---
+
+- name: Configure mosquitto
+  template:
+    src: "{{ item.key }}"
+    dest: "{{ item.value }}"
+  with_dict:
+    - { "acl.j2": "/etc/mosquitto/acl" }
+    - { "mosquitto.conf.j2": "/etc/mosquitto/mosquitto.conf" }
+    - { "security.conf.j2": "/etc/mosquitto/conf.d/security.conf" }
+
+- name: Generate random password
+  set_fact:
+    mosquitto_passwd: "{{ lookup('ansible.builtin.password', '/dev/null', length=16) }}"
+  when: mosquitto_passwd is undefined
+
+- name: Print password
+  debug:
+    msg: "Moquitto password is: {{ mosquitto_passwd }}"
+
+- name: Set password
+  command: "mosquitto_passwd -c -b /etc/mosquitto/passwd {{ customer_name }} '{{ mosquitto_passwd }}'"
+ # creates: /etc/mosquitto/passwd
+
+- name: "Start and enable mosquitto"
+  systemd:
+    name: mosquitto.service
+    state: restarted
+    enabled: yes

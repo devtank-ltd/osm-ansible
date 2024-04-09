@@ -1,0 +1,131 @@
+---
+
+- name: Detect existing config
+  command: "influx config list --hide-headers"
+  register: influx_config_list
+
+- name: Initial influx setup
+  block:
+
+    - name: Generate passwords
+      set_fact:
+        influx_passwords: "{{ influx_passwords | default({}) | combine({ item: lookup('ansible.builtin.password', '/dev/null', length=16) }) }}"
+      loop:
+        - devtank
+        - customer
+        - grafana
+        - chirpstack
+
+    - name: Setup influx
+      command: >
+        influx setup 
+        --force 
+        --username devtank 
+        --password {{ influx_passwords['devtank'] }} 
+        --org devtank 
+        --bucket dtbucket 
+      ignore_errors: True
+
+  when: influx_config_list.stdout_lines | length == 0 or overwrite_passwords
+
+
+- name: Generate a new authentication token
+  block:
+
+    - name: "Get current token"
+      command: 'influx auth list --json'
+      register: influx_auths
+
+    - name: "Save current token"
+      set_fact:
+        old_token: "{{ influx_auths.stdout | from_json | first | json_query('token') }}"
+        old_token_id: "{{ influx_auths.stdout | from_json | first | json_query('id') }}"
+
+    # The command to create and all-access token is broken due to an Influx2 bug.
+    # TODO fix this when the bug is fixed and/or revise permissions.
+    - name: "Generate new token"
+      command: |
+        influx auth create               \
+        --json                           \
+        --org=devtank                    \
+        --description=devtank-all-access \
+        --read-authorizations            \
+        --write-authorizations           \
+        --read-buckets                   \
+        --write-buckets                  \
+        --read-dashboards                \
+        --write-dashboards               \
+        --read-tasks                     \
+        --write-tasks                    \
+        --read-telegrafs                 \
+        --write-telegrafs                \
+        --read-users                     \
+        --write-users                    \
+        --read-variables                 \
+        --write-variables                \
+        --read-secrets                   \
+        --write-secrets                  \
+        --read-labels                    \
+        --write-labels                   \
+        --read-views                     \
+        --write-views                    \
+        --read-documents                 \
+        --write-documents                \
+        --read-notificationRules         \
+        --write-notificationRules        \
+        --read-notificationEndpoints     \
+        --write-notificationEndpoints    \
+        --read-checks                    \
+        --write-checks                   \
+        --read-dbrp                      \
+        --write-dbrp                     \
+        --read-annotations               \
+        --write-annotations              \
+        --read-sources                   \
+        --write-sources                  \
+        --read-scrapers                  \
+        --write-scrapers                 \
+        --read-notebooks                 \
+        --write-notebooks                \
+        --read-remotes                   \
+        --write-remotes                  \
+        --read-replications              \
+        --write-replications             \
+        --read-orgs                      \
+        --write-orgs
+      register: create_auth_output
+
+    - name: "Parse JSON output"
+      set_fact:
+        new_token: "{{ create_auth_output.stdout | from_json | json_query('token') }}"
+
+    - name: "Change default token"
+      replace:
+        path: "/root/.influxdbv2/configs"
+        regexp: "{{ old_token }}"
+        replace: "{{ new_token }}"
+
+    - name: "Deactivate old token"
+      command: "influx auth inactive --id {{ old_token_id }}"
+
+    - name: "Delete old token"
+      command: "influx auth delete --id {{ old_token_id }}"
+
+  tags: influx_gen_new_token
+
+- name: Create other influx users
+  shell: "influx user create -n '{{ item.key }}' -p '{{ item.value }}' || influx user password -n '{{ item.key }}' -p '{{ item.value }}'" 
+  loop: "{{ influx_passwords | dict2items }}"
+
+- name: Create sf bucket
+  shell: "influx bucket create -n sf"
+  ignore_errors: True
+
+- name: Create v1 retention policy on sf
+  shell: influx v1 dbrp create --default  --db sf --rp autogen --bucket-id "$(influx bucket list | awk '/sf/ { print $1 }')"
+  ignore_errors: True
+
+- name: Create v1 auth on sf bucket for devtank
+  shell: influx v1 auth create  --read-bucket "$(influx bucket list | awk '/sf/ { print $1 }')" --write-bucket "$(influx bucket list | awk '/sf/ { print $1 }')" --username devtank --password '{{ influx_passwords['devtank'] }}'
+  ignore_errors: True
+

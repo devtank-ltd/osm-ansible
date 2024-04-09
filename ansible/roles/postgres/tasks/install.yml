@@ -1,0 +1,16 @@
+---
+
+# Ansible needs this for the postgres modules below
+- name: Install needed packages
+  apt:
+    name:
+      - postgresql
+      - python3-psycopg2
+      - sudo
+    update_cache: yes
+
+- name: Start and enable postgres
+  systemd:
+    name: postgresql@13-main.service
+    state: restarted
+    enabled: yes

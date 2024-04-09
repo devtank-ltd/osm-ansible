@@ -1,0 +1,24 @@
+---
+
+- name: Install installation tools
+  apt:
+    name:
+      - apt-transport-https
+      - dirmngr
+    update_cache: yes
+
+- name: Add chirpstack apt key
+  apt_key:
+    keyserver: keyserver.ubuntu.com
+    id: 1CE2AFD36DBCCA00
+
+- name: Add chirpstack repo
+  apt_repository:
+    repo: deb https://artifacts.chirpstack.io/packages/3.x/deb stable main
+    filename: chirpstack
+
+- name: Install chirpstack servers
+  apt:
+    name:
+      - chirpstack-application-server
+      - chirpstack-network-server
