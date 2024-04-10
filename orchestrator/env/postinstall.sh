@@ -69,3 +69,11 @@ echo '- hosts: "10.0.3.2"
     - { role: grafana, tags: grafana }' > base-os.yml
 
 ansible-playbook -i /tmp/hosts base-os.yml
+
+lxc-stop base-os
+
+mkdir -p /srv/osm-lxc/lxc/os-bases
+
+mv /var/lib/lxc/base-os/rootfs /srv/osm-lxc/lxc/os-bases/001-bookworm-$(date "+%d-%m-%Y")
+rm -rf /var/lib/lxc/base-os/config
+rm base-os.yml
