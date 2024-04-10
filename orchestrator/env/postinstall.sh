@@ -7,14 +7,14 @@ then
   srv_fs=$(df /srv -T | awk '/dev/ { print $2 }')
   if [ srv_fs != 'btrfs' ]
   then
-    echo "Require btrfs /srv"
+    echo "Requires btrfs /srv"
     exit -1
   fi
 else
   root_fs=$(df / -T | awk '/dev/ { print $2 }')
   if [ root_fs != 'btrfs' ]
   then
-    echo "Require btrfs root or /srv"
+    echo "Requires btrfs root or /srv"
     exit -1
   fi
   mkdir  -v -p -m 0755 -p /srv
