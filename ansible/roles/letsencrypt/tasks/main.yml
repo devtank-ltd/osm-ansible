@@ -11,6 +11,10 @@
     lxc_domains_list: "{{ lxc_domains_detected.stdout_lines | join(' ')}}"
   when: lxc_domains_list is not defined
 
+- name: Set default value to Undefined, if the variable is not defined
+  set_fact:
+    skip_lets_encrypt: "{{ lookup('ansible.builtin.env', 'SKIP_LETS_ENCRYPT', default=Undefined) }}"
+
 - name: Set current domains
   shell: "certbot --nginx --expand --renew-by-default --renew-with-new-domains -d {{ le_host_domain }} {{ lxc_domains_list }}"
   when: lxc_domains_list is defined and not skip_lets_encrypt
