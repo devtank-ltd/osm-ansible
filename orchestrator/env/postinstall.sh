@@ -22,7 +22,8 @@ fi
 
 apt install btrfs-progs snapper nginx certbot ansible git rsync lxc
 
-git clone https://git.devtank.co.uk/Devtank/osm-ansible.git /srv/osm-lxc
+# NOTE (TODO) : branch dev_test_env is just for development.
+git clone https://git.devtank.co.uk/Devtank/osm-ansible.git -b dev_test_env /srv/osm-lxc
 rsync -a /srv/osm-lxc/root_overlay/ /
 lxc-create -t debian -n base-os -- bookworm
 ssh-keygen -q  -t rsa -N '' -f /root/.ssh/id_rsa
@@ -48,7 +49,7 @@ systemctl restart lxc-net
 lxc-start base-os
 
 # Required for Ansible
-lxc-attach -n base-os -- apt install -y python3
+lxc-attach -n base-os -- apt install -y python3 wget
 
 ssh-keyscan -H 10.0.3.2 > /root/.ssh/known_hosts
 
