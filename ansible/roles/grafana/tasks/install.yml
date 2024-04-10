@@ -9,17 +9,15 @@
     update_cache: yes
 
 - name: "Download Grafana GPG key"
-  get_url:
-    url: "https://apt.grafana.com/gpg.key"
-    dest: "/usr/share/keyrings/grafana.key"
+  shell: "wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/grafana.gpg > /dev/null"
 
 - name: "Make sure Grafana apt source exists"
   lineinfile:
     path: "/etc/apt/sources.list.d/grafana.list"
-    line: "deb [signed-by=/usr/share/keyrings/grafana.key] https://packages.grafana.com/oss/deb stable main"
+    line: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://packages.grafana.com/oss/deb stable main"
     create: yes
 
 - name: "Install Grafana"
   apt:
-    name: "grafana"
+    name: "grafana-nightly"
     update_cache: yes
