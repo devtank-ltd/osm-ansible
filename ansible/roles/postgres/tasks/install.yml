@@ -8,9 +8,3 @@
       - python3-psycopg2
       - sudo
     update_cache: yes
-
-- name: Start and enable postgres
-  systemd:
-    name: postgresql@13-main.service
-    state: restarted
-    enabled: yes
