@@ -5,14 +5,14 @@
 if [ -e /srv ]
 then
   srv_fs=$(df /srv -T | awk '/dev/ { print $2 }')
-  if [ srv_fs != 'btrfs' ]
+  if [ "$srv_fs" != 'btrfs' ]
   then
     echo "Requires btrfs /srv"
     exit -1
   fi
 else
   root_fs=$(df / -T | awk '/dev/ { print $2 }')
-  if [ root_fs != 'btrfs' ]
+  if [ "$root_fs" != 'btrfs' ]
   then
     echo "Requires btrfs root or /srv"
     exit -1
