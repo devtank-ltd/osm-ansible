@@ -19,10 +19,6 @@ then
 fi
 
 DEBISO=debian-12.5.0-amd64-netinst.iso
-if [ -z "$DEBDISK" ]; then DEBDISK=disk.qcow; fi
-DEBBIOSMEM=ovmf_vars.fd
-OVMF_VARS_ORIG="/usr/share/OVMF/OVMF_VARS_4M.fd"
-if [ -z "$PRESEED" ]; then PRESEED=preseed.cfg; fi
 
 if [ ! -e "$DEBISO" ]
 then
@@ -38,6 +34,7 @@ then
 fi
 
 
+. common.sh
 
 if [ ! -e "$DEBBIOSMEM" ]
 then
@@ -62,6 +59,9 @@ nc -u -l 10514 > log&
 logsvr=$!
 
 sed "s|IPADDR|$IP_ADDR|g" "$PRESEED" > preseed.generated.cfg
+sed "s|IPADDR|$IP_ADDR|g" "raw.postinstall.sh" > postinstall.sh
+sed -i "s|OSMHOST|$OSMHOST|g" postinstall.sh
+
 
 qemu-system-x86_64                 \
    -enable-kvm                     \
@@ -70,7 +70,7 @@ qemu-system-x86_64                 \
    -m 4G                           \
    -device virtio-scsi-pci,id=scsi \
    -device virtio-serial-pci       \
-   -nic user,model=virtio-net-pci,hostname=osmhost \
+   -nic user,model=virtio-net-pci,hostname=$OSMHOST \
    -drive file="$DEBISO",format=raw,if=virtio,media=cdrom \
    -drive file="$DEBDISK",format=qcow2,if=virtio \
    -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE_4M.fd,readonly=on" \

@@ -2,8 +2,7 @@
 
 ./net_ctrl.sh open
 
-if [ -z "$DEBDISK" ]; then DEBDISK=disk.qcow; fi
-DEBBIOSMEM=ovmf_vars.fd
+. common.sh
 
 qemu-system-x86_64                 \
    -enable-kvm                     \
