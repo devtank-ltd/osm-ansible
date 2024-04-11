@@ -26,6 +26,7 @@
           - btrfs-progs
           - snapper
           - nginx
+          - libnginx-mod-stream
           - certbot
           - ansible
           - git

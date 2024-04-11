@@ -13,7 +13,7 @@
 
 - name: Set default value to Undefined, if the variable is not defined
   set_fact:
-    skip_lets_encrypt: "{{ lookup('ansible.builtin.env', 'SKIP_LETS_ENCRYPT', default=Undefined) }}"
+    skip_lets_encrypt: "{{ lookup('ansible.builtin.env', 'SKIP_LETS_ENCRYPT', default=False) }}"
 
 - name: Set current domains
   shell: "certbot --nginx --expand --renew-by-default --renew-with-new-domains -d {{ le_host_domain }} {{ lxc_domains_list }}"
