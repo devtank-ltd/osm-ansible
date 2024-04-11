@@ -56,7 +56,7 @@ ssh-keyscan -H 10.0.3.2 > /root/.ssh/known_hosts
 echo 10.0.3.2 > /tmp/hosts
 
 cd /srv/osm-lxc/ansible/
-ansible-playbook -e "target=10.0.3.2" -i /tmp/hosts base-os.yml
+ansible-playbook -e "target=10.0.3.2" -i /tmp/hosts setup-base-os.yaml
 
 lxc-stop base-os
 

@@ -89,7 +89,7 @@
     - name: Run setup Ansible on OSM Host Base OS
       shell: |
         cd /srv/osm-lxc/ansible/
-        ansible-playbook -e "target=10.0.3.2" -i /tmp/hosts base-os.yml
+        ansible-playbook -e "target=10.0.3.2" -i /tmp/hosts setup-base-os.yaml
 
     - name: Stop OSM Host Base OS container
       community.general.lxc_container:
