@@ -20,7 +20,7 @@ case "$1" in
 
     iptables -t nat -A POSTROUTING -s 192.168.5.0/24 -j SNAT --to-source $main_ip
 
-    dnsmasq --pid-file=/tmp/vosmhostnet.pid --interface=vosmhostnet --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255
+    dnsmasq --pid-file=/tmp/vosmhostnet.pid --dhcp-leasefile=/tmp/vosmhostnet.leasefile --interface=vosmhostnet --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255
   ;;
   "close")
     [ -e /sys/class/net/vosmhostnet ] || { echo "vosmhostnet already closed."; exit -1; }

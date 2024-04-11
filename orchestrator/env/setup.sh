@@ -81,3 +81,17 @@ qemu-system-x86_64                 \
 
 kill $websvr $logsvr
 echo "Install complete."
+
+./run.sh &
+
+while [ -z "$vm_ip" ]
+do
+  sleep 0.25
+  vm_ip=$(awk '/osmhostv/ {print $3}' /tmp/vosmhostnet.leasefile)
+done
+
+echo "VM booted and taken IP address $vm_ip"
+
+echo $vm_ip > /tmp/hosts
+
+ansible-playbook -e "target=$vm_ip" -i /tmp/hosts osmhost_setup.yaml
