@@ -20,7 +20,7 @@ else
   mkdir  -v -p -m 0755 -p /srv
 fi
 
-apt install btrfs-progs snapper nginx certbot ansible git rsync lxc
+apt install btrfs-progs snapper nginx certbot ansible git rsync lxc ufw
 
 # NOTE (TODO) : branch dev_test_env is just for development.
 git clone https://git.devtank.co.uk/Devtank/osm-ansible.git -b dev_test_env /srv/osm-lxc

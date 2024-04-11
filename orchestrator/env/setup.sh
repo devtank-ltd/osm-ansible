@@ -93,7 +93,7 @@ echo "Install complete."
 while [ -z "$vm_ip" ]
 do
   sleep 0.25
-  vm_ip=$(awk '/osmhostv/ {print $3}' /tmp/vosmhostnet.leasefile)
+  vm_ip=$(awk "/$OSMHOST/ {print $3}" /tmp/vosmhostnet.leasefile)
 done
 
 echo "VM booted and taken IP address $vm_ip"
@@ -104,4 +104,4 @@ ansible_connection=ssh
 ansible_user=root
 " > /tmp/hosts
 
-ansible-playbook -e "target=$vm_ip" -i /tmp/hosts osmhost_setup.yaml
+ansible-playbook -e "target=$vm_ip osm_host_name=$OSMHOST" -i /tmp/hosts osmhost_setup.yaml

@@ -31,8 +31,8 @@
           - git
           - rsync
           - lxc
-          - rsync
           - python3-lxc
+          - ufw
         update_cache: yes
 
     - name: Clone OSM Ansible git repo.
@@ -44,6 +44,12 @@
 
     - name: Apply OSM Host overlay.
       shell: rsync -a /srv/osm-lxc/root_overlay/ /
+
+    - name: Update OSM Host overlay NGINX templates
+      ansible.builtin.replace:
+        path: /etc/nginx/nginx.conf
+        regexp: 'OSM_HOST_NAME'
+        replace: "{{ osm_host_name }}"
 
     - name: Create a OSM Host Base OS container
       community.general.lxc_container:

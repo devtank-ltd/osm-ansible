@@ -7,4 +7,4 @@ ssh_key_name=$(wget http://IPADDR:8000/ssh_key_name -O -)
 mkdir -p /root/.ssh
 wget http://IPADDR:8000/$ssh_key_name -O - >> /root/.ssh/authorized_keys
 
-mkdir -p /etc/letsencrypt/live/OSMHOST.osmm.co.uk
+mkdir -p /etc/letsencrypt/live/OSMHOST.osmm.devtank.co.uk
