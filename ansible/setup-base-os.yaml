@@ -1,0 +1,10 @@
+- hosts: "{{ target }}"
+  vars:
+    install_only: True
+  roles:
+    - { role: redis, tags: redis }
+    - { role: mosquitto, tags: mosquitto }
+    - { role: influx, tags: influx }
+    - { role: postgres, tags: postgres }
+    - { role: chirpstack, tags: chirpstack }
+    - { role: grafana, tags: grafana }

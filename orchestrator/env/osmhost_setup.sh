@@ -56,19 +56,7 @@ ssh-keyscan -H 10.0.3.2 > /root/.ssh/known_hosts
 echo 10.0.3.2 > /tmp/hosts
 
 cd /srv/osm-lxc/ansible/
-
-echo '- hosts: "10.0.3.2"
-  vars:
-    install_only: True
-  roles:
-    - { role: redis, tags: redis }
-    - { role: mosquitto, tags: mosquitto }
-    - { role: influx, tags: influx }
-    - { role: postgres, tags: postgres }
-    - { role: chirpstack, tags: chirpstack }
-    - { role: grafana, tags: grafana }' > base-os.yml
-
-ansible-playbook -i /tmp/hosts base-os.yml
+ansible-playbook -e "target=10.0.3.2" -i /tmp/hosts base-os.yml
 
 lxc-stop base-os
 
@@ -76,4 +64,3 @@ mkdir -p /srv/osm-lxc/lxc/os-bases
 
 mv /var/lib/lxc/base-os/rootfs /srv/osm-lxc/lxc/os-bases/001-bookworm-$(date "+%d-%m-%Y")
 rm -rf /var/lib/lxc/base-os/config
-rm base-os.yml
