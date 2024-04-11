@@ -32,4 +32,3 @@ umount mnt/dev
 umount mnt
 kpartx -d /dev/nbd0
 qemu-nbd --disconnect /dev/nbd0
-

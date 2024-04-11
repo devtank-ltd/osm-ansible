@@ -34,6 +34,8 @@ then
 fi
 
 
+if [ -n "$DEFAULT_KEY_LOCATION" ]; then DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub; fi
+
 . common.sh
 
 if [ ! -e "$DEBBIOSMEM" ]
@@ -55,12 +57,16 @@ IP_ADDR=$(ip route | awk '{print $9}' | head -n 1)
 python -m http.server -b $IP_ADDR&
 websvr=$!
 
-nc -u -l 10514 > log&
+nc -u -l 10514 > install_log&
 logsvr=$!
 
 sed "s|IPADDR|$IP_ADDR|g" "$PRESEED" > preseed.generated.cfg
 sed "s|IPADDR|$IP_ADDR|g" "raw.postinstall.sh" > postinstall.sh
 sed -i "s|OSMHOST|$OSMHOST|g" postinstall.sh
+
+ln -s $DEFAULT_KEY_LOCATION
+
+basename $DEFAULT_KEY_LOCATION > ssh_key_name
 
 
 qemu-system-x86_64                 \
@@ -92,6 +98,10 @@ done
 
 echo "VM booted and taken IP address $vm_ip"
 
-echo $vm_ip > /tmp/hosts
+echo "$vm_ip
+[all:vars]
+ansible_connection=ssh
+ansible_user=root
+" > /tmp/hosts
 
 ansible-playbook -e "target=$vm_ip" -i /tmp/hosts osmhost_setup.yaml
