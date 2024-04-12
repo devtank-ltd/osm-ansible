@@ -10,7 +10,7 @@
 
 - name: "Create Grafana Admin Password"
   ansible.builtin.set_fact:
-    grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits', 'punctuation']) }}"
+    grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
 
 - name: "Set Grafana Password"
   command: "grafana-cli admin reset-admin-password {{ grafana_admin_password }}"
