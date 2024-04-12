@@ -1,22 +1,8 @@
 #! /bin/bash
 
-if [ -z "$(which qemu-system-x86_64)" ]
-then
-   echo "Press install qemu-system-x86"
-   exit -1
-fi
-
-if [ ! -e "/usr/share/OVMF/OVMF_CODE_4M.fd" ]
-then
-   echo "Press install ovmf"
-   exit -1
-fi
-
-if [ -z "$(which isoinfo)" ]
-then
-   echo "Press install isoinfo"
-   exit -1
-fi
+[ -n "$(which qemu-system-x86_64)" ] || { echo "Press install qemu-system-x86"; exit -1; }
+[ -e "/usr/share/OVMF/OVMF_CODE_4M.fd" ] || { echo "Press install ovmf"; exit -1; }
+[ -n "$(which isoinfo)" ] || { echo "Press install isoinfo"; exit -1; }
 
 DEBISO=hosts/debian-12.5.0-amd64-netinst.iso
 
@@ -35,24 +21,17 @@ then
 fi
 
 
-if [ -z "$DEFAULT_KEY_LOCATION" ]; then DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub; fi
+[ -n "$DEFAULT_KEY_LOCATION" ] || DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub
 
 ssh_key_name=$(basename $DEFAULT_KEY_LOCATION)
 
-if [ -z "$ssh_key_name" ]
-then
-  echo "No SSH key found."
-  exit -1
-fi
+[ -n "$ssh_key_name" ] || { echo "No SSH key found."; exit -1; }
 
 . common.sh
 
 ./net_ctrl.sh open
 
-if [ ! -e "$DEBBIOSMEM" ]
-then
-    cp "$OVMF_VARS_ORIG" "$DEBBIOSMEM"
-fi
+[ -e "$DEBBIOSMEM" ] || cp "$OVMF_VARS_ORIG" "$DEBBIOSMEM"
 
 
 # To give our own preseed, we need to boot QEMU with the kernel and init ram disk so we can gives arguments.

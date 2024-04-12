@@ -2,27 +2,19 @@
 
 . common.sh
 
-if [ -z "$DEFAULT_KEY_LOCATION" ]; then DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub; fi
+[ -n "$DEFAULT_KEY_LOCATION" ] || DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub
 
 ssh_key_name=$(basename $DEFAULT_KEY_LOCATION)
 
-if [ -z "$ssh_key_name" ]
-then
-  echo "No SSH key found."
-  exit -1
-fi
+[ -n "$ssh_key_name" ] || { echo "No SSH key found."; exit -1; }
 
 echo $ssh_key_name > $HOST_DIR/ssh_key_name
 
-[ -e $HOST_DIR/$ssh_key_name ] | ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
+[ -f "$HOST_DIR/$ssh_key_name" ] || ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
 
 ./setup_common.sh
 
-if [ "$rc" != "0" ]
-then
-  echo "Setup failed"
-  exit -1
-fi
+[ "$rc" = "0" ] || { echo "Setup failed"; exit -1; }
 
 ./run.sh &
 
@@ -46,4 +38,4 @@ ansible_user=root
 
 ansible-playbook -e "target=$vm_ip osm_host_name=$OSMHOST" -i /tmp/hosts osmhost_setup.yaml
 
-ssh root@$vm_ip "power off"
+ssh root@$vm_ip "poweroff"

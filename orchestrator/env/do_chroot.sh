@@ -2,11 +2,7 @@
 
 [ $(id -u) == 0 ] || exec sudo -- "$0" "$@"
 
-if [ -z "$(which kpartx)" ]
-then
-   echo "Press install kpartx"
-   exit -1
-fi
+[ -n "$(which kpartx)" ] || { echo "Press install kpartx"; exit -1; }
 
 . common.sh
 
