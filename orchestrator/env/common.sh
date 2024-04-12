@@ -1,4 +1,5 @@
 test -r /dev/kvm || { echo "User doesn't have KVM access."; exit -1; }
+test -r /etc/qemu/bridge.conf || { echo "User doesn't have netdev access."; exit -1; }
 
 OVMF_VARS_ORIG="/usr/share/OVMF/OVMF_VARS_4M.fd"
 
