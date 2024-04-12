@@ -43,7 +43,7 @@ qemu-img create -f qcow2 "$DEBDISK" 16G
 
 IP_ADDR=$(ip route | awk '{print $9}' | head -n 1)
 
-python -m http.server -d $HOST_DIR -b $IP_ADDR&
+python3 -m http.server -d $HOST_DIR -b $IP_ADDR&
 websvr=$!
 
 nc -u -l 10514 > $HOST_DIR/install_log&
