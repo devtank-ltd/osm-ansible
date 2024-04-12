@@ -8,7 +8,7 @@ then
    exit -1
 fi
 
-if [ -z "$DEBDISK" ]; then DEBDISK=disk.qcow; fi
+. common.sh
 
 mkdir -p mnt
 
