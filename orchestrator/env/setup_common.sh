@@ -15,7 +15,6 @@ then
    if [ "$?" != "0" ]
    then
      echo "ISO verification failed."
-     rm "$DEBISO" hosts/SHA512SUMS
      exit -1
    fi
 fi
