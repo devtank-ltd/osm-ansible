@@ -14,7 +14,7 @@ fi
 
 echo $ssh_key_name > $HOST_DIR/ssh_key_name
 
-ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
+[ -e $HOST_DIR/$ssh_key_name ] | ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
 
 ./setup_common.sh
 
@@ -29,7 +29,7 @@ fi
 while [ -z "$vm_ip" ]
 do
   sleep 0.25
-  vm_ip=$(awk "/$OSMHOST/ {print $3}" /tmp/vosmhostnet.leasefile)
+  vm_ip=$(awk "/$OSMHOST/ {print \$3}" /tmp/vosmhostnet.leasefile)
 done
 
 echo "VM booted and taken IP address $vm_ip"

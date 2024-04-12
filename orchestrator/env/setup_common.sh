@@ -100,11 +100,11 @@ qemu-system-x86_64                 \
 rc=$?
 kill $websvr $logsvr
 
-if [ $rc != 0 ]
+if [ "$rc" = "0" ]
 then
-  echo "QEmu died."
-else
   echo "Install complete."
+else
+  echo "QEmu died."
 fi
 
 exit $rc
