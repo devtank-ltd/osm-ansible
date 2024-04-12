@@ -18,23 +18,32 @@ then
    exit -1
 fi
 
-DEBISO=debian-12.5.0-amd64-netinst.iso
+DEBISO=hosts/debian-12.5.0-amd64-netinst.iso
 
 if [ ! -e "$DEBISO" ]
 then
-   wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/$DEBISO"
-   wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS"
-   grep "$(sha512sum "$DEBISO")" SHA512SUMS
+   iso_name=$(basename $DEBISO)
+   wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/$iso_name" -O "$DEBISO"
+   wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS" -O hosts/SHA512SUMS
+   grep "$(sha512sum "$DEBISO")" hosts/SHA512SUMS
    if [ "$?" != "0" ]
    then
      echo "ISO verification failed."
-     rm "$DEBISO" SHA512SUMS
+     rm "$DEBISO" hosts/SHA512SUMS
      exit -1
    fi
 fi
 
 
-if [ -n "$DEFAULT_KEY_LOCATION" ]; then DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub; fi
+if [ -z "$DEFAULT_KEY_LOCATION" ]; then DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub; fi
+
+ssh_key_name=$(basename $DEFAULT_KEY_LOCATION)
+
+if [ -z "$ssh_key_name" ]
+then
+  echo "No SSH key found."
+  exit -1
+fi
 
 . common.sh
 
@@ -47,28 +56,29 @@ fi
 
 
 # To give our own preseed, we need to boot QEMU with the kernel and init ram disk so we can gives arguments.
-mkdir -p boot
-isoinfo -J -i "$DEBISO" -x /install.amd/vmlinuz > boot/vmlinuz
-isoinfo -J -i "$DEBISO" -x /install.amd/initrd.gz > boot/initrd.gz
+mkdir -p $HOST_DIR/boot
+isoinfo -J -i "$DEBISO" -x /install.amd/vmlinuz > $HOST_DIR/boot/vmlinuz
+isoinfo -J -i "$DEBISO" -x /install.amd/initrd.gz > $HOST_DIR/boot/initrd.gz
 
 rm -rf "$DEBDISK"
 qemu-img create -f qcow2 "$DEBDISK" 16G
 
 IP_ADDR=$(ip route | awk '{print $9}' | head -n 1)
 
-python -m http.server -b $IP_ADDR&
+python -m http.server -d $HOST_DIR -b $IP_ADDR&
 websvr=$!
 
-nc -u -l 10514 > install_log&
+nc -u -l 10514 > $HOST_DIR/install_log&
 logsvr=$!
 
-sed "s|IPADDR|$IP_ADDR|g" "$PRESEED" > preseed.generated.cfg
-sed "s|IPADDR|$IP_ADDR|g" "raw.postinstall.sh" > postinstall.sh
-sed -i "s|OSM_HOST_NAME|$OSMHOST|g" postinstall.sh
+sed "s|IPADDR|$IP_ADDR|g" "$PRESEED" > $HOST_DIR/preseed.generated.cfg
+sed "s|IPADDR|$IP_ADDR|g" "raw.postinstall.sh" > $HOST_DIR/postinstall.sh
+sed -i "s|OSM_HOST_NAME|$OSMHOST|g" $HOST_DIR/postinstall.sh
 
-ln -s $DEFAULT_KEY_LOCATION
 
-basename $DEFAULT_KEY_LOCATION > ssh_key_name
+echo $ssh_key_name > $HOST_DIR/ssh_key_name
+
+ln -s $HOST_DIR/$ssh_key_name $DEFAULT_KEY_LOCATION
 
 
 qemu-system-x86_64                 \
@@ -83,31 +93,18 @@ qemu-system-x86_64                 \
    -drive file="$DEBDISK",format=qcow2,if=virtio \
    -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE_4M.fd,readonly=on" \
    -drive "if=pflash,format=raw,unit=1,file=$DEBBIOSMEM" \
-   -kernel boot/vmlinuz \
-   -initrd boot/initrd.gz \
+   -kernel $HOST_DIR/boot/vmlinuz \
+   -initrd $HOST_DIR/boot/initrd.gz \
    -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text log_host=$IP_ADDR log_port=10514 url=http://$IP_ADDR:8000/preseed.generated.cfg"
 
+rc=$?
 kill $websvr $logsvr
-echo "Install complete."
 
-./run.sh &
+if [ $rc != 0 ]
+then
+  echo "QEmu died."
+else
+  echo "Install complete."
+fi
 
-while [ -z "$vm_ip" ]
-do
-  sleep 0.25
-  vm_ip=$(awk "/$OSMHOST/ {print $3}" /tmp/vosmhostnet.leasefile)
-done
-
-echo "VM booted and taken IP address $vm_ip"
-
-# Sort out ssh host key
-ssh-keygen -f ~/.ssh/known_hosts -R $vm_ip
-ssh-keyscan -H $vm_ip >> ~/.ssh/known_hosts
-
-echo "$vm_ip
-[all:vars]
-ansible_connection=ssh
-ansible_user=root
-" > /tmp/hosts
-
-ansible-playbook -e "target=$vm_ip osm_host_name=$OSMHOST" -i /tmp/hosts osmhost_setup.yaml
+exit $rc

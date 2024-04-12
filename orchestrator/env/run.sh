@@ -10,8 +10,8 @@ qemu-system-x86_64                 \
    -enable-kvm                     \
    -nographic                      \
    -m 4G                           \
-   -monitor unix:$OSMHOST.monitor.sock,server,nowait \
-   -serial unix:$OSMHOST.console.sock,server,nowait \
+   -monitor unix:$HOST_DIR/monitor.sock,server,nowait \
+   -serial unix:$HOST_DIR/console.sock,server,nowait \
    -device virtio-scsi-pci,id=scsi \
    -nic bridge,br=vosmhostnet,model=virtio-net-pci \
    -drive file="$DEBDISK",format=qcow2,if=virtio \
