@@ -38,6 +38,8 @@ if [ -n "$DEFAULT_KEY_LOCATION" ]; then DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub; 
 
 . common.sh
 
+./net_ctrl.sh open
+
 if [ ! -e "$DEBBIOSMEM" ]
 then
     cp "$OVMF_VARS_ORIG" "$DEBBIOSMEM"
@@ -62,7 +64,7 @@ logsvr=$!
 
 sed "s|IPADDR|$IP_ADDR|g" "$PRESEED" > preseed.generated.cfg
 sed "s|IPADDR|$IP_ADDR|g" "raw.postinstall.sh" > postinstall.sh
-sed -i "s|OSMHOST|$OSMHOST|g" postinstall.sh
+sed -i "s|OSM_HOST_NAME|$OSMHOST|g" postinstall.sh
 
 ln -s $DEFAULT_KEY_LOCATION
 
@@ -97,6 +99,10 @@ do
 done
 
 echo "VM booted and taken IP address $vm_ip"
+
+# Sort out ssh host key
+ssh-keygen -f ~/.ssh/known_hosts -R $vm_ip
+ssh-keyscan -H $vm_ip >> ~/.ssh/known_hosts
 
 echo "$vm_ip
 [all:vars]
