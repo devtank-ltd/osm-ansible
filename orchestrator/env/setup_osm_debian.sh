@@ -2,6 +2,8 @@
 
 . common.sh
 
+[ -n "$(which ansible-playbook)" ] || { echo "Install ansible"; exit -1; }
+
 [ -n "$DEFAULT_KEY_LOCATION" ] || DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub
 
 ssh_key_name=$(basename $DEFAULT_KEY_LOCATION)
