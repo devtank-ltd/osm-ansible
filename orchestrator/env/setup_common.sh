@@ -11,7 +11,7 @@ then
    iso_name=$(basename $DEBISO)
    wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/$iso_name" -O "$DEBISO"
    wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS" -O hosts/SHA512SUMS
-   grep "$(sha512sum "$DEBISO")" hosts/SHA512SUMS
+   grep "$(sha512sum "$DEBISO" | awk '{print $1}')" hosts/SHA512SUMS
    if [ "$?" != "0" ]
    then
      echo "ISO verification failed."
