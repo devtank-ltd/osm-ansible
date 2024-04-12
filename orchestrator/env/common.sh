@@ -8,7 +8,7 @@ HOST_DIR=$HOSTS_DIR/$OSMHOST
 
 mkdir -p $HOST_DIR
 
-[ -n "$DEBDISK" ] || DEBDISK=$HOST_DIR/disk.qcow
-[ -n "$DEBBIOSMEM" ] || DEBBIOSMEM=$HOST_DIR/ovmf_vars.fd
+DEBDISK=$HOST_DIR/disk.qcow
+DEBBIOSMEM=$HOST_DIR/ovmf_vars.fd
 
 [ -n "$PRESEED" ] || PRESEED=preseed.cfg
