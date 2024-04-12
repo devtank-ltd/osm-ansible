@@ -13,6 +13,7 @@ echo $ssh_key_name > $HOST_DIR/ssh_key_name
 [ -f "$HOST_DIR/$ssh_key_name" ] || ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
 
 ./setup_common.sh
+rc=$?
 
 [ "$rc" = "0" ] || { echo "Setup failed"; exit -1; }
 
