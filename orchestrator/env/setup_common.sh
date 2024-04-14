@@ -43,15 +43,14 @@ qemu-img create -f qcow2 "$DEBDISK" 16G
 
 IP_ADDR=$(ip route | awk '{print $9}' | head -n 1)
 
-python3 -m http.server -d $HOST_DIR -b $IP_ADDR&
+python3 -m http.server -d $HOST_DIR -b 192.168.5.1&
 websvr=$!
 
 nc -u -l 10514 > $HOST_DIR/install_log&
 logsvr=$!
 
-sed "s|IPADDR|$IP_ADDR|g" "$PRESEED" > $HOST_DIR/preseed.generated.cfg
-sed "s|IPADDR|$IP_ADDR|g" "raw.postinstall.sh" > $HOST_DIR/postinstall.sh
-sed -i "s|OSM_HOST_NAME|$OSMHOST|g" $HOST_DIR/postinstall.sh
+cp "$PRESEED" > $HOST_DIR/preseed.generated.cfg
+sed "s|OSM_HOST_NAME|$OSMHOST|g" "raw.postinstall.sh" > $HOST_DIR/postinstall.sh
 
 
 echo $ssh_key_name > $HOST_DIR/ssh_key_name
@@ -66,7 +65,7 @@ qemu-system-x86_64                 \
    -m 4G                           \
    -device virtio-scsi-pci,id=scsi \
    -device virtio-serial-pci       \
-   -nic user,model=virtio-net-pci,hostname=$OSMHOST \
+   -nic bridge,br=vosmhostnet,model=virtio-net-pci \
    -drive file="$DEBISO",format=raw,if=virtio,media=cdrom \
    -drive file="$DEBDISK",format=qcow2,if=virtio \
    -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE_4M.fd,readonly=on" \

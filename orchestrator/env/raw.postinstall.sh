@@ -1,10 +1,10 @@
 #! /bin/bash
 
 # Setup SSH access
-ssh_key_name=$(wget http://IPADDR:8000/ssh_key_name -O -)
+ssh_key_name=$(wget http://192.168.5.1:8000/ssh_key_name -O -)
 echo "Key name: $ssh_key_name"
 mkdir -p /root/.ssh
-wget http://IPADDR:8000/$ssh_key_name -O - >> /root/.ssh/authorized_keys
+wget http://192.168.5.1:8000/$ssh_key_name -O - >> /root/.ssh/authorized_keys
 
 # Fake up LetsEncrypt
 mkdir -p /etc/letsencrypt/live/OSM_HOST_NAME.osmm.devtank.co.uk
