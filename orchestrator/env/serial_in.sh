@@ -2,4 +2,4 @@
 
 . common.sh
 
-socat STDIO,cfmakeraw UNIX:$OSMHOST.console.sock
+socat STDIO,cfmakeraw UNIX:$HOST_DIR/console.sock
