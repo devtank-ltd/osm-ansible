@@ -36,6 +36,17 @@
           - ufw
         update_cache: yes
 
+    - name: Setup for faking
+      shell: |
+        # Fake up LetsEncrypt
+        mkdir -p /etc/letsencrypt/live/{{ osm_host_name }}.osmm.devtank.co.uk
+        openssl req -x509 -nodes -newkey rsa:4096 -days 1\
+            -keyout "/etc/letsencrypt/live/{{ osm_host_name }}.osmm.devtank.co.uk/privkey.pem" \
+            -out "/etc/letsencrypt/live/{{ osm_host_name }}.osmm.devtank.co.uk/fullchain.pem" \
+            -subj '/CN=localhost' > /dev/null
+        echo "export SKIP_LETS_ENCRYPT=1" >> /root/.bashrc
+      when: fake_osm_host is defined
+
     - name: Clone OSM Ansible git repo.
       ansible.builtin.git:
         repo: https://git.devtank.co.uk/Devtank/osm-ansible.git

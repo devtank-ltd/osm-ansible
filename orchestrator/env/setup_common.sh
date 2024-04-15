@@ -41,24 +41,20 @@ isoinfo -J -i "$DEBISO" -x /install.amd/initrd.gz > $HOST_DIR/boot/initrd.gz
 rm -rf "$DEBDISK"
 qemu-img create -f qcow2 "$DEBDISK" 16G
 
-IP_ADDR=$(ip route | awk '{print $9}' | head -n 1)
-
 python3 -m http.server -d $HOST_DIR -b 192.168.5.1&
 websvr=$!
 
-nc -u -l 10514 > $HOST_DIR/install_log&
+nc -u -l 192.168.5.1 10514 > $HOST_DIR/install_log&
 logsvr=$!
 
-cp "$PRESEED" > $HOST_DIR/preseed.generated.cfg
-sed "s|OSM_HOST_NAME|$OSMHOST|g" "raw.postinstall.sh" > $HOST_DIR/postinstall.sh
+[ -e "$HOST_DIR/preseed.cfg" ] || ln -s "$(readlink -f "$PRESEED")" $HOST_DIR/preseed.cfg
 
-
-echo $ssh_key_name > $HOST_DIR/ssh_key_name
-
-ln -s $HOST_DIR/$ssh_key_name $DEFAULT_KEY_LOCATION
+[ -e "$HOST_DIR/ssh_key_name"] || echo $ssh_key_name > $HOST_DIR/ssh_key_name
+[ -e "$HOST_DIR/$ssh_key_name" ] || ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
 
 
 qemu-system-x86_64                 \
+   -no-reboot                      \
    -enable-kvm                     \
    -nographic                      \
    -serial mon:stdio               \
@@ -72,7 +68,7 @@ qemu-system-x86_64                 \
    -drive "if=pflash,format=raw,unit=1,file=$DEBBIOSMEM" \
    -kernel $HOST_DIR/boot/vmlinuz \
    -initrd $HOST_DIR/boot/initrd.gz \
-   -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text log_host=$IP_ADDR log_port=10514 url=http://$IP_ADDR:8000/preseed.generated.cfg"
+   -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text hostname=$OSMHOST domain=osmm log_host=192.168.5.1 log_port=10514 url=http://192.168.5.1:8000/preseed.cfg"
 
 rc=$?
 kill $websvr $logsvr
@@ -82,6 +78,5 @@ then
   echo "Install complete."
 else
   echo "QEmu died."
+  exit -1
 fi
-
-exit $rc
