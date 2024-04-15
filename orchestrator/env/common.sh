@@ -5,7 +5,7 @@ OVMF_VARS_ORIG="/usr/share/OVMF/OVMF_VARS_4M.fd"
 
 HOSTS_DIR=hosts
 
-[ -n "$OSMHOST" ] || OSMHOST=osmhostv
+[ -n "$OSMHOST" ] || OSMHOST=btrfsdeb
 HOST_DIR=$HOSTS_DIR/$OSMHOST
 
 mkdir -p $HOST_DIR
@@ -13,7 +13,7 @@ mkdir -p $HOST_DIR
 DEBDISK=$HOST_DIR/disk.qcow
 DEBBIOSMEM=$HOST_DIR/ovmf_vars.fd
 
-[ -n "$PRESEED" ] || PRESEED=preseed.cfg
+[ -n "$PRESEED" ] || PRESEED=preseed-btrfs.cfg
 
 echo "OSM HOST: $OSMHOST"
 echo "OSM HOST DIR: $HOST_DIR"
