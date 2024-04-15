@@ -1,0 +1,4 @@
+- hosts: "{{ target }}"
+  tasks:
+    - name: Setup OSM HOST
+      import_tasks: ./osmhost_setup.yaml

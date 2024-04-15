@@ -14,3 +14,6 @@ DEBDISK=$HOST_DIR/disk.qcow
 DEBBIOSMEM=$HOST_DIR/ovmf_vars.fd
 
 [ -n "$PRESEED" ] || PRESEED=preseed.cfg
+
+echo "OSM HOST: $OSMHOST"
+echo "OSM HOST DIR: $HOST_DIR"

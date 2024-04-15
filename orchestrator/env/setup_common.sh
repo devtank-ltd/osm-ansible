@@ -1,5 +1,6 @@
 #! /bin/bash
 
+[ -n "$(which ansible-playbook)" ] || { echo "Install ansible"; exit -1; }
 [ -n "$(which qemu-system-x86_64)" ] || { echo "Press install qemu-system-x86"; exit -1; }
 [ -e "/usr/share/OVMF/OVMF_CODE_4M.fd" ] || { echo "Press install ovmf"; exit -1; }
 [ -n "$(which isoinfo)" ] || { echo "Press install isoinfo"; exit -1; }
@@ -19,6 +20,7 @@ then
    fi
 fi
 
+. common.sh
 
 [ -n "$DEFAULT_KEY_LOCATION" ] || DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub
 
@@ -26,7 +28,9 @@ ssh_key_name=$(basename $DEFAULT_KEY_LOCATION)
 
 [ -n "$ssh_key_name" ] || { echo "No SSH key found."; exit -1; }
 
-. common.sh
+echo $ssh_key_name > $HOST_DIR/ssh_key_name
+
+[ -f "$HOST_DIR/$ssh_key_name" ] || ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
 
 ./net_ctrl.sh open
 
@@ -49,7 +53,7 @@ logsvr=$!
 
 [ -e "$HOST_DIR/preseed.cfg" ] || ln -s "$(readlink -f "$PRESEED")" $HOST_DIR/preseed.cfg
 
-[ -e "$HOST_DIR/ssh_key_name"] || echo $ssh_key_name > $HOST_DIR/ssh_key_name
+[ -e "$HOST_DIR/ssh_key_name" ] || echo $ssh_key_name > $HOST_DIR/ssh_key_name
 [ -e "$HOST_DIR/$ssh_key_name" ] || ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
 
 
@@ -57,8 +61,9 @@ qemu-system-x86_64                 \
    -no-reboot                      \
    -enable-kvm                     \
    -nographic                      \
-   -serial mon:stdio               \
    -m 4G                           \
+   -monitor unix:$HOST_DIR/monitor.sock,server,nowait \
+   -serial unix:$HOST_DIR/console.sock,server,nowait \
    -device virtio-scsi-pci,id=scsi \
    -device virtio-serial-pci       \
    -nic bridge,br=vosmhostnet,model=virtio-net-pci \
@@ -80,3 +85,44 @@ else
   echo "QEmu died."
   exit -1
 fi
+
+echo "Running installed system"
+
+export OSMHOST
+
+./run.sh &
+run_pid=$!
+
+while [ -z "$vm_ip" ]
+do
+  sleep 0.25
+  vm_ip=$(awk "/$OSMHOST/ {print \$3}" /tmp/vosmhostnet.leasefile)
+  [ -e /proc/$run_pid ] || { echo "QEmu dead"; exit -1; }
+  if [ -n "$vm_ip" ]
+  then
+    echo "Got IP $vm_ip for $OSMHOST"
+    ping -c1 -W1 $vm_ip
+    if [ "$?" != "0" ]
+    then
+      echo "Host not ready"
+      vm_ip=""
+    fi
+  fi
+done
+
+echo "VM booted and taken IP address $vm_ip"
+
+mkdir -p ~/.ssh
+
+# Sort out ssh host key
+ssh-keygen -f ~/.ssh/known_hosts -R $vm_ip
+ssh-keyscan -H $vm_ip >> ~/.ssh/known_hosts
+
+ssh root@$vm_ip exit
+[ "$?" = "0" ] || { echo "SSH access setup failed."; kill $run_pid; exit -1; }
+
+echo "$vm_ip
+[all:vars]
+ansible_connection=ssh
+ansible_user=root
+" > /tmp/hosts
