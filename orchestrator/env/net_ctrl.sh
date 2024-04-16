@@ -11,7 +11,7 @@ case "$1" in
     [ $(id -u) == 0 ] || exec sudo -- "$0" "$@"
 
     c=$(stat /usr/lib/qemu/qemu-bridge-helper -c  %a%G)
-    [ "$c" = "4750netdev" ] || { chmod 4750 /usr/lib/qemu/qemu-bridge-helper; chgrp netdev /usr/lib/qemu/qemu-bridge-helper; }
+    [ "$c" = "4750netdev" ] || { chgrp netdev /usr/lib/qemu/qemu-bridge-helper; chmod 4750 /usr/lib/qemu/qemu-bridge-helper;}
 
     [ -d /etc/qemu ] || mkdir /etc/qemu
     [ -e /etc/qemu/bridge.conf ] || { touch /etc/qemu/bridge.conf; chmod 640 /etc/qemu/bridge.conf; chown root:netdev /etc/qemu/bridge.conf; }
