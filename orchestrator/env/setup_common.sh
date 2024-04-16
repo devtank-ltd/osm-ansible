@@ -9,6 +9,7 @@ DEBISO=hosts/debian-12.5.0-amd64-netinst.iso
 
 if [ ! -e "$DEBISO" ]
 then
+   mkdir -p hosts
    iso_name=$(basename $DEBISO)
    wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/$iso_name" -O "$DEBISO"
    wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS" -O hosts/SHA512SUMS
