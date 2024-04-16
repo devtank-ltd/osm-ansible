@@ -34,6 +34,12 @@
       - ufw
     update_cache: yes
 
+- name: Add OSM orchestrator user
+  user:
+    name: osm_orchestrator
+    shell: /bin/bash
+    home: /home/osm_orchestrator
+
 - name: Clone OSM Ansible git repo.
   ansible.builtin.git:
     repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
