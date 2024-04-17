@@ -102,6 +102,11 @@
     cd /srv/osm-lxc/ansible/
     ansible-playbook -e "target=10.0.3.2" -i /tmp/hosts setup-base-os.yaml
 
+- name: Add Go GC work rounds
+  shell: |
+    print "GOMEMLIMIT=300MiB\nGOGC=50" >> /etc/default/influxdb2
+    print "GOMEMLIMIT=300MiB\nGOGC=50" >> /etc/default/grafana-server
+
 - name: Stop OSM Host Base OS container
   community.general.lxc_container:
     name: base-os
