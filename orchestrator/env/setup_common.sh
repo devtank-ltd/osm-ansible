@@ -25,6 +25,8 @@ fi
 
 [ -n "$DEFAULT_KEY_LOCATION" ] || DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub
 
+[ -e "$DEFAULT_KEY_LOCATION" ] || { echo "Missing public key"; exit -1; }
+
 ssh_key_name=$(basename $DEFAULT_KEY_LOCATION)
 
 [ -n "$ssh_key_name" ] || { echo "No SSH key found."; exit -1; }
