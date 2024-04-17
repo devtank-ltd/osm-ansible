@@ -8,3 +8,10 @@
     - { role: postgres, tags: postgres }
     - { role: chirpstack, tags: chirpstack }
     - { role: grafana, tags: grafana }
+  tasks:
+    - name: Extra packages
+      apt:
+        name:
+          - python3-influxdb
+          - python3-paho-mqtt
+          - python3-urllib3
