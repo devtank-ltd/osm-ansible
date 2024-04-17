@@ -76,7 +76,8 @@ qemu-system-x86_64                 \
    -drive "if=pflash,format=raw,unit=1,file=$DEBBIOSMEM" \
    -kernel $HOST_DIR/boot/vmlinuz \
    -initrd $HOST_DIR/boot/initrd.gz \
-   -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text hostname=$OSMHOST domain=osmm log_host=192.168.5.1 log_port=10514 url=http://192.168.5.1:8000/preseed.cfg"
+   -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text hostname=$OSMHOST domain=osmm log_host=192.168.5.1 log_port=10514 url=http://192.168.5.1:8000/preseed.cfg" \
+   -cpu host
 
 rc=$?
 kill $websvr $logsvr
