@@ -3,6 +3,8 @@ test -r /etc/qemu/bridge.conf || { echo "User doesn't have netdev access."; exit
 
 OVMF_VARS_ORIG="/usr/share/OVMF/OVMF_VARS_4M.fd"
 
+[ -n "$VOSMHOSTBR" ] || VOSMHOSTBR=vosmhostbr0
+
 HOSTS_DIR=hosts
 
 [ -n "$OSMHOST" ] || OSMHOST=btrfsdeb

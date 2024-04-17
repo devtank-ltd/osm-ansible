@@ -67,7 +67,7 @@ qemu-system-x86_64                 \
    -serial unix:$HOST_DIR/console.sock,server,nowait \
    -device virtio-scsi-pci,id=scsi \
    -device virtio-serial-pci       \
-   -nic bridge,br=vosmhostnet,model=virtio-net-pci \
+   -nic bridge,br="$VOSMHOSTBR",model=virtio-net-pci \
    -drive file="$DEBISO",format=raw,if=virtio,media=cdrom \
    -drive file="$DEBDISK",format=qcow2,if=virtio \
    -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE_4M.fd,readonly=on" \
@@ -97,7 +97,7 @@ run_pid=$!
 while [ -z "$vm_ip" ]
 do
   sleep 0.25
-  vm_ip=$(awk "/$OSMHOST/ {print \$3}" /tmp/vosmhostnet.leasefile)
+  vm_ip=$(awk "/$OSMHOST/ {print \$3}" "/tmp/$VOSMHOSTBR.leasefile")
   [ -e /proc/$run_pid ] || { echo "QEmu dead"; exit -1; }
   if [ -n "$vm_ip" ]
   then
