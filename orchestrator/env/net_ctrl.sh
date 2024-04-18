@@ -26,7 +26,7 @@ case "$1" in
 
     iptables -t nat -A POSTROUTING -s 192.168.5.0/24 -j SNAT --to-source $main_ip
 
-    [ -z "$OSM_DNS" ] || DNS_OPTION=" --dhcp-option=option:dns-server,$OSM_DNS"
+    [ -z "$OSM_DNS" ] || DNS_OPTION=" --dhcp-option=option:dns-server,$OSM_DNS,8.8.8.8"
 
     dnsmasq --pid-file=/tmp/"$VOSMHOSTBR".pid --dhcp-leasefile="/tmp/$VOSMHOSTBR.leasefile" --interface="$VOSMHOSTBR" --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255$DNS_OPTION
   ;;
