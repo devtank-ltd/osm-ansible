@@ -25,6 +25,8 @@ fi
 
 [ -n "$DEFAULT_KEY_LOCATION" ] || DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub
 
+[ -e "$DEFAULT_KEY_LOCATION" ] || { echo "Missing public key"; exit -1; }
+
 ssh_key_name=$(basename $DEFAULT_KEY_LOCATION)
 
 [ -n "$ssh_key_name" ] || { echo "No SSH key found."; exit -1; }
@@ -33,7 +35,7 @@ echo $ssh_key_name > $HOST_DIR/ssh_key_name
 
 [ -f "$HOST_DIR/$ssh_key_name" ] || ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
 
-./net_ctrl.sh open
+./net_ctrl.sh open $VOSMHOSTBR
 
 [ -e "$DEBBIOSMEM" ] || cp "$OVMF_VARS_ORIG" "$DEBBIOSMEM"
 
@@ -67,14 +69,15 @@ qemu-system-x86_64                 \
    -serial unix:$HOST_DIR/console.sock,server,nowait \
    -device virtio-scsi-pci,id=scsi \
    -device virtio-serial-pci       \
-   -nic bridge,br=vosmhostnet,model=virtio-net-pci \
+   -nic bridge,br="$VOSMHOSTBR",model=virtio-net-pci \
    -drive file="$DEBISO",format=raw,if=virtio,media=cdrom \
    -drive file="$DEBDISK",format=qcow2,if=virtio \
    -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE_4M.fd,readonly=on" \
    -drive "if=pflash,format=raw,unit=1,file=$DEBBIOSMEM" \
    -kernel $HOST_DIR/boot/vmlinuz \
    -initrd $HOST_DIR/boot/initrd.gz \
-   -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text hostname=$OSMHOST domain=osmm log_host=192.168.5.1 log_port=10514 url=http://192.168.5.1:8000/preseed.cfg"
+   -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text hostname=$OSMHOST domain=osmm log_host=192.168.5.1 log_port=10514 url=http://192.168.5.1:8000/preseed.cfg" \
+   -cpu host
 
 rc=$?
 kill $websvr $logsvr
@@ -97,7 +100,7 @@ run_pid=$!
 while [ -z "$vm_ip" ]
 do
   sleep 0.25
-  vm_ip=$(awk "/$OSMHOST/ {print \$3}" /tmp/vosmhostnet.leasefile)
+  vm_ip=$(awk "/$OSMHOST/ {print \$3}" "/tmp/$VOSMHOSTBR.leasefile")
   [ -e /proc/$run_pid ] || { echo "QEmu dead"; exit -1; }
   if [ -n "$vm_ip" ]
   then
