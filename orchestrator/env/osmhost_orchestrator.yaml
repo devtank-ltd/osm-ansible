@@ -73,7 +73,7 @@
 
     - name: "Create OSM Orchestrator DB"
       shell: |
-        cat /srv/osm-lxc/osm-ansible/orchestrator/schema.sql | sed 's|change_this_password|{{ osm_orchestrator_db_password }}|g' |  mysql -uroot
+        cat /srv/osm-lxc/orchestrator/schema.sql | sed 's|change_this_password|{{ osm_orchestrator_db_password }}|g' |  mysql -uroot
 
     - name: "Write out OSM Orchestrator Config"
       vars:
@@ -92,7 +92,7 @@
             pdns_domain_id: 1
       copy:
         content: "{{ object | to_nice_yaml(indent=2) }}"
-        dest: /srv/osm-lxc/osm-ansible/orchestrator/config.yaml
+        dest: /srv/osm-lxc/orchestrator/config.yaml
 
     - name: Restart PDNS
       service:
