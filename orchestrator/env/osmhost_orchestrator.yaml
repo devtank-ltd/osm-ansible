@@ -38,26 +38,16 @@
         FLUSH PRIVILEGES;" | mysql -uroot
         cat /usr/share/doc/pdns-backend-mysql/schema.mysql.sql | mysql -uroot pdns
 
-    - name: "Comment out SQLite backend of PDNS"
-      ansible.builtin.replace:
-        path: /etc/powerdns/pdns.conf
-        regexp: '^\s*(gsqlite3=.*)'
-        replace: '#\1'
-
     - name: "Add MySQL setup to PDNS"
-      ansible.builtin.blockinfile:
-        insertafter: EOF
-        path: /etc/powerdns/pdns.conf
-        marker: "    <!-- {mark} ANSIBLE Added MySQL section -->"
-        block: |
-            #### MYSQL CONFIG
-            launch=gmysql
-            gmysql-host=127.0.0.1
-            gmysql-port=3306
-            gmysql-dbname=pdns
-            gmysql-user=pdns
-            gmysql-password={{ pdns_db_password }}
-            gmysql-dnssec=no
+      shell:
+        echo "#### MYSQL CONFIG
+        launch=gmysql
+        gmysql-host=127.0.0.1
+        gmysql-port=3306
+        gmysql-dbname=pdns
+        gmysql-user=pdns
+        gmysql-password={{ pdns_db_password }}
+        gmysql-dnssec=no" > /etc/powerdns/pdns.d/mysql.conf
 
     - name: "Populate PDNS MySQL"
       shell: |
