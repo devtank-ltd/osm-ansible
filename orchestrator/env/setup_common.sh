@@ -93,7 +93,7 @@ fi
 echo "Running installed system"
 
 export OSMHOST
-
+[ -z "$DEV" ] || cp "$DEBDISK" "$DEBDISK.bckup"
 ./run.sh &
 run_pid=$!
 
@@ -125,8 +125,9 @@ ssh-keyscan -H $vm_ip >> ~/.ssh/known_hosts
 ssh root@$vm_ip exit
 [ "$?" = "0" ] || { echo "SSH access setup failed."; kill $run_pid; exit -1; }
 
-[ -n "$(grep "$vm_ip" "$ANSIBLE_HOSTS")" ] || printf "$vm_ip\n\
-[all:vars]\n\
+[ -e "$ANSIBLE_HOSTS" ] || printf "[all:vars]\n\
 ansible_connection=ssh\n\
 ansible_user=root\n\
-" >> "$ANSIBLE_HOSTS"
+" > "$ANSIBLE_HOSTS"
+
+[ -n "$(grep "$vm_ip" "$ANSIBLE_HOSTS")" ] || printf "$vm_ip\n$(cat "$ANSIBLE_HOSTS")" > "$ANSIBLE_HOSTS"
