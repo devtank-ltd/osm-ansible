@@ -1,5 +1,5 @@
 CREATE DATABASE osm_orchestrator;
-USE DATABASE osm_orchestrator;
+USE osm_orchestrator;
 
 CREATE TABLE osm_hosts (
     id INT PRIMARY KEY AUTO_INCREMENT,
