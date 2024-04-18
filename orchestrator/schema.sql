@@ -20,5 +20,5 @@ CREATE TABLE osm_customers (
     FOREIGN KEY(osm_hosts_id) REFERENCES osm_hosts (id)
 );
 
-GRANT ALL PRIVILEGES ON osm_orchestrator.* TO 'osm_orchestrator'@'localhost' IDENTIFIED BY 'change_this_password'
-GRANT ALL PRIVILEGES ON pdns.records TO 'osm_orchestrator'@'localhost'
+GRANT ALL PRIVILEGES ON osm_orchestrator.* TO 'osm_orchestrator'@'localhost' IDENTIFIED BY 'change_this_password';
+GRANT ALL PRIVILEGES ON pdns.records TO 'osm_orchestrator'@'localhost';
