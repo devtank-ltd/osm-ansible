@@ -1,3 +1,6 @@
+CREATE DATABASE osm_orchestrator;
+USE DATABASE osm_orchestrator;
+
 CREATE TABLE osm_hosts (
     id INT PRIMARY KEY AUTO_INCREMENT,
     name    TEXT NOT NULL,
@@ -17,4 +20,5 @@ CREATE TABLE osm_customers (
     FOREIGN KEY(osm_hosts_id) REFERENCES osm_hosts (id)
 );
 
+GRANT ALL PRIVILEGES ON osm_orchestrator.* TO 'osm_orchestrator'@'localhost' IDENTIFIED BY 'change_this_password'
 GRANT ALL PRIVILEGES ON pdns.records TO 'osm_orchestrator'@'localhost'
