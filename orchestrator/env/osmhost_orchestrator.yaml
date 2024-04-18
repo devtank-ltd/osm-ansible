@@ -33,7 +33,7 @@
 
     - name: Setup PDNS MySQL
       shell: |
-        echo "create database pdns;\
+        echo "CREATE DATABASE pdns;\
         GRANT ALL ON pdns.* to pdns@localhost IDENTIFIED BY '{{ pdns_db_password }}';\
         FLUSH PRIVILEGES;" | mysql -uroot
         cat /usr/share/doc/pdns-backend-mysql/schema.mysql.sql | mysql -uroot pdns
@@ -65,7 +65,7 @@
         INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES (1,'{{ osm_domain }}','SOA',0,'{{ osm_host_name }}.{{ osm_domain }} hostmaster.{{ osm_domain }} 20230717 10800 10800 108000 1800',1800);
         INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES (1,'{{ osm_domain }}','NS',0,'{{ osm_host_name }}.{{ osm_domain }}',10800);
         INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES (1,'{{ osm_host_name }}.{{ osm_domain }}','A',0,'{{ osm_dns }}',10800);
-        " | mysql -uroot
+        " | mysql -uroot pdns
 
     - name: "Create OSM Orchestrator DB Password"
       ansible.builtin.set_fact:
