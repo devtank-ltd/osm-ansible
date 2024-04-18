@@ -1,8 +1,8 @@
 #! /bin/bash
 
-./net_ctrl.sh open
-
 . common.sh
+
+./net_ctrl.sh open $VOSMHOSTBR
 
 echo "Running: $OSMHOST"
 

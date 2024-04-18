@@ -35,7 +35,7 @@ echo $ssh_key_name > $HOST_DIR/ssh_key_name
 
 [ -f "$HOST_DIR/$ssh_key_name" ] || ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
 
-./net_ctrl.sh open
+./net_ctrl.sh open $VOSMHOSTBR
 
 [ -e "$DEBBIOSMEM" ] || cp "$OVMF_VARS_ORIG" "$DEBBIOSMEM"
 

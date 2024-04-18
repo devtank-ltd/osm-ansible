@@ -4,7 +4,7 @@ set -e
 
 main_ip=$(ip route | awk '/default/ { print $9 ; exit}')
 
-. common.sh
+VOSMHOSTBR=$2
 
 case "$1" in
   "open")
