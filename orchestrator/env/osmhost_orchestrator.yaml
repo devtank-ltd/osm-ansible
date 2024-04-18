@@ -41,7 +41,7 @@
     - name: "Comment out SQLite backend of PDNS"
       ansible.builtin.replace:
         path: /etc/powerdns/pdns.conf
-        regexp: '^.*gsqlite3.*$'
+        regexp: '^\s*(gsqlite3=.*)'
         replace: '#\1'
 
     - name: "Add MySQL setup to PDNS"
