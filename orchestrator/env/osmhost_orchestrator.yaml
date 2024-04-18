@@ -3,6 +3,12 @@
     - name: Install required packages
       apt:
         name:
+          - git
+          - python3
+          - python3-paramiko
+          - python3-pymysql
+          - python3-crcmod
+          - python3-yaml
           - pdns-backend-mysql
           - pdns-server
           - default-mysql-server
