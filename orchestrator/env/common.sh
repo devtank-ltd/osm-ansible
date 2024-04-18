@@ -19,6 +19,8 @@ DEBBIOSMEM=$HOST_DIR/ovmf_vars.fd
 
 [ -n "$OSM_DOMAIN" ] || OSM_DOMAIN=osmm.fake.co.uk
 
+[ -n "$ANSIBLE_HOSTS" ] || ANSIBLE_HOSTS=/tmp/$USER.hosts
+
 echo "OSM HOST: $OSMHOST"
 echo "OSM HOST DIR: $HOST_DIR"
 echo "OSM DOMAIN: $OSM_DOMAIN"

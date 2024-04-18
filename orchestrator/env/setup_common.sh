@@ -125,8 +125,8 @@ ssh-keyscan -H $vm_ip >> ~/.ssh/known_hosts
 ssh root@$vm_ip exit
 [ "$?" = "0" ] || { echo "SSH access setup failed."; kill $run_pid; exit -1; }
 
-echo "$vm_ip
-[all:vars]
-ansible_connection=ssh
-ansible_user=root
-" > /tmp/hosts
+[ -n "$(grep "$vm_ip" "$ANSIBLE_HOSTS")" ] || printf "$vm_ip\n\
+[all:vars]\n\
+ansible_connection=ssh\n\
+ansible_user=root\n\
+" >> "$ANSIBLE_HOSTS"
