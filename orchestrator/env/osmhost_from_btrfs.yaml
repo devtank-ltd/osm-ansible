@@ -3,10 +3,10 @@
     - name: Setup for faking
       shell: |
         # Fake up LetsEncrypt
-        mkdir -p /etc/letsencrypt/live/{{ osm_host_name }}.osmm.devtank.co.uk
+        mkdir -p /etc/letsencrypt/live/{{ osm_host_name }}.{{ osm_domain }}
         openssl req -x509 -nodes -newkey rsa:4096 -days 1\
-            -keyout "/etc/letsencrypt/live/{{ osm_host_name }}.osmm.devtank.co.uk/privkey.pem" \
-            -out "/etc/letsencrypt/live/{{ osm_host_name }}.osmm.devtank.co.uk/fullchain.pem" \
+            -keyout "/etc/letsencrypt/live/{{ osm_host_name }}.{{ osm_domain }}/privkey.pem" \
+            -out "/etc/letsencrypt/live/{{ osm_host_name }}.{{ osm_domain }}/fullchain.pem" \
             -subj '/CN=localhost' > /dev/null
         echo "export SKIP_LETS_ENCRYPT=1" >> /root/.bashrc
       when: fake_osm_host is defined

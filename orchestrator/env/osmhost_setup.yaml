@@ -50,11 +50,17 @@
 - name: Apply OSM Host overlay.
   shell: rsync -a /srv/osm-lxc/root_overlay/ /
 
-- name: Update OSM Host overlay NGINX templates
+- name: Update OSM Host overlay NGINX with hostname
   ansible.builtin.replace:
     path: /etc/nginx/nginx.conf
     regexp: 'OSM_HOST_NAME'
     replace: "{{ osm_host_name }}"
+
+- name: Update OSM Host overlay NGINX with domain
+  ansible.builtin.replace:
+    path: /etc/nginx/nginx.conf
+    regexp: 'OSM_DOMAIN'
+    replace: "{{ osm_domain }}"
 
 - name: Create a OSM Host Base OS container
   community.general.lxc_container:

@@ -15,5 +15,8 @@ DEBBIOSMEM=$HOST_DIR/ovmf_vars.fd
 
 [ -n "$PRESEED" ] || PRESEED=preseed-btrfs.cfg
 
+[ -n "$OSM_DOMAIN" ] || OSM_DOMAIN=osmm.fake.co.uk
+
 echo "OSM HOST: $OSMHOST"
 echo "OSM HOST DIR: $HOST_DIR"
+echo "OSM DOMAIN: $OSM_DOMAIN"
