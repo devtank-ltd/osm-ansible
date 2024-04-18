@@ -1,0 +1,94 @@
+- hosts: "{{ target }}"
+  tasks:
+    - name: Install required packages
+      apt:
+        name:
+          - pdns-backend-mysql
+          - pdns-server
+          - default-mysql-server
+          - default-mysql-client 
+        update_cache: yes
+
+    - name: Clone OSM Ansible git repo.
+      ansible.builtin.git:
+        repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
+        dest: /srv/osm-lxc
+        single_branch: yes
+        version: dev_test_env
+
+    - name: Stop PDNS
+      service:
+        name: pdns.service
+        state: stopped
+
+    - name: "Create PDNS DB Password"
+      ansible.builtin.set_fact:
+        pdns_db_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
+
+    - name: Setup PDNS MySQL
+      shell: |
+        echo "create database pdns;\
+        GRANT ALL ON pdns.* to pdns@localhost IDENTIFIED BY '{{ pdns_db_password }}';\
+        FLUSH PRIVILEGES;" | mysql -uroot
+        cat /usr/share/doc/pdns-backend-mysql/schema.mysql.sql | mysql -uroot pdns
+
+    - name: "Comment out SQLite backend of PDNS"
+      ansible.builtin.replace:
+        path: /etc/powerdns/pdns.conf
+        regexp: '^.*gsqlite3.*$'
+        replace: '#\1'
+
+    - name: "Add MySQL setup to PDNS"
+      ansible.builtin.blockinfile:
+        insertafter: EOF
+        path: /etc/powerdns/pdns.conf
+        marker: "    <!-- {mark} ANSIBLE Added MySQL section -->"
+        block: |
+            #### MYSQL CONFIG
+            launch=gmysql
+            gmysql-host=127.0.0.1
+            gmysql-port=3306
+            gmysql-dbname=pdns
+            gmysql-user=pdns
+            gmysql-password={{ pdns_db_password }}
+            gmysql-dnssec=no
+
+    - name: "Populate PDNS MySQL"
+      shell: |
+        echo "INSERT INTO domains (id,name,type) values (1,'{{ osm_domain }}','MASTER');
+        INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES (1,'{{ osm_domain }}','SOA',0,'{{ osm_host_name }}.{{ osm_domain }} hostmaster.{{ osm_domain }} 20230717 10800 10800 108000 1800',1800);
+        INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES (1,'{{ osm_domain }}','NS',0,'{{ osm_host_name }}.{{ osm_domain }}',10800);
+        INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES (1,'{{ osm_host_name }}.{{ osm_domain }}','A',0,'{{ osm_dns }}',10800);
+        " | mysql -uroot
+
+    - name: "Create OSM Orchestrator DB Password"
+      ansible.builtin.set_fact:
+        osm_orchestrator_db_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
+
+    - name: "Create OSM Orchestrator DB"
+      shell: |
+        cat /srv/osm-lxc/osm-ansible/orchestrator/schema.sql | sed 's|change_this_password|{{ osm_orchestrator_db_password }}|g' |  mysql -uroot
+
+    - name: "Write out OSM Orchestrator Config"
+      vars:
+        object:
+            orchestrator:
+                user: 'osm_orchestrator'
+                password: '{{ osm_orchestrator_db_password }}'
+                host: 'localhost'
+                database: 'osm_orchestrator'
+            pdns:
+                user: 'osm_orchestrator'
+                password: '{{ pdns_db_password }}'
+                host: 'localhost'
+                database: 'pdns'
+            pdns_domain: '{{ osm_domain }}'
+            pdns_domain_id: 1
+      copy:
+        content: "{{ object | to_nice_yaml(indent=2) }}"
+        dest: /srv/osm-lxc/osm-ansible/orchestrator/config.yaml
+
+    - name: Restart PDNS
+      service:
+        name: pdns.service
+        state: started
