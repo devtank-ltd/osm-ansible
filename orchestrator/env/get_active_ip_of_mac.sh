@@ -3,6 +3,8 @@
 bridge_name=$1
 mac_addres=$2
 
+[ -e "/tmp/$bridge_name.leasefile" ] || exit 0
+
 vm_ip=$(awk "/$mac_addres/ {print \$3}" "/tmp/$bridge_name.leasefile")
 if [ -n "$vm_ip" ]
 then
