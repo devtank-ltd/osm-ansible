@@ -57,7 +57,6 @@ DELETE FROM records WHERE domain_id=%s AND name=%s AND content=%s
 
 
 parser = argparse.ArgumentParser(description='OSM Servers Orchestrator')
-parser.add_argument('-c','--config', help='Config to use', type=str)
 parser.add_argument('-v','--verbose', help='Info log information', action='store_true')
 parser.add_argument('-d','--debug', help='Debug log information', action='store_true')
 parser.add_argument('command', type=str, help='command followed by arguments.', nargs='*')
@@ -393,6 +392,9 @@ class osm_orchestrator_t(object):
 
 
 def main():
+    self_path = os.path.abspath(__file__)
+    os.chdir(os.path.dirname(self_path))
+
     if not os.path.exists("config.yaml"):
         logging.error("No config.yaml found.")
         sys.exit(os.EX_UNAVAILABLE)
