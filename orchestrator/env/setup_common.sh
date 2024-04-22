@@ -1,5 +1,3 @@
-#! /bin/bash
-
 [ -n "$(which ansible-playbook)" ] || { echo "Install ansible"; exit -1; }
 [ -n "$(which qemu-system-x86_64)" ] || { echo "Press install qemu-system-x86"; exit -1; }
 [ -e "/usr/share/OVMF/OVMF_CODE_4M.fd" ] || { echo "Press install ovmf"; exit -1; }
@@ -90,40 +88,9 @@ else
   exit -1
 fi
 
-echo "Running installed system"
-
-export OSMHOST
 [ -z "$DEV" ] || cp "$DEBDISK" "$DEBDISK.bckup"
-./run.sh &
-run_pid=$!
 
-while [ -z "$vm_ip" ]
-do
-  sleep 0.25
-  vm_ip=$(awk "/$OSMHOST/ {print \$3}" "/tmp/$VOSMHOSTBR.leasefile")
-  [ -e /proc/$run_pid ] || { echo "QEmu dead"; exit -1; }
-  if [ -n "$vm_ip" ]
-  then
-    echo "Got IP $vm_ip for $OSMHOST"
-    ping -c1 -W1 $vm_ip
-    if [ "$?" != "0" ]
-    then
-      echo "Host not ready"
-      vm_ip=""
-    fi
-  fi
-done
-
-echo "VM booted and taken IP address $vm_ip"
-
-mkdir -p ~/.ssh
-
-# Sort out ssh host key
-ssh-keygen -f ~/.ssh/known_hosts -R $vm_ip
-ssh-keyscan -H $vm_ip >> ~/.ssh/known_hosts
-
-ssh root@$vm_ip exit
-[ "$?" = "0" ] || { echo "SSH access setup failed."; kill $run_pid; exit -1; }
+. async_run.sh
 
 [ -e "$ANSIBLE_HOSTS" ] || printf "[all:vars]\n\
 ansible_connection=ssh\n\
