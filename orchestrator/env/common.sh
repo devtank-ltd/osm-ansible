@@ -15,7 +15,7 @@ mkdir -p $HOST_DIR
 DEBDISK=$HOST_DIR/disk.qcow
 DEBBIOSMEM=$HOST_DIR/ovmf_vars.fd
 
-[ -f "$HOST_DIR/mac" ] || { printf '52:54:00:%02X:%02X:%02X' $[RANDOM%256] $[RANDOM%256] $[RANDOM%256] > "$HOST_DIR/mac"; }
+[ -f "$HOST_DIR/mac" ] || { printf '52:54:00:%02x:%02x:%02x' $[RANDOM%256] $[RANDOM%256] $[RANDOM%256] > "$HOST_DIR/mac"; }
 
 OSMHOSTMAC=$(cat $HOST_DIR/mac)
 
