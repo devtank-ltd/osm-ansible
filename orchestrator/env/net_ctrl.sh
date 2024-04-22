@@ -24,7 +24,7 @@ case "$1" in
     ip addr add 192.168.5.1/24 dev "$VOSMHOSTBR"
     ip link set up dev "$VOSMHOSTBR"
 
-    iptables -t nat -A POSTROUTING -s 192.168.5.0/24 -j SNAT --to-source $main_ip
+    iptables -t nat -A POSTROUTING ! -d 192.168.5.0/24 -s 192.168.5.0/24 -j SNAT --to-source $main_ip
 
     [ -z "$OSM_DNS" ] || DNS_OPTION=" --dhcp-option=option:dns-server,$OSM_DNS,8.8.8.8"
 
@@ -35,7 +35,7 @@ case "$1" in
 
     [ $(id -u) == 0 ] || exec sudo -- "$0" "$@"
 
-    iptables -t nat -D POSTROUTING -s 192.168.5.0/24 -j SNAT --to-source $main_ip
+    iptables -t nat -D POSTROUTING ! -d 192.168.5.0/24 -s 192.168.5.0/24 -j SNAT --to-source $main_ip
 
     kill -9 $(cat "/tmp/$VOSMHOSTBR.pid")
 
