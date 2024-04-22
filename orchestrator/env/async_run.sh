@@ -5,6 +5,9 @@ export OSMHOST
 ./run.sh &
 run_pid=$!
 
+. common.sh
+
+echo "Waiting for MAC $OSMHOSTMAC to have IP."
 while [ -z "$vm_ip" ]
 do
   sleep 0.25

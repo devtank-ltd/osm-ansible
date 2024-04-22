@@ -13,10 +13,9 @@ fi
 
 mkdir "$HOSTS_DIR/$dst"
 
-cp "$HOSTS_DIR/$src/"{disk.qcow,ovmf_vars.fd} "$HOSTS_DIR/$dst/"
+cp -v "$HOSTS_DIR/$src/"{disk.qcow,ovmf_vars.fd} "$HOSTS_DIR/$dst/"
 
 OSMHOST=$dst
-
 . async_run.sh
 
 ssh root@$vm_ip "sed -i \"s|$src|$dst|g\" /etc/{hosts,hostname}"
