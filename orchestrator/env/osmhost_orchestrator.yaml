@@ -75,7 +75,7 @@
                 database: 'osm_orchestrator'
             pdns:
                 user: 'osm_orchestrator'
-                password: '{{ pdns_db_password }}'
+                password: '{{ osm_orchestrator_db_password }}'
                 host: 'localhost'
                 database: 'pdns'
             pdns_domain: '{{ osm_domain }}'
