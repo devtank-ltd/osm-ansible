@@ -172,8 +172,6 @@ class osm_host_t(object):
                      (domain_id, "%s-influx.%s" % (customer_name, domain), self.dns_entry))
         do_db_insert(self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
                      (domain_id, "%s-mqtt.%s" % (customer_name, domain), self.dns_entry))
-        return customer_id
-
 
     def _del_customer_to_database(self, customer_name):
         do_db_update(self.db, SQL_DEL_CUSTOMER, (self.id, customer_name))
