@@ -31,7 +31,11 @@ do
   [ -n "$orchestrator_ip" ] || orchestrator_ip=$(./get_active_ip_of_mac.sh $VOSMHOSTBR $orchestrator_mac)
   for n in `seq 0 $OSMHOST_COUNT`
   do
-    [ -n "${host_ip[$n]}" ] || host_ip[$n]=$(./get_active_ip_of_mac.sh $VOSMHOSTBR ${host_mac[$n]})
+    if [ -z "${host_ip[$n]}" ]
+    then
+      ip_addr=$(./get_active_ip_of_mac.sh $VOSMHOSTBR ${host_mac[$n]})
+      [ -z "$ip_addr" ] || { echo "$name : $ip_addr"; host_ip[$n]=$ip_addr; }
+    fi
   done
   count=0
   for n in `seq 0 $OSMHOST_COUNT`
