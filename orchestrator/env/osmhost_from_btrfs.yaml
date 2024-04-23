@@ -9,6 +9,7 @@
             -out "/etc/letsencrypt/live/{{ osm_host_name }}.{{ osm_domain }}/fullchain.pem" \
             -subj '/CN=localhost' > /dev/null
         echo "SKIP_LETS_ENCRYPT=1" >> /etc/environment
+        echo "Defaults env_keep += SKIP_LETS_ENCRYPT" >> /etc/sudoers.d/osm-anisble
       when: fake_osm_host is defined
 
     - name: Setup OSM HOST
