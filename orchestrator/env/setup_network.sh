@@ -30,9 +30,8 @@ orchestrator_mac=$(cat $HOSTS_DIR/orchestrator/mac)
 
 for n in `seq 0 $OSMHOST_COUNT`
 do
-  export OSMHOST="vosmhost$n"
-  echo "Starting OSM HOST: $OSMHOST"
-  ./run.sh&
+  echo "Starting OSM HOST: vosmhost$n"
+  OSMHOST="vosmhost$n" ./run.sh&
   host_pid[$n]=$!
   host_mac[$n]=$(cat $HOSTS_DIR/vosmhost1/mac)
 done
