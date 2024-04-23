@@ -3,7 +3,7 @@
 src=$1
 dst=$2
 
-HOSTS_DIR=hosts
+[ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
 
 if [ ! -e "$HOSTS_DIR/$src" ]
 then
@@ -25,3 +25,12 @@ ssh-keygen -f ~/.ssh/known_hosts -R $vm_ip
 ssh-keyscan -H $vm_ip >> ~/.ssh/known_hosts
 
 ssh root@$vm_ip "poweroff"
+
+echo "Waiting for new clone to shutdown"
+
+while [ -e /proc/$run_pid ]
+do
+  sleep 0.25
+done
+
+echo "Clone shutdown"
