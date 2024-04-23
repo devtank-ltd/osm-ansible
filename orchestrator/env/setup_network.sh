@@ -26,7 +26,7 @@ echo "Starting network"
 
 OSMHOST=orchestrator ./run.sh&
 orchestrator_pid=$!
-orchestrator_mac=$(cat $HOST_DIR/orchestrator/mac)
+orchestrator_mac=$(cat $HOSTS_DIR/orchestrator/mac)
 
 for n in `seq 0 $OSMHOST_COUNT`
 do
@@ -34,7 +34,7 @@ do
   echo "Starting OSM HOST: $OSMHOST"
   ./run.sh&
   host_pid[$n]=$!
-  host_mac[$n]=$(cat $HOST_DIR/vosmhost1/mac)
+  host_mac[$n]=$(cat $HOSTS_DIR/vosmhost1/mac)
 done
 
 
