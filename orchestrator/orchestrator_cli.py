@@ -432,7 +432,7 @@ def main():
     cmd_func = commands[args.command[0]].func
     func_args = args.command[1:]
     exit_code = cmd_func(*func_args)
-    print("Command: %s : Result: %s" % (args.command[0], os.strerror(exit_code)))
+    print("Command: %s : Result: %s" % (args.command[0], "FAILED" if exit_code else "SUCCESS"))
     sys.exit(exit_code)
 
 
