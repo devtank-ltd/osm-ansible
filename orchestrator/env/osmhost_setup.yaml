@@ -35,10 +35,11 @@
     update_cache: yes
 
 - name: Add OSM orchestrator user
-  user:
+  ansible.builtin.user:
     name: osm_orchestrator
-    shell: /bin/bash
-    home: /home/osm_orchestrator
+    comment: OSM Orchestrator
+    create_home: yes
+    group: users
 
 - name: Clone OSM Ansible git repo.
   ansible.builtin.git:
