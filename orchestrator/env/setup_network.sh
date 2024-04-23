@@ -5,12 +5,14 @@
 echo "Creating OSM Orchestrator"
 ./setup_orchestrator.sh
 
+echo "========================================="
 echo "Creating first virtual OSMHOST"
 OSMHOST=vosmhost0 ./setup_from_btrfs.sh
 
 [ -n "$OSMHOST_COUNT" ] || OSMHOST_COUNT=3
 
 OSMHOST_CLONES=$(($OSMHOST_COUNT - 1))
+echo "========================================="
 echo "Cloning $OSMHOST_CLONES virtual OSMHOSTS"
 for n in `seq $OSMHOST_CLONES`
 do
@@ -18,6 +20,7 @@ do
   ./copy_osmhost.sh vosmhost0 vosmhost$n
 done
 
+echo "========================================="
 echo "Starting network"
 
 OSMHOST=orchestrator ./run.sh&
@@ -25,13 +28,19 @@ orchestrator_pid=$!
 orchestrator_mac=$(cat $HOST_DIR/orchestrator/mac)
 
 for n in `seq 0 $OSMHOST_COUNT`
-do 
-  OSMHOST=vosmhost$n ./run.sh&
-  host_pid[$n]=$1
+do
+  export OSMHOST="vosmhost$n"
+  echo "Starting OSM HOST: $OSMHOST"
+  ./run.sh&
+  host_pid[$n]=$!
   host_mac[$n]=$(cat $HOST_DIR/vosmhost1/mac)
 done
 
 
+echo "========================================="
+echo "Waiting on network"
+
+count=0
 while [ -z "$orchestrator_ip" -a $count = $OSMHOST_COUNT ]
 do
   sleep 0.25
@@ -47,7 +56,8 @@ do
   done
 done
 
-echo "Network started"
+echo "========================================="
+echo "Network started, adding OSM HOSTs to Orchestrator"
 
 for n in `seq 0 $OSMHOST_COUNT`
 do
