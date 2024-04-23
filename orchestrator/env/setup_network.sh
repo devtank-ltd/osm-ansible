@@ -12,10 +12,9 @@ OSMHOST=vosmhost0 ./setup_from_btrfs.sh
 
 [ -n "$OSMHOST_COUNT" ] || OSMHOST_COUNT=3
 
-OSMHOST_CLONES=$(($OSMHOST_COUNT - 1))
 echo "========================================="
-echo "Cloning $OSMHOST_CLONES virtual OSMHOSTS"
-for n in `seq $OSMHOST_CLONES`
+echo "Cloning $(($OSMHOST_COUNT - 1)) virtual OSMHOSTS"
+for n in `seq $OSMHOST_COUNT`
 do
   echo "Cloning $n"
   ./copy_osmhost.sh vosmhost0 vosmhost$n
