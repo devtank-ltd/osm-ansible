@@ -237,6 +237,7 @@ class osm_host_t(object):
 
         if not self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
             self.logger.error("Container creation failed")
+            self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}" {mqtt_port}')
             return False
 
         start_end = time.monotonic() + timeout
@@ -247,6 +248,7 @@ class osm_host_t(object):
                 return True
 
         self.logger.error(f'Unable to create customer "{customer_name} on OSM-Host". Please debug OSM-Host {self.name}.')
+        self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}" {mqtt_port}')
         return False
 
 
