@@ -18,7 +18,7 @@ cp -v "$HOSTS_DIR/$src/"{disk.qcow,ovmf_vars.fd} "$HOSTS_DIR/$dst/"
 OSMHOST=$dst
 . async_run.sh
 
-ssh root@$vm_ip "sed -i \"s|$src|$dst|g\" /etc/{hosts,hostname}"
+ssh root@$vm_ip "sed -i \"s|$src|$dst|g\" /etc/{hosts,hostname}; hostname $dst"
 ssh root@$vm_ip "rm /etc/ssh/ssh_host_*; dpkg-reconfigure openssh-server; systemctl restart ssh"
 
 ssh-keygen -f ~/.ssh/known_hosts -R $vm_ip
