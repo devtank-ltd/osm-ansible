@@ -356,7 +356,7 @@ class osm_orchestrator_t(object):
         osm_host = osm_host_t(self, 0, host_name, ip_addr, capcaity)
 
         if not osm_host.get_ssh():
-            self.logger.error(f"Unable to ssh in as osmorchestrator to host {host_name}.")
+            self.logger.error(f"Unable to ssh in as osm_orchestrator to host {host_name}.")
             return os.EX_CONFIG
 
         if not osm_host.ssh_command('ls /srv/osm-lxc/ansible/'):
