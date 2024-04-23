@@ -14,8 +14,9 @@ OSMHOST=vosmhost0 ./setup_from_btrfs.sh
 
 
 echo "========================================="
-echo "Cloning $(($OSMHOST_COUNT - 1)) virtual OSMHOSTS"
-for n in `seq $OSMHOST_COUNT`
+OSMHOST_MAX=$(($OSMHOST_COUNT - 1))
+echo "Cloning $OSMHOST_MAX virtual OSMHOSTS"
+for n in `seq $OSMHOST_MAX`
 do
   echo "Cloning $n"
   ./copy_osmhost.sh vosmhost0 vosmhost$n
@@ -29,7 +30,7 @@ echo "Network started, adding OSM HOSTs to Orchestrator"
 ssh root@$orchestrator_ip "ssh-keygen -q  -t rsa -N '' -f /root/.ssh/id_rsa"
 orchestrator_pub=$(ssh root@$orchestrator_ip "cat /root/.ssh/id_rsa.pub")
 
-for n in `seq 0 $OSMHOST_COUNT`
+for n in `seq 0 $OSMHOST_MAX`
 do
   name=vosmhost$n
   ip_addr=${host_ip[$n]}
@@ -40,7 +41,7 @@ do
 done
 
 
-for n in `seq $OSMCUSTOMER_COUNT`
+for n in `seq 0 $OSMCUSTOMER_COUNT`
 do
   customer_name="customer_$n"
   ssh root@$orchestrator_ip "/srv/osm-lxc/orchestrator/orchestrator_cli.py add_customer $customer_name"
