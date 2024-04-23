@@ -1,6 +1,7 @@
 #! /bin/bash
 
-. common.sh
+[ -n "$VOSMHOSTBR" ] || VOSMHOSTBR=vosmhostbr0
+[ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
 
 echo "Creating OSM Orchestrator"
 ./setup_orchestrator.sh
@@ -44,7 +45,7 @@ count=0
 while [ -z "$orchestrator_ip" -a $count = $OSMHOST_COUNT ]
 do
   sleep 0.25
-  [ -n "$orchestrator_ip" ] || orchestrator_ip=$(./get_active_ip_of_mac.sh $VOSMHOSTBR $OSMHOSTMAC)
+  [ -n "$orchestrator_ip" ] || orchestrator_ip=$(./get_active_ip_of_mac.sh $VOSMHOSTBR $orchestrator_mac)
   for n in `seq 0 $OSMHOST_COUNT`
   do
     [ -n "${host_ip[$n]}" ] || host_ip[$n]=$(./get_active_ip_of_mac.sh $VOSMHOSTBR ${host_mac[$n]})
