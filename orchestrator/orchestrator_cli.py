@@ -195,7 +195,11 @@ class osm_host_t(object):
             if current:
                 return current
         ssh = paramiko.SSHClient()
-        ssh.load_host_keys(os.environ["HOME"] + '/.ssh/known_hosts')
+        known_hosts = os.environ["HOME"] + '/.ssh/known_hosts'
+        if not os.path.exists(known_hosts):
+            self.logger.error("No known_hosts files.")
+            return None
+        ssh.load_host_keys(known_hosts)
         try:
             ssh.connect(self.ip_addr, username="osm_orchestrator", timeout=2)
         except TimeoutError:
