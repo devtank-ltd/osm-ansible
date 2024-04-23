@@ -34,6 +34,8 @@ do
   OSMHOST="vosmhost$n" ./run.sh&
   host_pid[$n]=$!
   host_mac[$n]=$(cat $HOSTS_DIR/vosmhost1/mac)
+  echo "OSM HOST: vosmhost$n  PID:${host_pid[$n]} MAC:${host_mac[$n]}"
+  sleep 0.1 # Give it a little time to acturally start.
 done
 
 
