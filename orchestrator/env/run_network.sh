@@ -25,7 +25,7 @@ echo "========================================="
 echo "Waiting on network"
 
 count=0
-while [ -z "$orchestrator_ip" -o $count = $OSMHOST_COUNT ]
+while [ -z "$orchestrator_ip" -o $count != $OSMHOST_COUNT ]
 do
   sleep 0.25
   if [ -z "$orchestrator_ip" ]
