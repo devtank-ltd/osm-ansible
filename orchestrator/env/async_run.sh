@@ -2,10 +2,10 @@ echo "Running installed system"
 
 export OSMHOST
 
+. common.sh
+
 ./run.sh &
 run_pid=$!
-
-. common.sh
 
 echo "Waiting for MAC $OSMHOSTMAC to have IP."
 while [ -z "$vm_ip" ]
