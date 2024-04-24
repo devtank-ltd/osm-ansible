@@ -76,21 +76,12 @@
     enabled: yes
 
 - name: "Start the LXC container"
-  community.general.lxc_container:
-    config: "{{ container_dir }}/lxc.container.conf"
-    name: "{{ container_hostname }}"
-    state: started
+  command: "lxc-start -n '{{ container_hostname }}' -f '{{ container_dir }}/lxc.container.conf'"
 
-- name: "Restart LXC container with own ssh host keys"
-  community.general.lxc_container:
-    config: "{{ container_dir }}/lxc.container.conf"
-    name: "{{ container_hostname }}"
-    state: restarted
-    container_command: |
-      rm /etc/ssh/ssh_host_*
-      dpkg-reconfigure openssh-server
-
-- name: "Add LXC container host keys to host"
+- name: "Restart LXC container with own ssh host keys and add them to hsot"
   shell: |
+    lxc-wait -n '{{ container_hostname }}' -s RUNNING
+    lxc-attach '{{ container_hostname }}' 'rm /etc/ssh/ssh_host_*'
+    lxc-attach '{{ container_hostname }}' 'dpkg-reconfigure openssh-server'
     ssh-keygen -f ~/.ssh/known_hosts -R {{ container_ip_address }}
     ssh-keyscan -H {{ container_ip_address }} >> ~/.ssh/known_hosts
