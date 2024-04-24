@@ -2,7 +2,7 @@
 
 [ -n "$VOSMHOSTBR" ] || VOSMHOSTBR=vosmhostbr0
 [ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
-[ -n "$OSMHOST_COUNT" ] || OSMHOST_COUNT=3
+[ -n "$OSMHOST_COUNT" ] || OSMHOST_COUNT=4
 [ -n "$OSMCUSTOMER_COUNT" ] || OSMCUSTOMER_COUNT=10
 
 echo "Creating OSM Orchestrator"
