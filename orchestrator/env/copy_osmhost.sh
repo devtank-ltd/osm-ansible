@@ -23,7 +23,7 @@ while [ -z "$vm_ip" ]
 do
   sleep 0.25
   [ -e /proc/$run_pid ] || { echo "QEmu dead"; exit -1; }
-  vm_ip=$(./get_active_ip_of_mac.sh $src)
+  vm_ip=$(./get_active_ip_of.sh $src)
 done
 
 echo "VM booted and taken IP address $vm_ip"
