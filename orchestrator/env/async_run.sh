@@ -7,12 +7,12 @@ export OSMHOST
 ./run.sh &
 run_pid=$!
 
-echo "Waiting for MAC $OSMHOSTMAC to have IP."
+echo "Waiting for $OSMHOST to have IP."
 while [ -z "$vm_ip" ]
 do
   sleep 0.25
   [ -e /proc/$run_pid ] || { echo "QEmu dead"; exit -1; }
-  vm_ip=$(./get_active_ip_of_mac.sh $VOSMHOSTBR $OSMHOSTMAC)
+  vm_ip=$(./get_active_ip_of_mac.sh $OSMHOST)
 done
 
 echo "VM booted and taken IP address $vm_ip"
