@@ -27,6 +27,10 @@ done
 echo "========================================="
 echo "Network started, adding OSM HOSTs to Orchestrator"
 
+# Fix host0 keys as clone will have dirtied it's good name!
+ssh-keygen -f ~/.ssh/known_hosts -R ${host_ip[0]}
+ssh-keyscan -H ${host_ip[0]} >> ~/.ssh/known_hosts
+
 ssh root@$orchestrator_ip "ssh-keygen -q  -t rsa -N '' -f /root/.ssh/id_rsa"
 orchestrator_pub=$(ssh root@$orchestrator_ip "cat /root/.ssh/id_rsa.pub")
 
