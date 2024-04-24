@@ -15,9 +15,17 @@ mkdir -p $HOST_DIR
 DEBDISK=$HOST_DIR/disk.qcow
 DEBBIOSMEM=$HOST_DIR/ovmf_vars.fd
 
-[ -f "$HOST_DIR/mac" ] || { printf '52:54:00:%02x:%02x:%02x' $[RANDOM%256] $[RANDOM%256] $[RANDOM%256] > "$HOST_DIR/mac"; }
-
-OSMHOSTMAC=$(cat $HOST_DIR/mac)
+if [ -f "$HOST_DIR/mac" ]
+then
+  OSMHOSTMAC=$(cat $HOST_DIR/mac)
+else
+  while
+    OSMHOSTMAC=$(printf '52:54:00:%02x:%02x:%02x' $[RANDOM%256] $[RANDOM%256] $[RANDOM%256])
+    grep "$OSMHOSTMAC" $HOSTS_DIR/*/mac
+    [ "$?" == "0" ]
+  do true; done
+  echo "$OSMHOSTMAC" > "$HOST_DIR/mac"
+fi
 
 [ -n "$PRESEED" ] || PRESEED=preseed-btrfs.cfg
 
