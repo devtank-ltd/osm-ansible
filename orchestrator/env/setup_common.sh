@@ -90,7 +90,7 @@ fi
 
 [ -z "$DEV" ] || cp "$DEBDISK" "$DEBDISK.bckup"
 
-./run.sh &
+OSMHOST=$OSMHOST ./run.sh &
 run_pid=$!
 
 echo "Waiting for $OSMHOST to have IP."
