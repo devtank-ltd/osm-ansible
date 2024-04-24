@@ -32,7 +32,7 @@ do
   sleep 0.25
   if [ -z "$orchestrator_ip" ]
   then
-    orchestrator_ip=$(./get_active_ip_of_mac.sh orchestrator)
+    orchestrator_ip=$(./get_active_ip_of.sh orchestrator)
     [ -z "$orchestrator_ip" ] || echo "Orchestrator : $orchestrator_ip"
   fi
   for n in `seq 0 $OSMHOST_MAX`
@@ -40,7 +40,7 @@ do
     if [ -z "${host_ip[$n]}" ]
     then
       name=vosmhost$n
-      ip_addr=$(./get_active_ip_of_mac.sh $name)
+      ip_addr=$(./get_active_ip_of.sh $name)
       [ -z "$ip_addr" ] || { echo "vosmhost$n : $ip_addr"; host_ip[$n]=$ip_addr; }
     fi
   done
