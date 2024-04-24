@@ -1,6 +1,6 @@
 - hosts: "{{ target }}"
   tasks:
-    - name: Setup for faking
+    - name: Setup for fake SSL
       shell: |
         # Fake up LetsEncrypt
         mkdir -p /etc/letsencrypt/live/{{ osm_host_name }}.{{ osm_domain }}
@@ -8,9 +8,12 @@
             -keyout "/etc/letsencrypt/live/{{ osm_host_name }}.{{ osm_domain }}/privkey.pem" \
             -out "/etc/letsencrypt/live/{{ osm_host_name }}.{{ osm_domain }}/fullchain.pem" \
             -subj '/CN=localhost' > /dev/null
-        echo "SKIP_LETS_ENCRYPT=1" >> /etc/environment
-        echo "Defaults env_keep += SKIP_LETS_ENCRYPT" >> /etc/sudoers.d/osm-anisble
       when: fake_osm_host is defined
 
     - name: Setup OSM HOST
       import_tasks: ./osmhost_setup.yaml
+
+    - name: Ready for faking customer setup
+      shell: |
+        echo "SKIP_LETS_ENCRYPT=1" >> /etc/environment
+        echo "Defaults env_keep += SKIP_LETS_ENCRYPT" >> /etc/sudoers.d/osm-anisble
