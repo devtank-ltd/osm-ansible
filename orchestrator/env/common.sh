@@ -21,7 +21,7 @@ then
 else
   while
     OSMHOSTMAC=$(printf '52:54:00:%02x:%02x:%02x' $[RANDOM%256] $[RANDOM%256] $[RANDOM%256])
-    grep "$OSMHOSTMAC" $HOSTS_DIR/*/mac
+    grep "$OSMHOSTMAC" $HOSTS_DIR/*/mac 2>/dev/null # Hide errors
     [ "$?" == "0" ]
   do true; done
   echo "$OSMHOSTMAC" > "$HOST_DIR/mac"
