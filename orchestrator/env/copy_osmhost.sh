@@ -42,9 +42,6 @@ ssh root@$vm_ip "rm /etc/ssh/ssh_host_*; dpkg-reconfigure openssh-server; powero
 
 echo "Waiting for new clone to shutdown"
 
-while [ -e /proc/$run_pid ]
-do
-  sleep 0.25
-done
+wait $run_pid
 
 echo "Clone shutdown"
