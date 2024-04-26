@@ -15,6 +15,7 @@ from collections import namedtuple
 SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, capacity, active_since) VALUES(%s, %s, %s, UNIX_TIMESTAMP())"
 SQL_DEL_HOST = "UPDATE osm_hosts SET active_before=UNIX_TIMESTAMP() WHERE id=%s"
 SQL_GET_HOST = "SELECT id FROM osm_hosts WHERE name=%s AND active_before IS NULL"
+SQL_LIST_HOSTS = "SELECT name FROM osm_hosts WHERE active_before IS NULL"
 
 SQL_GET_HOST_BY_CUSTOMER = "SELECT osm_customers.osm_hosts_id FROM osm_customers WHERE name=%s AND active_before IS NULL"
 
@@ -394,6 +395,22 @@ class osm_orchestrator_t(object):
             self.logger.warning(f'No customer "{customer_name}"')
             return os.EX_CONFIG
 
+    def list_hosts(self):
+        rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
+        print("Hosts:")
+        for row in rows:
+            print(f"\t{row[0]}")
+
+    def list_host_customers(self,  host_name):
+        osm_host = self.find_osm_host(host_name)
+        if not osm_host:
+            self.logger.warning(f'No osm host of name "{host_name}"')
+            return os.EX_CONFIG
+        customers = osm_host.customers
+        print(f"Host: {host_name} customers:")
+        for customer in customers:
+            print(f"\t{customer}")
+
 
 def main():
     self_path = os.path.abspath(__file__)
@@ -413,7 +430,10 @@ def main():
                 "del_host" : cmd_entry("del_host <name> : Remove host from OSM system", osm_orch.del_osm_host),
                 "find_host" : cmd_entry("find_host <name> : Find host of given customer in OSM system", osm_orch.find_osm_host_of),
                 "add_customer" : cmd_entry("add_customer <name> : Add customer to OSM system", osm_orch.add_osm_customer),
-                "del_customer" : cmd_entry("del_customer <name> : Remove customer from OSM system", osm_orch.del_osm_customer)}
+                "del_customer" : cmd_entry("del_customer <name> : Remove customer from OSM system", osm_orch.del_osm_customer),
+                "list_hosts" : cmd_entry("list_hosts : Lists OSM Hosts in system", osm_orch.list_hosts),
+                "list_host_customers" : cmd_entry("list_host_customers <name> : Lists customers on OSM Host", osm_orch.list_host_customers)
+                }
 
     args = parser.parse_args()
 
