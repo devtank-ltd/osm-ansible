@@ -48,7 +48,7 @@ do
 done
 
 
-for n in `seq 0 $OSMCUSTOMER_COUNT`
+for n in `seq 1 $OSMCUSTOMER_COUNT`
 do
   customer_name="customer$n"
   ssh root@$orchestrator_ip "/srv/osm-lxc/orchestrator/orchestrator_cli.py add_customer $customer_name"
