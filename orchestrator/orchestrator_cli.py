@@ -399,7 +399,7 @@ class osm_orchestrator_t(object):
         rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
         print("Hosts:")
         for row in rows:
-            print(f"\t{row[0]}")
+            print(f"\tHost: {row[0]}")
 
     def list_host_customers(self,  host_name):
         osm_host = self.find_osm_host(host_name)
@@ -407,9 +407,9 @@ class osm_orchestrator_t(object):
             self.logger.warning(f'No osm host of name "{host_name}"')
             return os.EX_CONFIG
         customers = osm_host.customers
-        print(f"Host: {host_name} customers:")
+        print(f"Host: {host_name}:")
         for customer in customers:
-            print(f"\t{customer}")
+            print(f"\tCustomer: {customer}")
 
 
 def main():
