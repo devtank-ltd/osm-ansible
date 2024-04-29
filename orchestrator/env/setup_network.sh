@@ -41,6 +41,8 @@ do
   ssh root@$orchestrator_ip "/srv/osm-lxc/orchestrator/orchestrator_cli.py add_host $name $ip_addr 4"
 done
 
+echo "========================================="
+echo "Network started, adding OSM customers to Orchestrator"
 
 for n in `seq 1 $OSMCUSTOMER_COUNT`
 do
