@@ -2,24 +2,18 @@
 
 [ -n "$VOSMHOSTBR" ] || VOSMHOSTBR=vosmhostbr0
 [ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
-[ -n "$OSMHOST_COUNT" ] || OSMHOST_COUNT=4
-[ -n "$OSMCUSTOMER_COUNT" ] || OSMCUSTOMER_COUNT=10
+[ -n "$OSMHOST_COUNT" ] || OSMHOST_COUNT=2
+[ -n "$OSMCUSTOMER_COUNT" ] || OSMCUSTOMER_COUNT=7
 
 echo "Creating OSM Orchestrator"
 ./setup_orchestrator.sh
 
 echo "========================================="
-echo "Creating first virtual OSMHOST"
-OSMHOST=vosmhost0 ./setup_from_btrfs.sh
-
-
-echo "========================================="
+echo "Creating virtual OSMHOSTs"
 OSMHOST_MAX=$(($OSMHOST_COUNT - 1))
-echo "Cloning $OSMHOST_MAX virtual OSMHOSTS"
-for n in `seq $OSMHOST_MAX`
+for n in `seq 0 $OSMHOST_MAX`
 do
-  echo "Cloning $n"
-  ./copy_osmhost.sh vosmhost0 vosmhost$n
+  OSMHOST=vosmhost$n ./setup_from_btrfs.sh
 done
 
 . run_network.sh
