@@ -28,9 +28,9 @@ case "$1" in
 
     iptables -t nat -A POSTROUTING ! -d 192.168.5.0/24 -s 192.168.5.0/24 -j SNAT --to-source $main_ip
 
-    mkdir -p $HOST_DIR
+    mkdir -p $HOSTS_DIR
 
-    dnsmasq --pid-file="$HOST_DIR/$VOSMHOSTBR.pid" --dhcp-leasefile="$HOST_DIR/$VOSMHOSTBR.leasefile" --interface="$VOSMHOSTBR" --except-interface=lo --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255
+    dnsmasq --pid-file="$HOSTS_DIR/$VOSMHOSTBR.pid" --dhcp-leasefile="$HOSTS_DIR/$VOSMHOSTBR.leasefile" --interface="$VOSMHOSTBR" --except-interface=lo --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255
   ;;
   "close")
     [ -e "/sys/class/net/$VOSMHOSTBR" ] || { echo "$VOSMHOSTBR already closed."; exit -1; }
@@ -39,7 +39,7 @@ case "$1" in
 
     iptables -t nat -D POSTROUTING ! -d 192.168.5.0/24 -s 192.168.5.0/24 -j SNAT --to-source $main_ip
 
-    kill -9 $(cat "$HOST_DIR/$VOSMHOSTBR.pid")
+    kill -9 $(cat "$HOSTS_DIR/$VOSMHOSTBR.pid")
 
     ip link set down dev "$VOSMHOSTBR"
     ip addr del 192.168.5.1/24 dev "$VOSMHOSTBR"
