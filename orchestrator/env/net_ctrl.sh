@@ -7,6 +7,8 @@ main_ip=$(ip route | awk '/default/ { print $9 ; exit}')
 VOSMHOSTBR=$2
 OSM_DNS=$3
 
+[ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
+
 case "$1" in
   "open")
     [ ! -e "/sys/class/net/$VOSMHOSTBR" ] || { echo "$VOSMHOSTBR already open."; exit -1; }
@@ -26,7 +28,9 @@ case "$1" in
 
     iptables -t nat -A POSTROUTING ! -d 192.168.5.0/24 -s 192.168.5.0/24 -j SNAT --to-source $main_ip
 
-    dnsmasq --pid-file=/tmp/"$VOSMHOSTBR".pid --dhcp-leasefile="/tmp/$VOSMHOSTBR.leasefile" --interface="$VOSMHOSTBR" --except-interface=lo --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255
+    mkdir -p $HOST_DIR
+
+    dnsmasq --pid-file="$HOST_DIR/$VOSMHOSTBR.pid" --dhcp-leasefile="$HOST_DIR/$VOSMHOSTBR.leasefile" --interface="$VOSMHOSTBR" --except-interface=lo --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255
   ;;
   "close")
     [ -e "/sys/class/net/$VOSMHOSTBR" ] || { echo "$VOSMHOSTBR already closed."; exit -1; }
