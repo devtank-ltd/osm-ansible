@@ -10,7 +10,6 @@
           - python3-crcmod
           - python3-yaml
           - pdns-backend-mysql
-          - pdns-server
           - default-mysql-server
           - default-mysql-client 
         update_cache: yes
@@ -40,14 +39,19 @@
 
     - name: "Add MySQL setup to PDNS"
       shell:
-        echo "#### MYSQL CONFIG
-        launch=gmysql
-        gmysql-host=127.0.0.1
-        gmysql-port=3306
-        gmysql-dbname=pdns
-        gmysql-user=pdns
-        gmysql-password={{ pdns_db_password }}
+        printf "#### MYSQL CONFIG\n
+        launch=gmysql\n
+        gmysql-host=127.0.0.1\n
+        gmysql-port=3306\n
+        gmysql-dbname=pdns\n
+        gmysql-user=pdns\n
+        gmysql-password={{ pdns_db_password }}\n
         gmysql-dnssec=no" > /etc/powerdns/pdns.d/mysql.conf
+
+    - name: Remove PDNS bind file
+      file:
+        state: absent
+        path: "/etc/powerdns/pdns.d/bind.conf"
 
     - name: "Populate PDNS MySQL"
       shell: |
