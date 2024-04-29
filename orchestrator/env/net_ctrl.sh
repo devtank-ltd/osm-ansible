@@ -9,6 +9,8 @@ OSM_DNS=$3
 
 [ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
 
+HOSTS_DIR=$(readlink -f "$HOSTS_DIR")
+
 case "$1" in
   "open")
     [ ! -e "/sys/class/net/$VOSMHOSTBR" ] || { echo "$VOSMHOSTBR already open."; exit -1; }
