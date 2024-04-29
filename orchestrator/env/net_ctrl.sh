@@ -39,7 +39,7 @@ case "$1" in
 
     iptables -t nat -D POSTROUTING ! -d 192.168.5.0/24 -s 192.168.5.0/24 -j SNAT --to-source $main_ip
 
-    kill -9 $(cat "/tmp/$VOSMHOSTBR.pid")
+    kill -9 $(cat "$HOST_DIR/$VOSMHOSTBR.pid")
 
     ip link set down dev "$VOSMHOSTBR"
     ip addr del 192.168.5.1/24 dev "$VOSMHOSTBR"
