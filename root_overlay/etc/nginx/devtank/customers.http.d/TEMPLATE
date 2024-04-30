@@ -43,6 +43,21 @@ server {
 	}
 }
 
+# MQTT
+server {
+	server_name CUSTOMERNAME-mqtt.OSMDOMAIN;
+	listen 443 ssl;
+
+	location / {
+
+		proxy_http_version 1.1;
+		proxy_set_header Upgrade $http_upgrade;
+		proxy_set_header Connection $connection_upgrade;
+		proxy_set_header Host $http_host;
+		proxy_pass "http://CUSTOMERNAME-svr:9001";
+	}
+}
+
 # InfluxDB
 server {
 	server_name CUSTOMERNAME-influx.OSMDOMAIN;
