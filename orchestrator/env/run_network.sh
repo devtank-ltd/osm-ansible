@@ -1,8 +1,10 @@
 #! /bin/bash
 
-[ -n "$VOSMHOSTBR" ] || VOSMHOSTBR=vosmhostbr0
-[ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
-[ -n "$OSMHOST_COUNT" ] || OSMHOST_COUNT=4
+[ -n "$OSMHOST_COUNT" ] || OSMHOST_COUNT=2
+
+. common.sh
+
+./net_ctrl.sh open $VOSMHOSTBR
 
 OSMHOST_MAX=$(($OSMHOST_COUNT - 1))
 
