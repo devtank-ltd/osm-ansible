@@ -45,9 +45,11 @@ case "$1" in
 
     echo "Orchestrator MAC:" $OSM_ORCHESTRATOR_MAC
 
-    [ ! -e "$HOSTS_DIR/$VOSMHOSTBR.leasefile" ] || sed -i 's/192.168.5.2/d' "$HOSTS_DIR/$VOSMHOSTBR.leasefile"
+    [ ! -e "$HOSTS_DIR/$VOSMHOSTBR.leasefile" ] || sed -i '/192.168.5.2/d' "$HOSTS_DIR/$VOSMHOSTBR.leasefile"
 
     dnsmasq --pid-file="$HOSTS_DIR/$VOSMHOSTBR.pid" --dhcp-leasefile="$HOSTS_DIR/$VOSMHOSTBR.leasefile" --interface="$VOSMHOSTBR" --except-interface=lo --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255  --dhcp-host=$OSM_ORCHESTRATOR_MAC,192.168.5.2  --server=/$OSM_DOMAIN/192.168.5.2
+
+    resolvectl dns $VOSMHOSTBR 192.168.5.2
   ;;
   "close")
     [ -e "/sys/class/net/$VOSMHOSTBR" ] || { echo "$VOSMHOSTBR already closed."; exit -1; }

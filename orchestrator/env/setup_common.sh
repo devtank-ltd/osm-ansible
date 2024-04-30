@@ -2,6 +2,7 @@
 [ -n "$(which qemu-system-x86_64)" ] || { echo "Press install qemu-system-x86"; exit -1; }
 [ -e "/usr/share/OVMF/OVMF_CODE_4M.fd" ] || { echo "Press install ovmf"; exit -1; }
 [ -n "$(which isoinfo)" ] || { echo "Press install isoinfo"; exit -1; }
+[ -n "$(which resolvectl)" ] || { echo "Please install systemd-resolved"; exit -1; }
 
 DEBISO=hosts/debian-12.5.0-amd64-netinst.iso
 
