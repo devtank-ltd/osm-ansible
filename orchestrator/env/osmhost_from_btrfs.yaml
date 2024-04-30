@@ -23,4 +23,4 @@
         echo "Defaults env_keep += SKIP_LETS_ENCRYPT" >> /etc/sudoers.d/osm-anisble
 
     - name: Setup OSM HOST
-      import_tasks: ./fake_osm_dns.yaml
+      import_tasks: ./osm_fake_dns.yaml
