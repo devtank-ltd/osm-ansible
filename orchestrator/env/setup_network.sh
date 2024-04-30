@@ -8,8 +8,6 @@
 echo "Creating OSM Orchestrator"
 ./setup_orchestrator.sh
 
-export OSMORCHESTRATOR=$(cat "$HOSTS_DIR/orchestrator_ip")
-
 echo "========================================="
 echo "Creating virtual OSMHOSTs"
 OSMHOST_MAX=$(($OSMHOST_COUNT - 1))

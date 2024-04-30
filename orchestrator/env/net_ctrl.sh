@@ -8,6 +8,7 @@ VOSMHOSTBR=$2
 OSM_DNS=$3
 
 [ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
+[ -n "$OSM_DOMAIN" ] || OSM_DOMAIN=osmm.fake.co.uk
 
 HOSTS_DIR=$(readlink -f "$HOSTS_DIR")
 
@@ -32,7 +33,21 @@ case "$1" in
 
     mkdir -p $HOSTS_DIR
 
-    dnsmasq --pid-file="$HOSTS_DIR/$VOSMHOSTBR.pid" --dhcp-leasefile="$HOSTS_DIR/$VOSMHOSTBR.leasefile" --interface="$VOSMHOSTBR" --except-interface=lo --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255
+    if [ -e "$HOSTS_DIR/orchestrator/mac" ]
+    then
+      OSM_ORCHESTRATOR_MAC=$(cat "$HOSTS_DIR/orchestrator/mac")
+    else
+      OSM_ORCHESTRATOR_MAC=$(printf '52:54:00:%02x:%02x:%02x' $[RANDOM%256] $[RANDOM%256] $[RANDOM%256])
+      mkdir -p "$HOSTS_DIR/orchestrator"
+      chmod 777 "$HOSTS_DIR/orchestrator"
+      echo $OSM_ORCHESTRATOR_MAC > "$HOSTS_DIR/orchestrator/mac"
+    fi
+
+    echo "Orchestrator MAC:" $OSM_ORCHESTRATOR_MAC
+
+    [ ! -e "$HOSTS_DIR/$VOSMHOSTBR.leasefile" ] || sed -i 's/192.168.5.2/d' "$HOSTS_DIR/$VOSMHOSTBR.leasefile"
+
+    dnsmasq --pid-file="$HOSTS_DIR/$VOSMHOSTBR.pid" --dhcp-leasefile="$HOSTS_DIR/$VOSMHOSTBR.leasefile" --interface="$VOSMHOSTBR" --except-interface=lo --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255  --dhcp-host=$OSM_ORCHESTRATOR_MAC,192.168.5.2  --server=/$OSM_DOMAIN/192.168.5.2
   ;;
   "close")
     [ -e "/sys/class/net/$VOSMHOSTBR" ] || { echo "$VOSMHOSTBR already closed."; exit -1; }
