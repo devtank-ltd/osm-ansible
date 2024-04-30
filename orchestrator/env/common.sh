@@ -7,7 +7,7 @@ OVMF_VARS_ORIG="/usr/share/OVMF/OVMF_VARS_4M.fd"
 
 [ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
 
-[ -n "$OSMHOST" ] || OSMHOST=btrfsdeb
+[ -n "$OSMHOST" ] || OSMHOST=vosmhost0
 HOST_DIR=$HOSTS_DIR/$OSMHOST
 
 mkdir -p $HOST_DIR
