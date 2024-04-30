@@ -323,6 +323,9 @@ class osm_orchestrator_t(object):
             return os.EX_CONFIG
 
         osm_host = self._find_free_osm_host()
+        if not osm_host:
+            self.logger.error(f"No free OSM host for customer {customer_name}")
+            return os.EX_UNAVAILABLE
         if osm_host.add_osm_customer(customer_name):
             return os.EX_OK
         else:
