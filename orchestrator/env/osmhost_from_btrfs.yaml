@@ -2,7 +2,7 @@
   tasks:
     - name: Getting OSM Orchestrator
       set_fact:
-      osm_orchestrator: "{{ lookup('ansible.builtin.env', 'OSMORCHESTRATOR') }}"
+        osm_orchestrator: "{{ lookup('ansible.builtin.env', 'OSMORCHESTRATOR') }}"
 
     - name: Setup for fake SSL
       shell: |
