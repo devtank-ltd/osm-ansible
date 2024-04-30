@@ -49,6 +49,7 @@ case "$1" in
 
     dnsmasq --pid-file="$HOSTS_DIR/$VOSMHOSTBR.pid" --dhcp-leasefile="$HOSTS_DIR/$VOSMHOSTBR.leasefile" --interface="$VOSMHOSTBR" --except-interface=lo --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255  --dhcp-host=$OSM_ORCHESTRATOR_MAC,192.168.5.2  --server=/$OSM_DOMAIN/192.168.5.2
 
+    resolvectl domain $VOSMHOSTBR $OSM_DOMAIN
     resolvectl dns $VOSMHOSTBR 192.168.5.2
   ;;
   "close")
