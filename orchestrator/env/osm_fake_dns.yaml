@@ -1,5 +1,5 @@
 - name: If PowerDNS, limit to external address
-  shell: [ ! -e /etc/powerdns/pdns.conf ] || { echo "local-address={{ target }}" >> /etc/powerdns/pdns.conf; systemctl restart pdns; }
+  shell: '[ ! -e /etc/powerdns/pdns.conf ] || { echo "local-address={{ target }}" >> /etc/powerdns/pdns.conf; systemctl restart pdns; }'
 
 - name: Config file for DNS for faking
   shell: |
