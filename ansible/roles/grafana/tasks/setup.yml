@@ -13,7 +13,7 @@
     grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
 
 - name: "Set Grafana Password"
-  command: "grafana-cli admin reset-admin-password {{ grafana_admin_password }}"
+  command: "grafana-cli admin reset-admin-password {{ grafana_admin_password }}; chown grafana: /var/lib/grafana/grafana.db;"
 
 - name: "Start and enable Grafana"
   systemd:
