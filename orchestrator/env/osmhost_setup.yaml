@@ -97,7 +97,7 @@
 - name: Make OSM Host Base OS Ansible ready
   community.general.lxc_container:
     name: base-os
-    container_command: apt install -y python3 wget
+    container_command: apt install -y python3 wget python3-apt
 
 - name: Ready host to use Ansible on OSM Host Base OS
   shell: |
