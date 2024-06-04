@@ -81,7 +81,7 @@
 - name: "Restart LXC container with own ssh host keys and add them to hsot"
   shell: |
     lxc-wait -n '{{ container_hostname }}' -s RUNNING
-    lxc-attach '{{ container_hostname }}' 'rm /etc/ssh/ssh_host_*'
-    lxc-attach '{{ container_hostname }}' 'dpkg-reconfigure openssh-server'
+    lxc-attach '{{ container_hostname }}' -- rm /etc/ssh/ssh_host_*
+    lxc-attach '{{ container_hostname }}' -- dpkg-reconfigure openssh-server
     ssh-keygen -f ~/.ssh/known_hosts -R {{ container_hostname }}
     ssh-keyscan -H {{ container_hostname }} >> ~/.ssh/known_hosts
