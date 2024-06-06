@@ -13,6 +13,7 @@ cd "$owndir"
 
 git pull
 
+[ ! -e "custom_domain" ] || domain=$(cat "custom_domain")
 [ -z "$domain" ] || { extra="$extra le_domain=$domain"; echo "Using custom domain $domain."; }
 
 ansible-playbook -i hosts -e "customer_name=$customer_name $extra" delete-container.yaml
