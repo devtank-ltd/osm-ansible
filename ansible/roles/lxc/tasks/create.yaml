@@ -78,7 +78,7 @@
 - name: "Start the LXC container"
   command: "lxc-start -n '{{ container_hostname }}' -f '{{ container_dir }}/lxc.container.conf'"
 
-- name: "Restart LXC container with own ssh host keys and add them to hsot"
+- name: "Restart LXC container with own ssh host keys and add them to host"
   shell: |
     lxc-wait -n '{{ container_hostname }}' -s RUNNING
     lxc-attach '{{ container_hostname }}' -- rm /etc/ssh/ssh_host_*
