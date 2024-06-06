@@ -34,7 +34,8 @@ echo $ssh_key_name > $HOST_DIR/ssh_key_name
 
 [ -f "$HOST_DIR/$ssh_key_name" ] || ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
 
-./net_ctrl.sh open $VOSMHOSTBR
+./net_ctrl.sh open $VOSM_HOSTBR $OSM_SUBNET
+[ "$?" = "0" ] || { echo "Failed to setup bridge"; exit -1; }
 
 [ -e "$DEBBIOSMEM" ] || cp "$OVMF_VARS_ORIG" "$DEBBIOSMEM"
 
@@ -47,13 +48,13 @@ isoinfo -J -i "$DEBISO" -x /install.amd/initrd.gz > $HOST_DIR/boot/initrd.gz
 rm -rf "$DEBDISK"
 qemu-img create -f qcow2 "$DEBDISK" 16G
 
-python3 -m http.server -d $HOST_DIR -b 192.168.5.1&
+python3 -m http.server -d $HOST_DIR -b $OSM_SUBNET.1&
 websvr=$!
 
-nc -u -l 192.168.5.1 10514 > $HOST_DIR/install_log&
+nc -u -l $OSM_SUBNET.1 10514 > $HOST_DIR/install_log&
 logsvr=$!
 
-[ -e "$HOST_DIR/preseed.cfg" ] || ln -s "$(readlink -f "$PRESEED")" $HOST_DIR/preseed.cfg
+[ -e "$HOST_DIR/preseed.cfg" ] || sed "s|OSM_SUBNET|$OSM_SUBNET|g" "$PRESEED" > $HOST_DIR/preseed.cfg
 
 [ -e "$HOST_DIR/ssh_key_name" ] || echo $ssh_key_name > $HOST_DIR/ssh_key_name
 [ -e "$HOST_DIR/$ssh_key_name" ] || ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
@@ -68,14 +69,14 @@ qemu-system-x86_64                 \
    -serial unix:$HOST_DIR/console.sock,server,nowait \
    -device virtio-scsi-pci,id=scsi \
    -device virtio-serial-pci       \
-   -nic bridge,br="$VOSMHOSTBR",model=virtio-net-pci,mac=$OSMHOSTMAC \
+   -nic bridge,br="$VOSM_HOSTBR",model=virtio-net-pci,mac=$OSM_HOSTMAC \
    -drive file="$DEBISO",format=raw,if=virtio,media=cdrom \
    -drive file="$DEBDISK",format=qcow2,if=virtio \
    -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE_4M.fd,readonly=on" \
    -drive "if=pflash,format=raw,unit=1,file=$DEBBIOSMEM" \
    -kernel $HOST_DIR/boot/vmlinuz \
    -initrd $HOST_DIR/boot/initrd.gz \
-   -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text hostname=$OSMHOST domain=$OSM_DOMAIN log_host=192.168.5.1 log_port=10514 url=http://192.168.5.1:8000/preseed.cfg" \
+   -append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text hostname=$OSM_HOST domain=$OSM_DOMAIN log_host=$OSM_SUBNET.1 log_port=10514 url=http://$OSM_SUBNET.1:8000/preseed.cfg" \
    -cpu host
 
 rc=$?
@@ -91,15 +92,15 @@ fi
 
 [ -z "$DEV" ] || cp "$DEBDISK" "$DEBDISK.bckup"
 
-OSMHOST=$OSMHOST ./run.sh &
+OSM_HOST=$OSM_HOST ./run.sh &
 run_pid=$!
 
-echo "Waiting for $OSMHOST to have IP."
+echo "Waiting for $OSM_HOST to have IP."
 while [ -z "$vm_ip" ]
 do
   sleep 0.25
   [ -e /proc/$run_pid ] || { echo "QEmu dead"; exit -1; }
-  vm_ip=$(./get_active_ip_of.sh $OSMHOST)
+  vm_ip=$(./get_active_ip_of.sh $OSM_HOST $OSM_SUBNET.1)
 done
 
 echo "VM booted and taken IP address $vm_ip"

@@ -1,19 +1,20 @@
 #! /bin/bash
 
-[ -n "$VOSMHOSTBR" ] || VOSMHOSTBR=vosmhostbr0
+[ -n "$VOSM_HOSTBR" ] || VOSM_HOSTBR=vosmhostbr0
 [ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
-[ -n "$OSMHOST_COUNT" ] || OSMHOST_COUNT=2
+[ -n "$OSM_HOST_COUNT" ] || OSM_HOST_COUNT=2
 [ -n "$OSMCUSTOMER_COUNT" ] || OSMCUSTOMER_COUNT=7
+[ -n "$OSM_SUBNET" ] || OSM_SUBNET=192.168.5
 
 echo "Creating OSM Orchestrator"
 ./setup_orchestrator.sh
 
 echo "========================================="
-echo "Creating virtual OSMHOSTs"
-OSMHOST_MAX=$(($OSMHOST_COUNT - 1))
-for n in `seq 0 $OSMHOST_MAX`
+echo "Creating virtual OSM_HOSTs"
+OSM_HOST_MAX=$(($OSM_HOST_COUNT - 1))
+for n in `seq 0 $OSM_HOST_MAX`
 do
-  OSMHOST=vosmhost$n ./setup_from_btrfs.sh
+  OSM_HOST=vosmhost$n ./setup_from_btrfs.sh
 done
 
 . run_network.sh
@@ -27,7 +28,7 @@ ssh-keyscan -H $orchestrator_ip >> ~/.ssh/known_hosts
 ssh root@$orchestrator_ip "ssh-keygen -q  -t rsa -N '' -f /root/.ssh/id_rsa"
 orchestrator_pub=$(ssh root@$orchestrator_ip "cat /root/.ssh/id_rsa.pub")
 
-for n in `seq 0 $OSMHOST_MAX`
+for n in `seq 0 $OSM_HOST_MAX`
 do
   name=vosmhost$n
   ip_addr=${host_ip[$n]}

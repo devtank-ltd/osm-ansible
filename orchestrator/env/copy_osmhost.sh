@@ -2,6 +2,7 @@
 
 src=$1
 dst=$2
+dns_server=$3
 
 [ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
 
@@ -15,7 +16,7 @@ mkdir "$HOSTS_DIR/$dst"
 
 cp -v "$HOSTS_DIR/$src/"{disk.qcow,ovmf_vars.fd} "$HOSTS_DIR/$dst/"
 
-OSMHOST=$dst ./run.sh &
+OSM_HOST=$dst ./run.sh &
 run_pid=$!
 
 echo "Waiting for old name $src to have IP."
@@ -23,7 +24,7 @@ while [ -z "$vm_ip" ]
 do
   sleep 0.25
   [ -e /proc/$run_pid ] || { echo "QEmu dead"; exit -1; }
-  vm_ip=$(./get_active_ip_of.sh $src)
+  vm_ip=$(./get_active_ip_of.sh $src $dns_server)
 done
 
 echo "VM booted and taken IP address $vm_ip"

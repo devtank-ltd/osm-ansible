@@ -1,11 +1,9 @@
 #! /bin/bash
 
-set -e
-
 main_ip=$(ip route | awk '/default/ { print $9 ; exit}')
 
-VOSMHOSTBR=$2
-OSM_DNS=$3
+VOSM_HOSTBR=$2
+OSM_SUBNET=$3
 
 [ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
 [ -n "$OSM_DOMAIN" ] || OSM_DOMAIN=osmm.fake.co.uk
@@ -14,7 +12,15 @@ HOSTS_DIR=$(readlink -f "$HOSTS_DIR")
 
 case "$1" in
   "open")
-    [ ! -e "/sys/class/net/$VOSMHOSTBR" ] || { echo "$VOSMHOSTBR already open."; exit -1; }
+    set -e
+
+    if [ -e "/sys/class/net/$VOSM_HOSTBR" ]
+    then
+      osm_bridge_ip=$(ip addr show $VOSM_HOSTBR | awk -F '[[:blank:]/]+' '/inet / { print $3}')
+      [ "$OSM_SUBNET.1" = "$osm_bridge_ip" ] || { echo "IP address of bridge $osm_bridge_ip doesn't match $OSM_SUBNET.1"; exit -1; } 
+      echo "$VOSM_HOSTBR already open."
+      exit 0
+    fi
 
     [ $(id -u) == 0 ] || exec sudo -- "$0" "$@"
 
@@ -23,13 +29,13 @@ case "$1" in
 
     [ -d /etc/qemu ] || mkdir /etc/qemu
     [ -e /etc/qemu/bridge.conf ] || { touch /etc/qemu/bridge.conf; chmod 640 /etc/qemu/bridge.conf; chown root:netdev /etc/qemu/bridge.conf; }
-    [ -n "$(grep $VOSMHOSTBR /etc/qemu/bridge.conf)" ] || echo "allow $VOSMHOSTBR" >> /etc/qemu/bridge.conf
+    [ -n "$(grep $VOSM_HOSTBR /etc/qemu/bridge.conf)" ] || echo "allow $VOSM_HOSTBR" >> /etc/qemu/bridge.conf
 
-    ip link add "$VOSMHOSTBR" type bridge
-    ip addr add 192.168.5.1/24 dev "$VOSMHOSTBR"
-    ip link set up dev "$VOSMHOSTBR"
+    ip link add "$VOSM_HOSTBR" type bridge
+    ip addr add $OSM_SUBNET.1/24 dev "$VOSM_HOSTBR"
+    ip link set up dev "$VOSM_HOSTBR"
 
-    iptables -t nat -A POSTROUTING ! -d 192.168.5.0/24 -s 192.168.5.0/24 -j SNAT --to-source $main_ip
+    iptables -t nat -A POSTROUTING ! -d $OSM_SUBNET.0/24 -s $OSM_SUBNET.0/24 -j SNAT --to-source $main_ip
 
     mkdir -p $HOSTS_DIR
 
@@ -45,25 +51,25 @@ case "$1" in
 
     echo "Orchestrator MAC:" $OSM_ORCHESTRATOR_MAC
 
-    [ ! -e "$HOSTS_DIR/$VOSMHOSTBR.leasefile" ] || sed -i '/192.168.5.2/d' "$HOSTS_DIR/$VOSMHOSTBR.leasefile"
+    [ ! -e "$HOSTS_DIR/$VOSM_HOSTBR.leasefile" ] || sed -i '/$OSM_SUBNET.2/d' "$HOSTS_DIR/$VOSM_HOSTBR.leasefile"
 
-    dnsmasq --pid-file="$HOSTS_DIR/$VOSMHOSTBR.pid" --dhcp-leasefile="$HOSTS_DIR/$VOSMHOSTBR.leasefile" --interface="$VOSMHOSTBR" --except-interface=lo --bind-interfaces --dhcp-range=192.168.5.2,192.168.5.255  --dhcp-host=$OSM_ORCHESTRATOR_MAC,192.168.5.2  --server=/$OSM_DOMAIN/192.168.5.2
+    dnsmasq --pid-file="$HOSTS_DIR/$VOSM_HOSTBR.pid" --dhcp-leasefile="$HOSTS_DIR/$VOSM_HOSTBR.leasefile" --interface="$VOSM_HOSTBR" --except-interface=lo --bind-interfaces --dhcp-range=$OSM_SUBNET.2,$OSM_SUBNET.255  --dhcp-host=$OSM_ORCHESTRATOR_MAC,$OSM_SUBNET.2  --server=/$OSM_DOMAIN/$OSM_SUBNET.2
 
-    resolvectl domain $VOSMHOSTBR ~$OSM_DOMAIN
-    resolvectl dns $VOSMHOSTBR 192.168.5.2
+    resolvectl domain $VOSM_HOSTBR ~$OSM_DOMAIN
+    resolvectl dns $VOSM_HOSTBR $OSM_SUBNET.2
   ;;
   "close")
-    [ -e "/sys/class/net/$VOSMHOSTBR" ] || { echo "$VOSMHOSTBR already closed."; exit -1; }
+    [ -e "/sys/class/net/$VOSM_HOSTBR" ] || { echo "$VOSM_HOSTBR already closed."; exit -1; }
 
     [ $(id -u) == 0 ] || exec sudo -- "$0" "$@"
 
-    iptables -t nat -D POSTROUTING ! -d 192.168.5.0/24 -s 192.168.5.0/24 -j SNAT --to-source $main_ip
+    iptables -t nat -D POSTROUTING ! -d $OSM_SUBNET.0/24 -s $OSM_SUBNET.0/24 -j SNAT --to-source $main_ip
 
-    kill -9 $(cat "$HOSTS_DIR/$VOSMHOSTBR.pid")
+    kill -9 $(cat "$HOSTS_DIR/$VOSM_HOSTBR.pid")
 
-    ip link set down dev "$VOSMHOSTBR"
-    ip addr del 192.168.5.1/24 dev "$VOSMHOSTBR"
-    ip link del "$VOSMHOSTBR" type bridge
+    ip link set down dev "$VOSM_HOSTBR"
+    ip addr del $OSM_SUBNET.1/24 dev "$VOSM_HOSTBR"
+    ip link del "$VOSM_HOSTBR" type bridge
   ;;
   *)
     echo "Unknown operation, options are: open, close"

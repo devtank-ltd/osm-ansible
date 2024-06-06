@@ -2,7 +2,7 @@
 
 . common.sh
 
-ips=($(awk '/192.168.5./ {print $3}' "$HOSTS_DIR/$VOSMHOSTBR.leasefile"))
+ips=($(awk "/$OSM_SUBNET./ {print $3}" "$HOSTS_DIR/$VOSM_HOSTBR.leasefile"))
 
 for ip in ${ips[@]}
 do
