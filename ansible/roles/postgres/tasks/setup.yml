@@ -1,4 +1,6 @@
 ---
+- name: Wait on Postgres
+  shell: "timeout 30s bash -c 'while ! pg_isready; do sleep 1; done'"
 
 # This block is run as the user postgres
 - name: Postgres operations
