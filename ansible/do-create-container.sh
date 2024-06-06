@@ -20,9 +20,9 @@ git pull
 
 le_cert_name=$(ls /etc/letsencrypt/live/ | grep -v README | head -n 1)
 
+[ -z "$domain" -o -e "custom_domain" ] || echo $domain >  "custom_domain"
 [ ! -e "custom_domain" ] || domain=$(cat "custom_domain")
 [ -n "$domain" ] || domain=$(echo $le_cert_name | awk -F '.' 'BEGIN { OFS="."}; {$1=""; print substr($0, 2)}')
-[ -z "$domain" -o -e "custom_domain" ] || echo $domain >  "custom_domain"
 
 ansible-playbook -i hosts -e "customer_name=$customer_name mqtt_port=$mqtt_port le_domain=$domain" create-container.yaml
 
