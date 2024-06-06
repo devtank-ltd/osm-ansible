@@ -18,12 +18,16 @@ cd "$owndir"
 
 git pull
 
-[ -z "$domain" -o -e "custom_domain" ] || echo $domain >  "custom_domain"
-[ ! -e "custom_domain" ] || domain=$(cat "custom_domain")
-[ -z "$domain" ] || extra="$extra le_domain=$domain"
+le_cert_name=$(ls /etc/letsencrypt/live/ | grep -v README | head -n 1)
 
-ansible-playbook -i hosts -e "customer_name=$customer_name mqtt_port=$mqtt_port $extra" create-container.yaml
+[ ! -e "custom_domain" ] || domain=$(cat "custom_domain")
+[ -n "$domain" ] || domain=$(echo $le_cert_name | awk -F '.' 'BEGIN { OFS="."}; {$1=""; print substr($0, 2)}')
+[ -z "$domain" -o -e "custom_domain" ] || echo $domain >  "custom_domain"
+
+ansible-playbook -i hosts -e "customer_name=$customer_name mqtt_port=$mqtt_port le_domain=$domain" create-container.yaml
 
 echo $customer_name-svr >> hosts
 
-ansible-playbook -i hosts -e "target=$customer_name-svr customer_name=$customer_name $extra" provision-container.yaml
+customer_domain=$customer_name.$domain
+
+ansible-playbook -i hosts -e "target=$customer_name-svr customer_name=$customer_name customer_domain=$customer_domain le_domain=$domain" provision-container.yaml

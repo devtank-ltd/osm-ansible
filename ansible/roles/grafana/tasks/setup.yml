@@ -1,6 +1,4 @@
 ---
-- name: "Get Domain"
-  import_tasks: ../../domain.yaml
 
 - name: "Configure Grafana"
   template:
