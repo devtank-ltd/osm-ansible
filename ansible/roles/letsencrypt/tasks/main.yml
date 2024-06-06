@@ -19,6 +19,7 @@
   shell: "certbot --nginx --expand --renew-by-default --renew-with-new-domains -d {{ le_host_domain }} {{ lxc_domains_list }}"
   when: lxc_domains_list is defined and not skip_lets_encrypt
 
-- name: Test set current domains
-  shell: "echo certbot --nginx --expand --renew-by-default --renew-with-new-domains -d {{ le_host_domain }} {{ lxc_domains_list }}"
+- name: Show set current domains
+  debug:
+    msg: "certbot --nginx --expand --renew-by-default --renew-with-new-domains -d {{ le_host_domain }} {{ lxc_domains_list }}"
   when: lxc_domains_list is defined and skip_lets_encrypt
