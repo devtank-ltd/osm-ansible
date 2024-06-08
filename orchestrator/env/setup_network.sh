@@ -11,10 +11,11 @@ echo "Creating OSM Orchestrator"
 
 echo "========================================="
 echo "Creating virtual OSM_HOSTs"
+OSM_HOST=vosmhost0 ./setup_from_btrfs.sh
 OSM_HOST_MAX=$(($OSM_HOST_COUNT - 1))
-for n in `seq 0 $OSM_HOST_MAX`
+for n in `seq 1 $OSM_HOST_MAX`
 do
-  OSM_HOST=vosmhost$n ./setup_from_btrfs.sh
+  ./copy_osmhost.sh vosmhost0 vosmhost$n
 done
 
 . run_network.sh

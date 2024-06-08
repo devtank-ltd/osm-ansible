@@ -2,9 +2,10 @@
 
 src=$1
 dst=$2
-dns_server=$3
 
-[ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
+. common.sh
+
+dns_server=$OSM_SUBNET.1
 
 if [ ! -e "$HOSTS_DIR/$src" ]
 then
