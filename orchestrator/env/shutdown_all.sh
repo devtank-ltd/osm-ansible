@@ -1,6 +1,6 @@
 #! /bin/bash
 
-. common.sh
+. env_common.sh
 
 ips=($(awk '/'$OSM_SUBNET'/ {print $3}' "$HOSTS_DIR/$VOSM_HOSTBR.leasefile"))
 

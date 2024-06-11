@@ -3,7 +3,7 @@
 src=$1
 dst=$2
 
-. common.sh
+. env_common.sh
 
 dns_server=$OSM_SUBNET.1
 

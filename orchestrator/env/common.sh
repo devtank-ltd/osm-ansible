@@ -1,23 +1,8 @@
-test -r /dev/kvm || { echo "User doesn't have KVM access."; exit -1; }
-[ -n "$(groups | grep netdev)" ] || { echo "User doesn't have netdev access."; exit -1; }
+. env_common.sh
 
 OVMF_VARS_ORIG="/usr/share/OVMF/OVMF_VARS_4M.fd"
 
-[ -n "$VOSM_HOSTBR" ] || VOSM_HOSTBR=vosmhostbr0
-
-[ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
-
 [ -n "$OSM_HOST" ] || OSM_HOST=vosmhost0
-
-if [ -e /sys/class/net/$VOSM_HOSTBR ]
-then
-  osm_bridge_ip=$(ip addr show $VOSM_HOSTBR | awk -F '[[:blank:]/]+' '/inet / { print $3}')
-  osm_bridge_range=$(echo $osm_bridge_ip | awk -F'.' '{print $1"."$2"."$3}')
-else
-  osm_bridge_range=192.168.5
-fi
-
-[ -n "$OSM_SUBNET" ] || OSM_SUBNET=$osm_bridge_range
 
 HOST_DIR=$HOSTS_DIR/$OSM_HOST
 
@@ -40,12 +25,6 @@ fi
 
 [ -n "$PRESEED" ] || PRESEED=preseed-btrfs.cfg
 
-[ -n "$OSM_DOMAIN" ] || OSM_DOMAIN=osmm.fake.co.uk
-
-[ -n "$ANSIBLE_HOSTS" ] || ANSIBLE_HOSTS=/tmp/$USER.hosts
-
 echo "OSM HOST: $OSM_HOST"
 echo "OSM HOST DIR: $HOST_DIR"
 echo "OSM HOST MAC: $OSM_HOSTMAC"
-echo "OSM DOMAIN: $OSM_DOMAIN"
-echo "OSM SUBNET: $OSM_SUBNET"

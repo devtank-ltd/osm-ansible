@@ -23,6 +23,8 @@ done
 echo "========================================="
 echo "Network started, adding OSM HOSTs to Orchestrator"
 
+orchestrator_ip=$(./get_active_ip_of.sh orchestrator $OSM_SUBNET.1)
+
 ssh-keygen -f ~/.ssh/known_hosts -R $orchestrator_ip
 ssh-keyscan -H $orchestrator_ip >> ~/.ssh/known_hosts
 
