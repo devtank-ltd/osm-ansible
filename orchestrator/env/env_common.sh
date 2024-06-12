@@ -29,7 +29,7 @@ mkdir -p "$HOSTS_DIR"
 
 [ -n "$OSM_DOMAIN" ] || OSM_DOMAIN=osmm.fake.co.uk
 
-[ -n "$ANSIBLE_HOSTS" ] || ANSIBLE_HOSTS=/tmp/$USER.hosts
+[ -n "$ANSIBLE_HOSTS" ] || ANSIBLE_HOSTS="$HOSTS_DIR/hosts"
 
 echo "OSM DOMAIN: $OSM_DOMAIN"
 echo "OSM SUBNET: $OSM_SUBNET"

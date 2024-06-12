@@ -34,7 +34,7 @@ echo $ssh_key_name > $HOST_DIR/ssh_key_name
 
 [ -f "$HOST_DIR/$ssh_key_name" ] || ln -s $DEFAULT_KEY_LOCATION $HOST_DIR/$ssh_key_name
 
-./net_ctrl.sh open $VOSM_HOSTBR $OSM_SUBNET
+./net_ctrl.sh open $VOSM_HOSTBR $HOSTS_DIR $OSM_SUBNET $OSM_DOMAIN
 [ "$?" = "0" ] || { echo "Failed to setup bridge"; exit -1; }
 
 [ -e "$DEBBIOSMEM" ] || cp "$OVMF_VARS_ORIG" "$DEBBIOSMEM"
@@ -94,6 +94,7 @@ fi
 
 OSM_HOST=$OSM_HOST ./run.sh &
 run_pid=$!
+vm_ip=""
 
 echo "Waiting for $OSM_HOST to have IP."
 while [ -z "$vm_ip" ]
@@ -121,3 +122,13 @@ ansible_user=root\n\
 " > "$ANSIBLE_HOSTS"
 
 [ -n "$(grep "$vm_ip" "$ANSIBLE_HOSTS")" ] || printf "$vm_ip\n$(cat "$ANSIBLE_HOSTS")" > "$ANSIBLE_HOSTS"
+
+
+ansible-playbook -v -e target="$vm_ip $ansible_args" -i "$ANSIBLE_HOSTS" "$ansible_file"
+
+ssh root@$vm_ip 'ls /srv/osm-lxc/ansible' 2>&1 > /dev/null
+rc=$?
+
+[ -n "$POWER_ON" ] || { ssh root@$vm_ip "poweroff"; wait $run_pid; }
+
+[ "$rc" = 0 ] || { echo 'Failed.'; exit -1; }

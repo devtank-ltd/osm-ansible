@@ -23,8 +23,6 @@ else
   echo "$OSM_HOSTMAC" > "$HOST_DIR/mac"
 fi
 
-[ -n "$PRESEED" ] || PRESEED=preseed-btrfs.cfg
-
 echo "OSM HOST: $OSM_HOST"
 echo "OSM HOST DIR: $HOST_DIR"
 echo "OSM HOST MAC: $OSM_HOSTMAC"

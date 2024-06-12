@@ -3,10 +3,9 @@
 main_ip=$(ip route | awk '/default/ { print $9 ; exit}')
 
 VOSM_HOSTBR=$2
-OSM_SUBNET=$3
-
-[ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
-[ -n "$OSM_DOMAIN" ] || OSM_DOMAIN=osmm.fake.co.uk
+HOSTS_DIR=$3
+OSM_SUBNET=$4
+OSM_DOMAIN=$5
 
 HOSTS_DIR=$(readlink -f "$HOSTS_DIR")
 

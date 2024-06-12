@@ -2,7 +2,7 @@
 
 . env_common.sh
 
-./net_ctrl.sh open $VOSM_HOSTBR $OSM_SUBNET
+./net_ctrl.sh open $VOSM_HOSTBR $HOSTS_DIR $OSM_SUBNET $OSM_DOMAIN
 [ "$?" = "0" ] || { echo "Failed to setup bridge"; exit -1; }
 
 machines=( $(while read line; do basename "$line"; done <<< $(find "$HOSTS_DIR" -name "mac" -exec dirname {} \;) ) )

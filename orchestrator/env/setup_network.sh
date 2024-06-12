@@ -7,11 +7,12 @@
 [ -n "$OSM_SUBNET" ] || OSM_SUBNET=192.168.5
 
 echo "Creating OSM Orchestrator"
-./setup_orchestrator.sh
+. setup_orchestrator.sh
 
 echo "========================================="
 echo "Creating virtual OSM_HOSTs"
-OSM_HOST=vosmhost0 ./setup_from_btrfs.sh
+OSM_HOST=vosmhost0
+. setup_from_btrfs.sh
 OSM_HOST_MAX=$(($OSM_HOST_COUNT - 1))
 for n in `seq 1 $OSM_HOST_MAX`
 do

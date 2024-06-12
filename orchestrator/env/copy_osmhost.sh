@@ -19,6 +19,7 @@ cp -v "$HOSTS_DIR/$src/"{disk.qcow,ovmf_vars.fd} "$HOSTS_DIR/$dst/"
 
 OSM_HOST=$dst ./run.sh &
 run_pid=$!
+vm_ip=""
 
 echo "Waiting for old name $src to have IP."
 while [ -z "$vm_ip" ]
