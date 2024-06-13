@@ -32,18 +32,23 @@ ssh-keyscan -H $orchestrator_ip >> ~/.ssh/known_hosts
 ssh root@$orchestrator_ip "ssh-keygen -q  -t rsa -N '' -f /root/.ssh/id_rsa"
 orchestrator_pub=$(ssh root@$orchestrator_ip "cat /root/.ssh/id_rsa.pub")
 
-for n in `seq 0 $OSM_HOST_MAX`
+for n in `seq 0 ${#host_name[@]}`
 do
-  name=vosmhost$n
-  ip_addr=${host_ip[$n]}
+  name=${host_name[$n]}
+  if [ -n "$name" -a "$name" != "orchestrator" ]
+  then
+    ip_addr=${host_ip[$n]}
 
-  ssh-keygen -f ~/.ssh/known_hosts -R $ip_addr
-  ssh-keyscan -H $ip_addr >> ~/.ssh/known_hosts
+    ssh-keygen -f ~/.ssh/known_hosts -R $ip_addr
+    ssh-keyscan -H $ip_addr >> ~/.ssh/known_hosts
 
-  ssh root@$ip_addr 'mkdir -p /home/osm_orchestrator/.ssh'
-  ssh root@$ip_addr "echo $orchestrator_pub >> /home/osm_orchestrator/.ssh/authorized_keys"
-  ssh root@$orchestrator_ip "ssh-keyscan -H $ip_addr >> /root/.ssh/known_hosts"
-  ssh root@$orchestrator_ip "/srv/osm-lxc/orchestrator/orchestrator_cli.py add_host $name $ip_addr 4"
+    echo "Copy Orchestrator SSH public key to $name $ip_addr"
+    ssh root@$ip_addr 'mkdir -p /home/osm_orchestrator/.ssh'
+    ssh root@$ip_addr "echo $orchestrator_pub >> /home/osm_orchestrator/.ssh/authorized_keys"
+    echo "Put $name SSH host keys to Orchestrator"
+    ssh root@$orchestrator_ip "ssh-keyscan -H $ip_addr >> /root/.ssh/known_hosts"
+    ssh root@$orchestrator_ip "/srv/osm-lxc/orchestrator/orchestrator_cli.py add_host $name $ip_addr 4"
+  fi
 done
 
 echo "========================================="
