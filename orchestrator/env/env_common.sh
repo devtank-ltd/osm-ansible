@@ -1,5 +1,12 @@
 test -r /dev/kvm || { echo "User doesn't have KVM access."; exit -1; }
 [ -n "$(groups | grep netdev)" ] || { echo "User doesn't have netdev access."; exit -1; }
+[ -n "$(which resolvectl)" ] || { echo "Please install systemd-resolved"; exit -1; }
+[ -n "$(which qemu-system-x86_64)" ] || { echo "Please install qemu-system-x86"; exit -1; }
+[ -n "$(which dig)" ] || { echo "Please install dig (bind9-dnsutils)"; exit -1; }
+[ -n "$(which isoinfo)" ] || { echo "Please install genisoimage"; exit -1; }
+[ -n "$(which ssh-keygen)" ] || { echo "Please install OpenSSH client tools."; exit -1; }
+[ -e "/usr/sbin/dnsmasq" ] || { echo "Please install dnsmasq"; exit -1; }
+[ -e "/usr/sbin/iptables" ] || { echo "Please install iptables"; exit -1; }
 
 [ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
 
