@@ -4,23 +4,23 @@
 [ -n "$(which isoinfo)" ] || { echo "Press install isoinfo"; exit -1; }
 [ -n "$(which resolvectl)" ] || { echo "Please install systemd-resolved"; exit -1; }
 
-DEBISO=hosts/debian-12.5.0-amd64-netinst.iso
+. common.sh
+
+DEBISO="$HOSTS_DIR"/debian-12.5.0-amd64-netinst.iso
 
 if [ ! -e "$DEBISO" ]
 then
    mkdir -p hosts
    iso_name=$(basename $DEBISO)
    wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/$iso_name" -O "$DEBISO"
-   wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS" -O hosts/SHA512SUMS
-   grep "$(sha512sum "$DEBISO" | awk '{print $1}')" hosts/SHA512SUMS
+   wget "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS" -O "$HOSTS_DIR"/SHA512SUMS
+   grep "$(sha512sum "$DEBISO" | awk '{print $1}')" "$HOSTS_DIR"/SHA512SUMS
    if [ "$?" != "0" ]
    then
      echo "ISO verification failed."
      exit -1
    fi
 fi
-
-. common.sh
 
 [ -n "$DEFAULT_KEY_LOCATION" ] || DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub
 
