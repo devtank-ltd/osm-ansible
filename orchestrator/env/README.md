@@ -26,3 +26,9 @@ For example:
 ```
 ./shutdown_all.sh hosts
 ```
+
+To spin back up an existing environment you can do it by giving run_network.sh the folder of you environment.
+
+```
+./run_network.sh hosts
+```
