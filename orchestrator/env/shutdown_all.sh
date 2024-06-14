@@ -1,5 +1,8 @@
 #! /bin/bash
 
+[ -z "$1" ] || HOSTS_DIR=$1
+[ -n "$HOSTS_DIR" ] || { echo "Not given a hosts dir as argument or env var."; exit -1; }
+
 . env_common.sh
 
 ips=($(awk '/'$OSM_SUBNET'/ {print $3}' "$HOSTS_DIR/$VOSM_HOSTBR.leasefile"))
