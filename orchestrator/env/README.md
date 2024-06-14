@@ -24,7 +24,7 @@ To shutdown the test environment, give the script shutdown_all.sh the folder of 
 For example:
 
 ```
-./shutdown_all.sh hosts
+./shutdown_network.sh hosts
 ```
 
 To spin back up an existing environment you can do it by giving run_network.sh the folder of you environment.
