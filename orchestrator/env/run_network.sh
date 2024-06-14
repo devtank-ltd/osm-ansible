@@ -18,8 +18,10 @@ for host in ${machines[@]}
 do
   echo "Starting OSM HOST: $host"
   OSM_HOST="$host" ./run.sh&
+  pid=$!
   host_name[$host_count]=$host
-  host_pid[$host_count]=$!
+  host_pid[$host_count]=$pid
+  echo $pid > $HOSTS_DIR/$host/pid
   host_mac[$host_count]=$(cat $HOSTS_DIR/$host/mac)
   echo "OSM HOST:$host  PID:${host_pid[$host_count]} MAC:${host_mac[$host_count]}"
   host_count=$(($host_count + 1))

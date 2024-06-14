@@ -17,4 +17,17 @@ do
   fi
 done
 
+pids=$(cat "$HOSTS_DIR"/*/pid)
+
+waiting=1
+while [ $waiting != 0 ]
+do
+  waiting=0
+  for pid in $pids
+  do
+    [ ! -e /proc/$pid ] || waiting=1
+  done
+  [ $waiting = 0 ] || sleep 1
+done
+
 ./net_ctrl.sh close $VOSM_HOSTBR $HOSTS_DIR $OSM_SUBNET $OSM_DOMAIN
