@@ -13,14 +13,13 @@ echo "HOSTS_DIR: $HOSTS_DIR"
 export HOSTS_DIR
 mkdir -p "$HOSTS_DIR"
 
-[ ! -e  "$HOSTS_DIR/custom_env" ] || source "$HOSTS_DIR/custom_env"
+[ ! -e  "$HOSTS_DIR/env" ] || source "$HOSTS_DIR/env"
 
 save_env () {
   echo 'VOSM_HOSTBR="'$VOSM_HOSTBR'"
 HOSTS_DIR="'$HOSTS_DIR'"
 OSM_SUBNET="'$OSM_SUBNET'"
-OSM_DOMAIN="'$OSM_DOMAIN'"
-ANSIBLE_HOSTS="'$ANSIBLE_HOSTS'"' > "$HOSTS_DIR/custom_env"
+OSM_DOMAIN="'$OSM_DOMAIN'"' > "$HOSTS_DIR/env"
 }
 
 [ -n "$VOSM_HOSTBR" ] || VOSM_HOSTBR=vosmhostbr0
@@ -40,8 +39,7 @@ export OSM_SUBNET
 [ -n "$OSM_DOMAIN" ] || OSM_DOMAIN=osmm.fake.co.uk
 export OSM_DOMAIN
 
-[ -n "$ANSIBLE_HOSTS" ] || ANSIBLE_HOSTS="$HOSTS_DIR/hosts"
-export ANSIBLE_HOSTS
+export ANSIBLE_HOSTS="$HOSTS_DIR/hosts"
 
 echo "OSM DOMAIN: $OSM_DOMAIN"
 echo "OSM SUBNET: $OSM_SUBNET"
