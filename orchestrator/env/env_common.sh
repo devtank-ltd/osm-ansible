@@ -10,6 +10,8 @@ test -r /dev/kvm || { echo "User doesn't have KVM access."; exit -1; }
 
 [ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
 
+[ -e "$HOSTS_DIR" ] || mkdir -p "$HOSTS_DIR"
+
 [ ! -e  "$HOSTS_DIR/custom_env" ] || source  "$HOSTS_DIR/custom_env"
 
 save_env () {
