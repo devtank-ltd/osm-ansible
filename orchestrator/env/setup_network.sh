@@ -20,6 +20,8 @@ fi
 [ -n "$OSMCUSTOMER_COUNT" ] || { echo OSMCUSTOMER_COUNT not set; exit -1; }
 [ -n "$OSM_SUBNET" ] || { echo OSM_SUBNET is not set; exit -1; }
 
+. env_common.sh
+
 echo "========================================="
 echo "Save environment"
 save_env
