@@ -19,7 +19,7 @@
 
 - name: "Add InfluxDB 2.0 data source to Grafana"
   community.grafana.grafana_datasource:
-    name: "InfluxDB"
+    name: "influxdb"
     type: "influxdb"
     url: "http://localhost:8086"
     access: "proxy"
@@ -35,6 +35,7 @@
     grafana_url: "http://localhost:3000"
     grafana_user: "admin"
     grafana_password: "{{ grafana_admin_password }}"
+
 
 - name: "Start and enable Grafana"
   systemd:
