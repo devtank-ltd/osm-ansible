@@ -2,6 +2,9 @@
 
 config=$1
 
+# Reset arguments
+set --
+
 if [ -f "$config" ]
 then
   echo "Loading : $config"
