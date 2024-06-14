@@ -20,6 +20,10 @@ fi
 [ -n "$OSMCUSTOMER_COUNT" ] || { echo OSMCUSTOMER_COUNT not set; exit -1; }
 [ -n "$OSM_SUBNET" ] || { echo OSM_SUBNET is not set; exit -1; }
 
+echo "========================================="
+echo "Save environment"
+save_env
+echo "========================================="
 echo "Creating OSM Orchestrator"
 . setup_orchestrator.sh
 
@@ -77,7 +81,3 @@ do
   customer_name="customer$n"
   ssh root@$orchestrator_ip "/srv/osm-lxc/orchestrator/orchestrator_cli.py add_customer $customer_name"
 done
-
-echo "========================================="
-echo "Save environment"
-save_env
