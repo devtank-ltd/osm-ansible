@@ -1,10 +1,21 @@
 #! /bin/bash
 
-[ -n "$VOSM_HOSTBR" ] || VOSM_HOSTBR=vosmhostbr0
-[ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
-[ -n "$OSM_HOST_COUNT" ] || OSM_HOST_COUNT=2
-[ -n "$OSMCUSTOMER_COUNT" ] || OSMCUSTOMER_COUNT=7
-[ -n "$OSM_SUBNET" ] || OSM_SUBNET=192.168.5
+config=$1
+
+if [ -f "$config" ]
+then
+  echo "Loading : $config"
+  . "$config"
+else
+  echo "No config given."
+  exit -1
+fi
+
+[ -n "$VOSM_HOSTBR" ] || { echo VOSM_HOSTBR not set; exit -1; }
+[ -n "$HOSTS_DIR" ] || { echo HOSTS_DIR not set; exit -1; }
+[ -n "$OSM_HOST_COUNT" ] || { echo OSM_HOST_COUNT not set; exit -1; }
+[ -n "$OSMCUSTOMER_COUNT" ] || { echo OSMCUSTOMER_COUNT not set; exit -1; }
+[ -n "$OSM_SUBNET" ] || { echo OSM_SUBNET is not set; exit -1; }
 
 echo "Creating OSM Orchestrator"
 . setup_orchestrator.sh
@@ -12,13 +23,17 @@ echo "Creating OSM Orchestrator"
 echo "========================================="
 echo "Creating virtual OSM_HOSTs"
 OSM_HOST=vosmhost0
+echo "Creating template OSM Host, $OSM_HOST"
 . setup_from_btrfs.sh
 OSM_HOST_MAX=$(($OSM_HOST_COUNT - 1))
 for n in `seq 1 $OSM_HOST_MAX`
 do
+   echo "Copy OSM Host $OSM_HOST to vosmhost$n"
   ./copy_osmhost.sh vosmhost0 vosmhost$n
 done
 
+echo "========================================="
+echo "Start network"
 . run_network.sh
 
 echo "========================================="
@@ -59,3 +74,7 @@ do
   customer_name="customer$n"
   ssh root@$orchestrator_ip "/srv/osm-lxc/orchestrator/orchestrator_cli.py add_customer $customer_name"
 done
+
+echo "========================================="
+echo "Save environment"
+save_env
