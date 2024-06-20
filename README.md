@@ -23,14 +23,14 @@ So first there is a DNS lookup for which OSM Host the *customer* container is on
 
 <br><p align="center"><img src="dns.png" width="640"/></p>
 
-Then that OSM Host machine for that OSM *customer* is connected to and the connection is sent on to the *customer* container.
+Then that [OSM Host](./OSM-HOST.md) machine for that OSM *customer* is connected to and the connection is sent on to the *customer* container.
 
 <br><p align="center"><img src="osm-architecture.png" width="750"/></p>
 
 
 ## Using Orchestrator
 
-The Orchestrator talks to the databases which tracks which OSM Host is used for which customer. These keeps the DNS updated and ensures OSM customers are spread across OSM Hosts according to the OSM Hosts capacity.
+The Orchestrator talks to the databases which tracks which [OSM Host](./OSM-HOST.md) is used for which customer. These keeps the DNS updated and ensures OSM customers are spread across OSM Hosts according to the OSM Hosts capacity.
 
 ### Using Orchestrator
 
