@@ -54,5 +54,5 @@ OSM_DOMAIN="sequel_domain.fake.co.uk"
 
 ```
 mkdir hosts_sequel
-./setup_network networksequel.cfg
+./setup_network.sh networksequel.cfg
 ```
