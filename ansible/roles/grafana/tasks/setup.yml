@@ -12,7 +12,7 @@
   ansible.builtin.set_fact:
     grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
 
-- name: "Set Grafana Password"
+- name: "Set Grafana Admin Password"
   command: "grafana-cli admin reset-admin-password {{ grafana_admin_password }}; chown grafana: /var/lib/grafana/grafana.db;"
 
 
@@ -48,7 +48,7 @@
   community.grafana.grafana_user:
     url: "http://localhost:3000"
     url_username: "admin"
-    url_password: "{{ grafana_password }}"
+    url_password: "{{ grafana_admin_password }}"
     name: viewer
     email: viewer
     login: viewer
