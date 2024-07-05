@@ -6,7 +6,7 @@
 
 . common.sh
 
-DEBISO="$HOSTS_DIR"/debian-12.5.0-amd64-netinst.iso
+DEBISO="$HOSTS_DIR"/debian-12.6.0-amd64-netinst.iso
 
 if [ ! -e "$DEBISO" ]
 then

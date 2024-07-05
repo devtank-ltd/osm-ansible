@@ -12,8 +12,9 @@
   ansible.builtin.set_fact:
     grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
 
-- name: "Set Grafana Password"
+- name: "Set Grafana Admin Password"
   command: "grafana-cli admin reset-admin-password {{ grafana_admin_password }}; chown grafana: /var/lib/grafana/grafana.db;"
+
 
 - name: "Start and enable Grafana"
   systemd:
@@ -21,3 +22,36 @@
     state: restarted
     enabled: yes
     daemon_reload: yes
+
+
+- name: "Add InfluxDB 2.0 data source to Grafana"
+  community.grafana.grafana_datasource:
+    name: "influxdb"
+    grafana_url: "http://localhost:3000"
+    grafana_user: "admin"
+    grafana_password: "{{ grafana_admin_password }}"
+    org_id: "1"
+    ds_type: "influxdb"
+    ds_url: "http://localhost:8086"
+    additional_json_data:
+      organization: "devtank"
+      defaultBucket: "sf"
+      version: "Flux"
+    additional_secure_json_data:
+      token: "{{ new_token }}"
+
+- name: "Create Grafana Viewer Password"
+  ansible.builtin.set_fact:
+    grafana_viewer_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
+
+- name: Create or update a Grafana user
+  community.grafana.grafana_user:
+    url: "http://localhost:3000"
+    url_username: "admin"
+    url_password: "{{ grafana_admin_password }}"
+    name: viewer
+    email: viewer
+    login: viewer
+    password: "{{ grafana_viewer_password }}"
+    is_admin: false
+    state: present
