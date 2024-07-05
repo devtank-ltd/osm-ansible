@@ -32,3 +32,27 @@ To spin back up an existing environment you can do it by giving run_network.sh t
 ```
 ./run_network.sh hosts
 ```
+
+To spin up multiple environments:
+
+Create a new network.cfg file e.g. networksequel.cfg
+
+You will to need populate it with a different hosts folder, network bridge, sub network and domain.
+
+```
+touch networksequel.cfg
+```
+The contents of this could look something like:
+
+HOSTS_DIR=hosts_sequel
+OSM_HOST_COUNT=2
+OSMCUSTOMER_COUNT=5
+VOSM_HOSTBR="sequel_osm_br"
+OSM_SUBNET="192.168.22"
+OSM_DOMAIN="sequel_domain.fake.co.uk"
+
+
+```
+mkdir hosts_sequel
+./setup_network.sh networksequel.cfg
+```
