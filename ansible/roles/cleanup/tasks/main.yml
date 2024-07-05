@@ -20,11 +20,11 @@
   debug:
     msg: "MQTT password for {{ customer_name }}: {{ mosquitto_passwd }}"
 
-- name: Print Grafana password
+- name: Print Grafana passwords
   debug:
-    msg: "Grafana admin for {{ customer_name }}: {{ grafana_admin_password }}"
+    msg: "Grafana admin for {{ customer_name }}: {{ grafana_admin_password }}\nGrafana viewer for {{ customer_name }}: {{ grafana_viewer_password }}"
 
 - name: Write passwords to file
   ansible.builtin.copy:
-    content: "Influx: {{ influx_passwords }}\nInflux Token: {{ new_token }}\nPostgres: {{ postgres_passwords }}\nMosquitto: {{ mosquitto_passwd }}\nGrafana Admin: {{ grafana_admin_password }}\n"
+    content: "Influx: {{ influx_passwords }}\nInflux Token: {{ new_token }}\nPostgres: {{ postgres_passwords }}\nMosquitto: {{ mosquitto_passwd }}\nGrafana Admin: {{ grafana_admin_password }}\nGrafana Viewer: {{ grafana_viewer_password }}\n"
     dest: "/root/passwords"
