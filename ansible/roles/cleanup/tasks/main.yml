@@ -7,8 +7,8 @@
 
 - name: Print Influx token
   debug:
-    msg: "InfluxDB Token: {{ new_token }}"
-  when: new_token is defined
+    msg: "InfluxDB Token: {{ influx_new_token }}"
+  when: influx_new_token is defined
 
 - name: Print postgres passwords
   debug:
@@ -29,7 +29,7 @@
     content: |
       {
         "Influx": {{ influx_passwords | to_json }},
-        "Influx Token": {{ new_token | to_json }},
+        "Influx Token": {{ influx_new_token | to_json }},
         "Postgres": {{ postgres_passwords | to_json }},
         "Mosquitto": {"{{ customer_name }}": {{ mosquitto_passwd | to_json }}},
         "Grafana Admin": {"admin": {{ grafana_admin_password | to_json }}},

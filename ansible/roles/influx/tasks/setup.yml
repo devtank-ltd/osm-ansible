@@ -38,8 +38,8 @@
 
     - name: "Save current token"
       set_fact:
-        old_token: "{{ influx_auths.stdout | from_json | first | json_query('token') }}"
-        old_token_id: "{{ influx_auths.stdout | from_json | first | json_query('id') }}"
+        influx_old_token: "{{ influx_auths.stdout | from_json | first | json_query('token') }}"
+        influx_old_token_id: "{{ influx_auths.stdout | from_json | first | json_query('id') }}"
 
     # The command to create and all-access token is broken due to an Influx2 bug.
     # TODO fix this when the bug is fixed and/or revise permissions.
@@ -97,19 +97,19 @@
 
     - name: "Parse JSON output"
       set_fact:
-        new_token: "{{ create_auth_output.stdout | from_json | json_query('token') }}"
+        influx_new_token: "{{ create_auth_output.stdout | from_json | json_query('token') }}"
 
     - name: "Change default token"
       replace:
         path: "/root/.influxdbv2/configs"
-        regexp: "{{ old_token }}"
-        replace: "{{ new_token }}"
+        regexp: "{{ influx_old_token }}"
+        replace: "{{ influx_new_token }}"
 
     - name: "Deactivate old token"
-      command: "influx auth inactive --id {{ old_token_id }}"
+      command: "influx auth inactive --id {{ influx_old_token_id }}"
 
     - name: "Delete old token"
-      command: "influx auth delete --id {{ old_token_id }}"
+      command: "influx auth delete --id {{ influx_old_token_id }}"
 
   tags: influx_gen_new_token
 
