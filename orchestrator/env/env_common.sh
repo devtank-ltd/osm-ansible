@@ -9,6 +9,9 @@ test -r /dev/kvm || { echo "User doesn't have KVM access."; exit -1; }
 [ -e "/usr/sbin/iptables" ] || { echo "Please install iptables"; exit -1; }
 
 [ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
+
+[ -d "$HOSTS_DIR" ] || { echo "Hosts folder doesn't exit."; exit -1; }
+
 echo "HOSTS_DIR: $HOSTS_DIR"
 export HOSTS_DIR
 mkdir -p "$HOSTS_DIR"

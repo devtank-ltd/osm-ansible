@@ -14,6 +14,8 @@ else
   exit -1
 fi
 
+mkdir -p "$HOSTS_DIR"
+
 [ -n "$VOSM_HOSTBR" ] || { echo VOSM_HOSTBR not set; exit -1; }
 [ -n "$HOSTS_DIR" ] || { echo HOSTS_DIR not set; exit -1; }
 [ -n "$OSM_HOST_COUNT" ] || { echo OSM_HOST_COUNT not set; exit -1; }
