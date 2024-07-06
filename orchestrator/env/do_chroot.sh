@@ -4,7 +4,7 @@
 
 [ -n "$(which kpartx)" ] || { echo "Press install kpartx"; exit -1; }
 
-. common.sh
+source common.sh
 
 mkdir -p mnt
 

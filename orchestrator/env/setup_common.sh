@@ -4,7 +4,7 @@
 [ -n "$(which isoinfo)" ] || { echo "Press install isoinfo"; exit -1; }
 [ -n "$(which resolvectl)" ] || { echo "Please install systemd-resolved"; exit -1; }
 
-. common.sh
+source common.sh
 
 DEBISO="$HOSTS_DIR"/debian-12.6.0-amd64-netinst.iso
 

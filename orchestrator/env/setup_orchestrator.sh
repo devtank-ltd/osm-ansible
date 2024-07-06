@@ -8,4 +8,4 @@ PRESEED=preseed-ext4.cfg
 ansible_args="osm_host_name=$OSM_HOST osm_domain=$OSM_DOMAIN osm_dns=$vm_ip"
 ansible_file=osmhost_orchestrator.yaml
 
-. setup_common.sh
+source setup_common.sh

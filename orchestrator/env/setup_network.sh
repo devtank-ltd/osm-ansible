@@ -8,7 +8,7 @@ set --
 if [ -f "$config" ]
 then
   echo "Loading : $config"
-  . "$config"
+  source "$config"
 else
   echo "No config given."
   exit -1
@@ -20,20 +20,20 @@ fi
 [ -n "$OSMCUSTOMER_COUNT" ] || { echo OSMCUSTOMER_COUNT not set; exit -1; }
 [ -n "$OSM_SUBNET" ] || { echo OSM_SUBNET is not set; exit -1; }
 
-. env_common.sh
+source env_common.sh
 
 echo "========================================="
 echo "Save environment"
 save_env
 echo "========================================="
 echo "Creating OSM Orchestrator"
-. setup_orchestrator.sh
+source setup_orchestrator.sh
 
 echo "========================================="
 echo "Creating virtual OSM_HOSTs"
 OSM_HOST=vosmhost0
 echo "Creating template OSM Host, $OSM_HOST"
-. setup_from_btrfs.sh
+source setup_from_btrfs.sh
 OSM_HOST_MAX=$(($OSM_HOST_COUNT - 1))
 for n in `seq 1 $OSM_HOST_MAX`
 do
@@ -43,7 +43,7 @@ done
 
 echo "========================================="
 echo "Start network"
-. run_network.sh
+source run_network.sh
 
 echo "========================================="
 echo "Network started, adding OSM HOSTs to Orchestrator"
