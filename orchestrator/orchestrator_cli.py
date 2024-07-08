@@ -234,21 +234,20 @@ class osm_host_t(object):
 
         mqtt_port = self._find_free_mqtt_port(customer_name)
 
+        if not mqtt_port:
+            self.logger.error("No free MQTT found.")
+            return False
+
+        self._add_customer_to_database(customer_name, mqtt_port) # Needs DNS entry before Anisble called, for LetsEncrypt
+
         if not self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
             self.logger.error("Container creation failed")
+            self._del_customer_to_database(customer_name)
             self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}" {mqtt_port}')
             return False
 
-        start_end = time.monotonic() + timeout
-
-        while time.monotonic() < start_end:
-            if self.can_ping_customer(customer_name):
-                self._add_customer_to_database(customer_name, mqtt_port)
-                return True
-
-        self.logger.error(f'Unable to create customer "{customer_name} on OSM-Host". Please debug OSM-Host {self.name}.')
-        self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}" {mqtt_port}')
-        return False
+        # TODO: Some kind of check!
+        return True
 
 
     def del_osm_customer(self, customer_name, timeout=4):
