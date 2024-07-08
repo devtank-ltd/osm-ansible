@@ -240,6 +240,18 @@ class osm_host_t(object):
 
         self._add_customer_to_database(customer_name, mqtt_port) # Needs DNS entry before Anisble called, for LetsEncrypt
 
+        start_end = time.monotonic() + timeout
+        found = False
+
+        while time.monotonic() < start_end:
+            if self.can_ping_customer(customer_name):
+                found = True
+
+        if not found:
+            self.logger.error("Container DNS failed")
+            self._del_customer_to_database(customer_name)
+            return False
+
         if not self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
             self.logger.error("Container creation failed")
             self._del_customer_to_database(customer_name)
