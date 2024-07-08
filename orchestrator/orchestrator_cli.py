@@ -227,28 +227,50 @@ class osm_host_t(object):
             return False
         return True
 
-    def can_ping_customer(self, customer_name):
+    def can_ping_customer_container(self, customer_name):
         return self.ssh_command(f"ping -c1 {customer_name}-svr")
+
+    def can_ping_customer_grafana(self, customer_name):
+        domain = self.config["pdns_domain"]
+        return self.ssh_command(f"ping -c1 {customer_name}.{domain}")
 
     def add_osm_customer(self, customer_name, timeout=4):
 
         mqtt_port = self._find_free_mqtt_port(customer_name)
 
-        if not self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
-            self.logger.error("Container creation failed")
-            self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}" {mqtt_port}')
+        if not mqtt_port:
+            self.logger.error("No free MQTT found.")
             return False
 
+        self._add_customer_to_database(customer_name, mqtt_port) # Needs DNS entry before Anisble called, for LetsEncrypt
+
+        found = False
         start_end = time.monotonic() + timeout
-
         while time.monotonic() < start_end:
-            if self.can_ping_customer(customer_name):
-                self._add_customer_to_database(customer_name, mqtt_port)
-                return True
+            if self.can_ping_customer_grafana(customer_name):
+                found = True
 
-        self.logger.error(f'Unable to create customer "{customer_name} on OSM-Host". Please debug OSM-Host {self.name}.')
-        self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}" {mqtt_port}')
-        return False
+        if not found:
+            self.logger.error("Container DNS failed")
+            self._del_customer_to_database(customer_name)
+            return False
+
+        failed = True
+        if self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
+            start_end = time.monotonic() + timeout
+            while time.monotonic() < start_end:
+                if self.can_ping_customer_container(customer_name):
+                    failed = False
+            if failed:
+                self.logger.error("Container creation ping")
+        else:
+            self.logger.error("Container creation failed")
+
+        if failed:
+            self._del_customer_to_database(customer_name)
+            self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}" {mqtt_port}')
+            return False
+        return True
 
 
     def del_osm_customer(self, customer_name, timeout=4):
@@ -260,7 +282,7 @@ class osm_host_t(object):
         start_end = time.monotonic() + timeout
 
         while time.monotonic() < start_end:
-            if not self.can_ping_customer(customer_name):
+            if not self.can_ping_customer_container(customer_name):
                 self._del_customer_to_database(customer_name)
                 return True
 
