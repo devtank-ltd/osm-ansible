@@ -1,4 +1,4 @@
-. env_common.sh
+source env_common.sh
 
 OVMF_VARS_ORIG="/usr/share/OVMF/OVMF_VARS_4M.fd"
 
