@@ -227,8 +227,12 @@ class osm_host_t(object):
             return False
         return True
 
-    def can_ping_customer(self, customer_name):
+    def can_ping_customer_container(self, customer_name):
         return self.ssh_command(f"ping -c1 {customer_name}-svr")
+
+    def can_ping_customer_grafana(self, customer_name):
+        domain = self.config["pdns_domain"]
+        return self.ssh_command(f"ping -c1 {customer_name}.{domain}")
 
     def add_osm_customer(self, customer_name, timeout=4):
 
@@ -240,11 +244,10 @@ class osm_host_t(object):
 
         self._add_customer_to_database(customer_name, mqtt_port) # Needs DNS entry before Anisble called, for LetsEncrypt
 
-        start_end = time.monotonic() + timeout
         found = False
-
+        start_end = time.monotonic() + timeout
         while time.monotonic() < start_end:
-            if self.can_ping_customer(customer_name):
+            if self.can_ping_customer_grafana(customer_name):
                 found = True
 
         if not found:
@@ -252,13 +255,21 @@ class osm_host_t(object):
             self._del_customer_to_database(customer_name)
             return False
 
-        if not self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
+        failed = True
+        if self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
+            start_end = time.monotonic() + timeout
+            while time.monotonic() < start_end:
+                if self.can_ping_customer_container(customer_name):
+                    failed = False
+            if failed:
+                self.logger.error("Container creation ping")
+        else:
             self.logger.error("Container creation failed")
+
+        if failed:
             self._del_customer_to_database(customer_name)
             self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}" {mqtt_port}')
             return False
-
-        # TODO: Some kind of check!
         return True
 
 
@@ -271,7 +282,7 @@ class osm_host_t(object):
         start_end = time.monotonic() + timeout
 
         while time.monotonic() < start_end:
-            if not self.can_ping_customer(customer_name):
+            if not self.can_ping_customer_container(customer_name):
                 self._del_customer_to_database(customer_name)
                 return True
 
