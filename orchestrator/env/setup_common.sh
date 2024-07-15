@@ -21,7 +21,7 @@ then
    fi
 fi
 
-[ -n "$DEFAULT_KEY_LOCATION" ] || DEFAULT_KEY_LOCATION=~/.ssh/id_rsa.pub
+[ -n "$DEFAULT_KEY_LOCATION" ] || DEFAULT_KEY_LOCATION=$(ls ~/.ssh/id_*.pub | head -n1)
 
 [ -e "$DEFAULT_KEY_LOCATION" ] || { echo "Missing public key"; exit -1; }
 
