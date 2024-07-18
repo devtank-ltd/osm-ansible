@@ -1,0 +1,14 @@
+---
+
+- name: "Install MQTT Influx inserter"
+  include_tasks: "install.yml"
+
+- name: "Setup MQTT Influx inserter"
+  include_tasks: "setup.yml"
+  when: install_only is not defined or install_only == False
+
+- name: "Enable and start MQTT Influx inserter service"
+  systemd:
+    name: mqtt-influx-inserter.service
+    state: restarted
+    enabled: yes

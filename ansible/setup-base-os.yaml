@@ -8,6 +8,7 @@
     - { role: postgres, tags: postgres }
     - { role: chirpstack, tags: chirpstack }
     - { role: grafana, tags: grafana }
+    - { role: mqtt_influx_inserter, tags: mqtt_influx_inserter}
   tasks:
     - name: Extra packages
       apt:
