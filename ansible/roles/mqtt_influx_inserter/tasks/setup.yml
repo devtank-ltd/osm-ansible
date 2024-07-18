@@ -1,0 +1,7 @@
+- name: "Configure MQTT Influx Inserter"
+  template:
+    src: mqtt-influx-inserter.yaml.j2
+    dest: /etc/mqtt-influx-inserter/mqtt-influx-inserter.yaml
+    owner: root
+    group: root
+    mode: "644"

@@ -1,0 +1,14 @@
+debug: 0
+influx:
+  address: 127.0.0.1
+  bucket: sf
+  org: devtank
+  port: 8086
+  token: {{ influx_new_token }}
+  token_path: null
+mqtt:
+  address: 127.0.0.1
+  password: {{ mosquitto_passwd }}
+  port: 1883
+  topic: osm/#
+  username: {{ customer_name }}

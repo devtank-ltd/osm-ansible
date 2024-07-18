@@ -1,0 +1,20 @@
+- name: Add Python ReactiveX package
+  shell: "mkdir -p /tmp/debs && wget https://cloud.devtank.co.uk/debs/python3-rx_4.0.4-3_all.deb -P /tmp/debs"
+
+- name: Install Python ReactiveX
+  apt:
+    deb: "/tmp/debs/python3-rx_4.0.4-3_all.deb"
+
+- name: Add Influxdb client package
+  shell: "mkdir -p /tmp/debs && wget https://cloud.devtank.co.uk/debs/python3-influxdb-client_1.40.0-3_all.deb -P /tmp/debs"
+
+- name: Install Influxdb client
+  apt:
+    deb: "/tmp/debs/python3-influxdb-client_1.40.0-3_all.deb"
+
+- name: Add MQTT Influx inserter package
+  shell: "mkdir -p /tmp/debs && wget https://cloud.devtank.co.uk/debs/mqtt-influx-inserter_0.0.1-1_all.deb -P /tmp/debs"
+
+- name: Install MQTT Influx inserter
+  apt:
+    deb: "/tmp/debs/mqtt-influx-inserter_0.0.1-1_all.deb"
