@@ -7,6 +7,9 @@ On a Debian based system, the dependencies are installed with:
 
     sudo apt install bind9-dnsutils openssh-client libpython3-stdlib systemd-resolved qemu-system-x86 qemu-utils genisoimage ansible wget
 
+The calling environment will need a SSH key setup, where the public and private keys existing ~/.ssh as per normal.
+
+
 
 The most basic use is:
 
