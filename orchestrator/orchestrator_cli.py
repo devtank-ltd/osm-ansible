@@ -15,7 +15,7 @@ from collections import namedtuple
 SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, capacity, active_since) VALUES(%s, %s, %s, UNIX_TIMESTAMP())"
 SQL_DEL_HOST = "UPDATE osm_hosts SET active_before=UNIX_TIMESTAMP() WHERE id=%s"
 SQL_GET_HOST = "SELECT id FROM osm_hosts WHERE name=%s AND active_before IS NULL"
-SQL_LIST_HOSTS = "SELECT name FROM osm_hosts WHERE active_before IS NULL"
+SQL_LIST_HOSTS = "SELECT id, name FROM osm_hosts WHERE active_before IS NULL"
 
 SQL_GET_HOST_BY_CUSTOMER = "SELECT osm_customers.osm_hosts_id FROM osm_customers WHERE name=%s AND active_before IS NULL"
 
@@ -424,7 +424,8 @@ class osm_orchestrator_t(object):
         rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
         print("Hosts:")
         for row in rows:
-            print(f"\tHost: {row[0]}")
+            osm_host = osm_host_t(self, row[0])
+            print(f"\tHost: {osm_host.name}: capacity: {len(osm_host.customers)}/{osm_host.capacity}")
 
     def list_host_customers(self,  host_name):
         osm_host = self.find_osm_host(host_name)
@@ -432,7 +433,7 @@ class osm_orchestrator_t(object):
             self.logger.warning(f'No osm host of name "{host_name}"')
             return os.EX_CONFIG
         customers = osm_host.customers
-        print(f"Host: {host_name}:")
+        print(f"Host: {host_name}: capacity: {len(customers)}/{osm_host.capacity}")
         for customer in customers:
             print(f"\tCustomer: {customer}")
 
