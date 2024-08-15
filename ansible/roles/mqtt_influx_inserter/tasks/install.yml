@@ -13,8 +13,8 @@
     deb: "/tmp/debs/python3-influxdb-client_1.40.0-3_all.deb"
 
 - name: Add MQTT Influx inserter package
-  shell: "mkdir -p /tmp/debs && wget https://cloud.devtank.co.uk/debs/mqtt-influx-inserter_0.0.1-1_all.deb -P /tmp/debs"
+  shell: "mkdir -p /tmp/debs && wget https://cloud.devtank.co.uk/debs/mqtt-influx-inserter_0.1.1-1_all.deb -P /tmp/debs"
 
 - name: Install MQTT Influx inserter
   apt:
-    deb: "/tmp/debs/mqtt-influx-inserter_0.0.1-1_all.deb"
+    deb: "/tmp/debs/mqtt-influx-inserter_0.1.1-1_all.deb"
