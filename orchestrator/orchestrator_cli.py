@@ -202,10 +202,13 @@ class osm_host_t(object):
         try:
             ssh.connect(self.ip_addr, username="osm_orchestrator", timeout=2)
         except TimeoutError:
+            self.logger.error(f"Timeout connecting to {self.name} ({self.ip_addr}).")
             ssh = None
-        except paramiko.ssh_exception.AuthenticationException:
+        except paramiko.ssh_exception.AuthenticationException as e:
+            self.logger.error(f"Authentication fail connecting to {self.name} ({self.ip_addr}): {e}")
             ssh = None
-        except OSError:
+        except OSError as e:
+            self.logger.error(f"OS Error connecting to {self.name} ({self.ip_addr}): {e}")
             ssh = None
         if not ssh:
             return None
