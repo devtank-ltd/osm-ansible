@@ -26,6 +26,7 @@
       - nginx
       - libnginx-mod-stream
       - certbot
+      - python3-certbot-nginx
       - ansible
       - git
       - rsync
