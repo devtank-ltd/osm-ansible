@@ -385,7 +385,6 @@ class osm_orchestrator_t(object):
         osm_host = osm_host_t(self, 0, host_name, ip_addr, capcaity)
 
         if not osm_host.get_ssh():
-            self.logger.error(f"Unable to ssh in as osm_orchestrator to host {host_name}.")
             return os.EX_CONFIG
 
         if not osm_host.ssh_command('ls /srv/osm-lxc/ansible/'):
@@ -423,12 +422,22 @@ class osm_orchestrator_t(object):
             self.logger.warning(f'No customer "{customer_name}"')
             return os.EX_CONFIG
 
+    def test_osm_host(self, host_name):
+        osm_host = self.find_osm_host(host_name)
+        if not osm_host:
+            self.logger.warning(f'No osm host of name "{host_name}"')
+            return os.EX_CONFIG
+
+        if not osm_host.get_ssh():
+            return os.EX_CONFIG
+
     def list_hosts(self):
         rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
         print("Hosts:")
         for row in rows:
             osm_host = osm_host_t(self, row[0])
             print(f"\tHost: {osm_host.name}: capacity: {len(osm_host.customers)}/{osm_host.capacity}")
+        return os.EX_OK
 
     def list_host_customers(self,  host_name):
         osm_host = self.find_osm_host(host_name)
@@ -439,6 +448,7 @@ class osm_orchestrator_t(object):
         print(f"Host: {host_name}: capacity: {len(customers)}/{osm_host.capacity}")
         for customer in customers:
             print(f"\tCustomer: {customer}")
+        return os.EX_OK
 
 
 def main():
@@ -458,6 +468,7 @@ def main():
     commands = {"add_host" : cmd_entry("add_host <name> <ip_addr> <capacity> : Add host to OSM system", osm_orch.add_osm_host),
                 "del_host" : cmd_entry("del_host <name> : Remove host from OSM system", osm_orch.del_osm_host),
                 "find_host" : cmd_entry("find_host <name> : Find host of given customer in OSM system", osm_orch.find_osm_host_of),
+                "test_host" : cmd_entry("test_host <name> : Test access to OSM Hosy", osm_orch.test_osm_host),
                 "add_customer" : cmd_entry("add_customer <name> : Add customer to OSM system", osm_orch.add_osm_customer),
                 "del_customer" : cmd_entry("del_customer <name> : Remove customer from OSM system", osm_orch.del_osm_customer),
                 "list_hosts" : cmd_entry("list_hosts : Lists OSM Hosts in system", osm_orch.list_hosts),
