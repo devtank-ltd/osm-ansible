@@ -15,6 +15,7 @@ from collections import namedtuple
 SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, capacity, active_since) VALUES(%s, %s, %s, UNIX_TIMESTAMP())"
 SQL_DEL_HOST = "UPDATE osm_hosts SET active_before=UNIX_TIMESTAMP() WHERE id=%s"
 SQL_GET_HOST = "SELECT id FROM osm_hosts WHERE name=%s AND active_before IS NULL"
+SQL_GET_HOST_BY_ADDR = "SELECT id FROM osm_hosts WHERE ip_addr=%s AND active_before IS NULL"
 SQL_LIST_HOSTS = "SELECT id, name FROM osm_hosts WHERE active_before IS NULL"
 
 SQL_GET_HOST_BY_CUSTOMER = "SELECT osm_customers.osm_hosts_id FROM osm_customers WHERE name=%s AND active_before IS NULL"
@@ -341,6 +342,11 @@ class osm_orchestrator_t(object):
         if row:
             return osm_host_t(self, row[0])
 
+    def find_osm_host_by_addr(self, ip_addr):
+        row = do_db_single_query(self.db, SQL_GET_HOST_BY_ADDR, (ip_addr,))
+        if row:
+            return osm_host_t(self, row[0])
+
     def add_osm_customer(self, customer_name):
         osm_host = self._find_osm_host_of(customer_name)
         if osm_host:
@@ -380,6 +386,11 @@ class osm_orchestrator_t(object):
         osm_host = self.find_osm_host(host_name)
         if osm_host:
             self.logger.warning(f'Already osm host of name "{host_name}"')
+            return os.EX_CONFIG
+
+        osm_host = self.find_osm_host_by_addr(ip_addr)
+        if osm_host:
+            self.logger.warning(f'Already osm host "{host_name}" of addr {ip_addr}')
             return os.EX_CONFIG
 
         osm_host = osm_host_t(self, 0, host_name, ip_addr, capcaity)
