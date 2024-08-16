@@ -2,13 +2,20 @@
 
 . /etc/disks 
 
-if [ -z "$root_dev" ]; then echo "No root given!" ; exit -1; fi
+set -x
 
-root_uuid=$(blkid $root_dev -o udev | awk -F= '/ID_FS_UUID=/ {print $2}')
+if [ -z "$root_dev" ]; then echo "No root given!" ; false; fi
+
+disk=/dev/$(basename $(dirname $(readlink /sys/dev/block/$(cat /sys/class/block/$(basename $root_dev)/dev))))
+root_uuid=$(blkid "$root_dev" -o value | head -n 1)
+
+echo "Disk: $disk"
+echo "Root UUID:\"$root_uuid\""
 
 e2fsck -fvy $root_dev
-btrfs-convert -L -p --uuid copy $root_dev
+btrfs-convert -L -p $root_dev
 btrfs check $root_dev
+partprobe
 mkdir /mnt
 modprobe btrfs
 mount $root_dev /mnt
@@ -16,22 +23,39 @@ btrfs subv del /mnt/ext2_saved
 btrfs subv snap /mnt /mnt/@rootfs
 rm -rf mnt/[a-z]*
 btrfs balance start --full-balance mnt
-sed -i -E "s|UUID=$root_uuid.+\$|UUID=$root_uuid	/	btrs	defaults,subvol=@rootfs	0	1|g" /mnt/@rootfs/etc/fstab
-
+sed -i -E "s|UUID=$root_uuid.+\$|UUID=$root_uuid	/	btrfs	defaults,subvol=@rootfs	0	1|g" /mnt/@rootfs/etc/fstab
 umount /mnt
-mount -t btrfs /dev/vda3 -o subvol=@rootfs mnt
+
+echo "Ensure root UUID"
+btrfstune -f -U $root_uuid $root_dev
+
+mount -t btrfs "$root_dev" -o subvol=@rootfs mnt
 
 [ -z "$boot_dev" ] || mount $boot_dev /mnt/boot
-[ -z "$efi_dev" ] || mount $efi_dev /mnt/boot/efi
+[ -z "$efi_dev" ] || { fsck.vfat -y $efi_dev; mount $efi_dev /mnt/boot/efi; }
+
+set -xe
+trap "echo ERROR: Dropping to shell; ash" ERR
 
 mount --bind /dev /mnt/dev
 mount --bind /dev/pts /mnt/dev/pts
 mount --bind /proc /mnt/proc
 mount --bind /sys /mnt/sys
+mount -t efivarfs none /mnt/sys/firmware/efi/efivars
 
-chroot /mnt /usr/bin/apt install btrfs-progs
 chroot /mnt /usr/sbin/update-initramfs -k all -u
 chroot /mnt /usr/sbin/update-grub
+chroot /mnt /usr/sbin/grub-install $disk
+
+[ -z "$boot_dev" ] || umount /mnt/boot
+[ -z "$efi_dev" ] || umount /mnt/boot/efi
+
+umount /mnt/dev/pts
+umount /mnt/dev
+umount /mnt/proc
+umount /mnt/sys/firmware/efi/efivars
+umount /mnt/sys
+umount /mnt
 
 reboot -f
 
