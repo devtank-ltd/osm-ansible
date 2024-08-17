@@ -461,6 +461,17 @@ class osm_orchestrator_t(object):
             print(f"\tCustomer: {customer}")
         return os.EX_OK
 
+    def list_customers(self):
+        rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
+        print("Hosts:")
+        for row in rows:
+            osm_host = osm_host_t(self, row[0])
+            customers = osm_host.customers
+            print(f"Host: {osm_host.name}: capacity: {len(customers)}/{osm_host.capacity}")
+            for customer in customers:
+                print(f"\tCustomer: {customer}")
+        return os.EX_OK
+
 
 def main():
     self_path = os.path.abspath(__file__)
@@ -483,7 +494,8 @@ def main():
                 "add_customer" : cmd_entry("add_customer <name> : Add customer to OSM system", osm_orch.add_osm_customer),
                 "del_customer" : cmd_entry("del_customer <name> : Remove customer from OSM system", osm_orch.del_osm_customer),
                 "list_hosts" : cmd_entry("list_hosts : Lists OSM Hosts in system", osm_orch.list_hosts),
-                "list_host_customers" : cmd_entry("list_host_customers <name> : Lists customers on OSM Host", osm_orch.list_host_customers)
+                "list_host_customers" : cmd_entry("list_host_customers <name> : Lists customers on OSM Host", osm_orch.list_host_customers),
+                "list_customers" : cmd_entry("list_customers : Lists all customers on all OSM Hosts", osm_orch.list_customers),
                 }
 
     args = parser.parse_args()
