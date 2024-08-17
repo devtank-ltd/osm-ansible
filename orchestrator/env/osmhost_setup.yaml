@@ -33,6 +33,7 @@
       - lxc
       - python3-lxc
       - ufw
+      - sudo
     update_cache: yes
 
 - name: Add OSM orchestrator user
