@@ -21,15 +21,15 @@ modprobe btrfs
 mount $root_dev /mnt
 btrfs subv del /mnt/ext2_saved
 btrfs subv snap /mnt /mnt/@rootfs
-rm -rf mnt/[a-z]*
-btrfs balance start --full-balance mnt
+rm -rf /mnt/[a-z]*
+btrfs balance start --full-balance /mnt
 sed -i -E "s|UUID=$root_uuid.+\$|UUID=$root_uuid	/	btrfs	defaults,subvol=@rootfs	0	1|g" /mnt/@rootfs/etc/fstab
 umount /mnt
 
 echo "Ensure root UUID"
 btrfstune -f -U $root_uuid $root_dev
 
-mount -t btrfs "$root_dev" -o subvol=@rootfs mnt
+mount -t btrfs "$root_dev" -o subvol=@rootfs /mnt
 
 [ -z "$boot_dev" ] || mount $boot_dev /mnt/boot
 [ -z "$efi_dev" ] || { fsck.vfat -y $efi_dev; mount $efi_dev /mnt/boot/efi; }
