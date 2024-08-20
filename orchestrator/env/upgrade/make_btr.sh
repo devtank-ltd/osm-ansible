@@ -4,6 +4,8 @@ set -e
 
 [ -n "$(which btrfs)" ] || { echo "Install btrfs-progs"; exit -1; }
 [ -n "$(which kexec)" ] || { echo "Install kexec-tools"; exit -1; }
+[ -n "$(which busybox)" ] || { echo "Install busybox"; exit -1; }
+[ -n "$(which fsck.vfat)" ] || { echo "Install dosfstools"; exit -1; }
 
 set -- $(df / -T | awk '/dev/ { print $1,$2 }')
 root_dev=$1

@@ -4,3 +4,7 @@
 /usr/bin/lsblk
 /usr/bin/btrfs
 /usr/bin/btrfs-convert
+/bin/btrfstune
+/usr/sbin/fsck.vfat
+/usr/sbin/partprobe
+/usr/bin/udevadm

@@ -26,12 +26,14 @@
       - nginx
       - libnginx-mod-stream
       - certbot
+      - python3-certbot-nginx
       - ansible
       - git
       - rsync
       - lxc
       - python3-lxc
       - ufw
+      - sudo
     update_cache: yes
 
 - name: Add OSM orchestrator user

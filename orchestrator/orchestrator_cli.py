@@ -15,6 +15,7 @@ from collections import namedtuple
 SQL_ADD_HOST = "INSERT INTO osm_hosts (name, ip_addr, capacity, active_since) VALUES(%s, %s, %s, UNIX_TIMESTAMP())"
 SQL_DEL_HOST = "UPDATE osm_hosts SET active_before=UNIX_TIMESTAMP() WHERE id=%s"
 SQL_GET_HOST = "SELECT id FROM osm_hosts WHERE name=%s AND active_before IS NULL"
+SQL_GET_HOST_BY_ADDR = "SELECT id FROM osm_hosts WHERE ip_addr=%s AND active_before IS NULL"
 SQL_LIST_HOSTS = "SELECT id, name FROM osm_hosts WHERE active_before IS NULL"
 
 SQL_GET_HOST_BY_CUSTOMER = "SELECT osm_customers.osm_hosts_id FROM osm_customers WHERE name=%s AND active_before IS NULL"
@@ -202,10 +203,13 @@ class osm_host_t(object):
         try:
             ssh.connect(self.ip_addr, username="osm_orchestrator", timeout=2)
         except TimeoutError:
+            self.logger.error(f"Timeout connecting to {self.name} ({self.ip_addr}).")
             ssh = None
-        except paramiko.ssh_exception.AuthenticationException:
+        except paramiko.ssh_exception.AuthenticationException as e:
+            self.logger.error(f"Authentication fail connecting to {self.name} ({self.ip_addr}): {e}")
             ssh = None
-        except OSError:
+        except OSError as e:
+            self.logger.error(f"OS Error connecting to {self.name} ({self.ip_addr}): {e}")
             ssh = None
         if not ssh:
             return None
@@ -338,6 +342,11 @@ class osm_orchestrator_t(object):
         if row:
             return osm_host_t(self, row[0])
 
+    def find_osm_host_by_addr(self, ip_addr):
+        row = do_db_single_query(self.db, SQL_GET_HOST_BY_ADDR, (ip_addr,))
+        if row:
+            return osm_host_t(self, row[0])
+
     def add_osm_customer(self, customer_name):
         osm_host = self._find_osm_host_of(customer_name)
         if osm_host:
@@ -379,10 +388,14 @@ class osm_orchestrator_t(object):
             self.logger.warning(f'Already osm host of name "{host_name}"')
             return os.EX_CONFIG
 
+        osm_host = self.find_osm_host_by_addr(ip_addr)
+        if osm_host:
+            self.logger.warning(f'Already osm host "{host_name}" of addr {ip_addr}')
+            return os.EX_CONFIG
+
         osm_host = osm_host_t(self, 0, host_name, ip_addr, capcaity)
 
         if not osm_host.get_ssh():
-            self.logger.error(f"Unable to ssh in as osm_orchestrator to host {host_name}.")
             return os.EX_CONFIG
 
         if not osm_host.ssh_command('ls /srv/osm-lxc/ansible/'):
@@ -420,12 +433,22 @@ class osm_orchestrator_t(object):
             self.logger.warning(f'No customer "{customer_name}"')
             return os.EX_CONFIG
 
+    def test_osm_host(self, host_name):
+        osm_host = self.find_osm_host(host_name)
+        if not osm_host:
+            self.logger.warning(f'No osm host of name "{host_name}"')
+            return os.EX_CONFIG
+
+        if not osm_host.get_ssh():
+            return os.EX_CONFIG
+
     def list_hosts(self):
         rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
         print("Hosts:")
         for row in rows:
             osm_host = osm_host_t(self, row[0])
             print(f"\tHost: {osm_host.name}: capacity: {len(osm_host.customers)}/{osm_host.capacity}")
+        return os.EX_OK
 
     def list_host_customers(self,  host_name):
         osm_host = self.find_osm_host(host_name)
@@ -436,6 +459,18 @@ class osm_orchestrator_t(object):
         print(f"Host: {host_name}: capacity: {len(customers)}/{osm_host.capacity}")
         for customer in customers:
             print(f"\tCustomer: {customer}")
+        return os.EX_OK
+
+    def list_customers(self):
+        rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
+        print("Hosts:")
+        for row in rows:
+            osm_host = osm_host_t(self, row[0])
+            customers = osm_host.customers
+            print(f"Host: {osm_host.name}: capacity: {len(customers)}/{osm_host.capacity}")
+            for customer in customers:
+                print(f"\tCustomer: {customer}")
+        return os.EX_OK
 
 
 def main():
@@ -455,10 +490,12 @@ def main():
     commands = {"add_host" : cmd_entry("add_host <name> <ip_addr> <capacity> : Add host to OSM system", osm_orch.add_osm_host),
                 "del_host" : cmd_entry("del_host <name> : Remove host from OSM system", osm_orch.del_osm_host),
                 "find_host" : cmd_entry("find_host <name> : Find host of given customer in OSM system", osm_orch.find_osm_host_of),
+                "test_host" : cmd_entry("test_host <name> : Test access to OSM Hosy", osm_orch.test_osm_host),
                 "add_customer" : cmd_entry("add_customer <name> : Add customer to OSM system", osm_orch.add_osm_customer),
                 "del_customer" : cmd_entry("del_customer <name> : Remove customer from OSM system", osm_orch.del_osm_customer),
                 "list_hosts" : cmd_entry("list_hosts : Lists OSM Hosts in system", osm_orch.list_hosts),
-                "list_host_customers" : cmd_entry("list_host_customers <name> : Lists customers on OSM Host", osm_orch.list_host_customers)
+                "list_host_customers" : cmd_entry("list_host_customers <name> : Lists customers on OSM Host", osm_orch.list_host_customers),
+                "list_customers" : cmd_entry("list_customers : Lists all customers on all OSM Hosts", osm_orch.list_customers),
                 }
 
     args = parser.parse_args()

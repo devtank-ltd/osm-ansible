@@ -26,13 +26,15 @@
           - btrfs-progs
           - kexec-tools
           - git
+          - busybox
+          - dosfstools
+          - parted
         update_cache: yes
 
     - name: Clone Btrfs live upgrade git repo.
       ansible.builtin.git:
         repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
         dest: /srv/osm-lxc
-        single_branch: yes
         version: dev_test_env
 
     - name: Prepare Btrfs upgrade
@@ -43,10 +45,15 @@
         ./make_btr.sh
 
     - name: Perform Upgrade Reboot
-      reboot:
-        reboot_command: /srv/osm-lxc/orchestrator/env/upgrade/mk_initrc/kexec.sh /srv/osm-lxc/orchestrator/env/upgrade/make_btrfs.cpio.gz
-        connect_timeout: 120
-        msg: Kexec reboot
+      shell: /srv/osm-lxc/orchestrator/env/upgrade/mk_initrc/kexec.sh /srv/osm-lxc/orchestrator/env/upgrade/make_btrfs.cpio.gz
+      async: 1
+      poll: 0
 
-    - name: Setup OSM HOST
-      import_tasks: ./osmhost_from_btrfs.yaml
+    - name: Wait to be back after upgrade.
+      ansible.builtin.wait_for:
+        port: 22
+        host: '{{ (ansible_ssh_host|default(ansible_host))|default(inventory_hostname) }}'
+        search_regex: OpenSSH
+        delay: 10
+      vars:
+        ansible_connection: local
