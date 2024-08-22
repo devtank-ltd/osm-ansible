@@ -32,6 +32,7 @@
       - ufw
       - sudo
       - netcat-openbsd
+      - bind9-dnsutils
     update_cache: yes
 
 - name: Get IP of domain
