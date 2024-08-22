@@ -27,6 +27,8 @@ SQL_HOST_GET_CAPACITY = "SELECT capacity FROM osm_hosts WHERE id=%s"
 SQL_HOST_GET_USED_MQTT_PORTS = "SELECT host_mqtt_port FROM osm_customers WHERE osm_hosts_id=%s"
 SQL_HOST_GET_CUSTOMERS = "SELECT name FROM osm_customers WHERE osm_hosts_id=%s AND active_before is NULL"
 
+SQL_GET_CUSTOME_PORTS = "SELECT host_mqtt_port FROM osm_customers WHERE name=%s AND active_before IS NULL"
+
 SQL_ADD_CUSTOMER = "INSERT INTO osm_customers (osm_hosts_id, name, host_mqtt_port, active_since) VALUES(%s, %s, %s, UNIX_TIMESTAMP())"
 SQL_DEL_CUSTOMER = "UPDATE osm_customers SET active_before=UNIX_TIMESTAMP() WHERE osm_hosts_id=%s AND name=%s"
 
@@ -458,7 +460,8 @@ class osm_orchestrator_t(object):
         customers = osm_host.customers
         print(f"Host: {host_name}: capacity: {len(customers)}/{osm_host.capacity}")
         for customer in customers:
-            print(f"\tCustomer: {customer}")
+            row = do_db_single_query(self.db, SQL_GET_CUSTOME_PORTS, (customer,))
+            print(f"\tCustomer: {customer} (MQTT:{row[0]})")
         return os.EX_OK
 
     def list_customers(self):
