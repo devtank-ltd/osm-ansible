@@ -8,6 +8,8 @@
             -keyout "/etc/letsencrypt/live/{{ osm_host_name }}.{{ osm_domain }}/privkey.pem" \
             -out "/etc/letsencrypt/live/{{ osm_host_name }}.{{ osm_domain }}/fullchain.pem" \
             -subj '/CN=localhost' > /dev/null
+        mkdir -p /etc/letsencrypt/renewal/
+        echo "authenticator = standalone" > /etc/letsencrypt/renewal/{{ osm_host_name }}.{{ osm_domain }}.conf
       when: fake_osm_host is defined
 
     - name: Setup OSM HOST

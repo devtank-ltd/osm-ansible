@@ -23,10 +23,7 @@
     name:
       - btrfs-progs
       - snapper
-      - nginx
-      - libnginx-mod-stream
       - certbot
-      - python3-certbot-nginx
       - ansible
       - git
       - rsync
@@ -34,6 +31,28 @@
       - python3-lxc
       - ufw
       - sudo
+    update_cache: yes
+
+- name: Check for LetsEncrypt setup
+  stat:
+     path: /etc/letsencrypt/live/{{ osm_host_name }}.{{ osm_domain }}
+  register: letsencryt_folder_exists
+
+- name: Setup LetsEncrypt
+  shell: certbot certonly --standalone -d {{ osm_host_name }}.{{ osm_domain }}
+  when: not letsencryt_folder_exists.stat.exists
+
+- name: Change Certbot update to be NGINX
+  shell: |
+    sed -i 's|standalone|nginx|g' /etc/letsencrypt/renewal/{{ osm_host_name }}.{{ osm_domain }}.conf
+    echo "installer = nginx" >> /etc/letsencrypt/renewal/{{ osm_host_name }}.{{ osm_domain }}.conf
+
+- name: Install NGINX required packages
+  apt:
+    name:
+      - nginx
+      - libnginx-mod-stream
+      - python3-certbot-nginx
     update_cache: yes
 
 - name: Add OSM orchestrator user
