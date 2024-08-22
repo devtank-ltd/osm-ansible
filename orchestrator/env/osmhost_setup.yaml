@@ -23,10 +23,7 @@
     name:
       - btrfs-progs
       - snapper
-      - nginx
-      - libnginx-mod-stream
       - certbot
-      - python3-certbot-nginx
       - ansible
       - git
       - rsync
@@ -34,6 +31,31 @@
       - python3-lxc
       - ufw
       - sudo
+      - netcat-openbsd
+    update_cache: yes
+
+- name: Get IP of domain
+  shell: dig {{ osm_host_name }}.{{ osm_domain }} +short
+  register: domain_host_ip
+
+- name: Check IP of domain
+  shell: nc -w1 -l 443& echo test | nc -q1 {{domain_host_ip}} 443 && wait
+
+- name: Check for LetsEncrypt setup
+  stat:
+     path: /etc/letsencrypt/live/{{ osm_host_name }}.{{ osm_domain }}
+  register: letsencryt_folder_exists
+
+- name: Setup LetsEncrypt
+  shell: certbot --standalone {{ osm_host_name }}.{{ osm_domain }}
+  when: not letsencryt_folder_exists.stat.exists
+
+- name: Install NGINX required packages
+  apt:
+    name:
+      - nginx
+      - libnginx-mod-stream
+      - python3-certbot-nginx
     update_cache: yes
 
 - name: Add OSM orchestrator user
