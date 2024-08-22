@@ -39,7 +39,7 @@
   register: letsencryt_folder_exists
 
 - name: Setup LetsEncrypt
-  shell: certbot --standalone {{ osm_host_name }}.{{ osm_domain }}
+  shell: certbot certonly --standalone -d {{ osm_host_name }}.{{ osm_domain }}
   when: not letsencryt_folder_exists.stat.exists
 
 - name: Change Certbot update to be NGINX
