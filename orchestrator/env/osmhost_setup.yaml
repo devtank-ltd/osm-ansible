@@ -31,16 +31,7 @@
       - python3-lxc
       - ufw
       - sudo
-      - netcat-openbsd
-      - bind9-dnsutils
     update_cache: yes
-
-- name: Get IP of domain
-  shell: dig {{ osm_host_name }}.{{ osm_domain }} +short
-  register: domain_host_ip
-
-- name: Check IP of domain
-  shell: nc -w1 -l 443& echo test | nc -q1 {{domain_host_ip}} 443 && wait
 
 - name: Check for LetsEncrypt setup
   stat:
