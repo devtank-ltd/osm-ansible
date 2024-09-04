@@ -21,16 +21,18 @@
 - name: Install required packages
   apt:
     name:
-      - btrfs-progs
-      - snapper
-      - certbot
       - ansible
+      - btrfs-progs
+      - certbot
       - git
-      - rsync
       - lxc
+      - netdata
+      - prometheus-node-exporter
       - python3-lxc
-      - ufw
+      - rsync
+      - snapper
       - sudo
+      - ufw
     update_cache: yes
 
 - name: Check for LetsEncrypt setup
@@ -61,6 +63,21 @@
     comment: OSM Orchestrator
     create_home: yes
     group: users
+
+- name: Add netdata main config
+  copy:
+    src: templates/netdata/netdata.conf
+    dest: /etc/netdata/netdata.conf
+
+- name: Add netdata cgroups config
+  copy:
+    src: templates/netdata/cgroups.conf
+    dest: /etc/netdata/python.d/cgroups.conf
+
+- name: Restart netdata
+  ansible.builtin.service:
+    name: netdata
+    state: restarted
 
 - name: Clone OSM Ansible git repo.
   ansible.builtin.git:
