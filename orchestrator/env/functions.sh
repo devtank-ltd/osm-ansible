@@ -43,6 +43,26 @@ configure_network() {
     :
 }
 
+get_ip4_addr() {
+    local net_interface="$1"
+    local ipaddr=""
+
+    ipaddr="$(ip addr show dev "$net_interface" | sed -rn 's/.*inet (.*)\/.*/\1/p')"
+    [[ -z "$ipaddr" ]] && die "Unable to get IP address for '$net_interface' interface"
+
+    echo "$ipaddr"
+}
+
+download_file() {
+    local src="$1"
+    local dst="$2"
+
+    pushd "$dst" >/dev/null 2>&1
+    info "Downloading '${src}' to '${dst}'"
+    edo curl -OL --retry 3 "$src"
+    popd >/dev/null 2>&1
+}
+
 run_qemu_vm() {
     local host_dir="$1"; shift
     local bridge_name="$1"; shift

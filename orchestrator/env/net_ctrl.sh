@@ -2,7 +2,6 @@
 
 source functions.sh
 
-# main_ip=$(ip route | awk '/default/ { print $9 ; exit}')
 main_ip="$(sed -nE 's|^.*src ([0-9.]*) .*$|\1|p' < <(ip r get 1))"
 
 VOSM_HOSTBR="$2"
@@ -16,13 +15,13 @@ case "$1" in
         set -e
 
         if [[ -e "/sys/class/net/${VOSM_HOSTBR}" ]]; then
-            osm_bridge_ip="$(ip addr show "$VOSM_HOSTBR" | awk -F '[[:blank:]/]+' '/inet / { print $3}')"
+            osm_bridge_ip="$(get_ip4_addr "$VOSM_HOSTBR")"
             [[ "${OSM_SUBNET}.1" = "$osm_bridge_ip" ]] || die "IP address of bridge $osm_bridge_ip doesn't match ${OSM_SUBNET}.1"
             info "$VOSM_HOSTBR already open."
             exit 0
         fi
 
-        (( $(id -u) == 0 )) || exec sudo -- "$0" "$@"
+        (( EUID == 0 )) || exec sudo -- "$0" "$@"
 
         c="$(stat /usr/lib/qemu/qemu-bridge-helper -c  %a%G)"
         [ "$c" = "4750netdev" ] || {
@@ -31,17 +30,26 @@ case "$1" in
         }
 
         [[ -d /etc/qemu ]] || mkdir /etc/qemu
-        [[ -e /etc/qemu/bridge.conf ]] || {
-            touch /etc/qemu/bridge.conf
-            chmod 640 /etc/qemu/bridge.conf
-            chown root:netdev /etc/qemu/bridge.conf
-        }
-        grep -q "$VOSM_HOSTBR" /etc/qemu/bridge.conf || echo "allow $VOSM_HOSTBR" >> /etc/qemu/bridge.conf
+        if [[ ! -e /etc/qemu/bridge.conf ]]; then
+            install -m 644 -o root -g netdev <(
+                cat <<-EOF
+	allow "$VOSM_HOSTBR"
+EOF
+            ) /etc/qemu/bridge.conf
+        elif ! grep -q "$VOSM_HOSTBR" /etc/qemu/bridge.conf; then
+            echo "allow $VOSM_HOSTBR" >> /etc/qemu/bridge.conf
+        fi
+
         ip link add "$VOSM_HOSTBR" type bridge
         ip addr add "${OSM_SUBNET}.1/24" dev "$VOSM_HOSTBR"
         ip link set up dev "$VOSM_HOSTBR"
 
-        iptables -t nat -A POSTROUTING ! -d "${OSM_SUBNET}.0/24" -s "${OSM_SUBNET}.0/24" -j SNAT --to-source "$main_ip"
+        iptables_args=(
+            -t nat -A POSTROUTING ! -d "${OSM_SUBNET}.0/24"
+            -s "${OSM_SUBNET}.0/24" -j SNAT --to-source "$main_ip"
+        )
+
+        iptables "${iptables_args[@]}"
 
         mkdir -p "$HOSTS_DIR"
 
@@ -49,8 +57,7 @@ case "$1" in
             OSM_ORCHESTRATOR_MAC=$(cat "$HOSTS_DIR/orchestrator/mac")
         else
             printf -v OSM_ORCHESTRATOR_MAC '52:54:00:%02x:%02x:%02x' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))
-            mkdir -p "$HOSTS_DIR/orchestrator"
-            chmod 777 "$HOSTS_DIR/orchestrator"
+            install -d -m 777 "${HOSTS_DIR}/orchestrator"
             echo "$OSM_ORCHESTRATOR_MAC" > "${HOSTS_DIR}/orchestrator/mac"
         fi
 
@@ -77,7 +84,7 @@ case "$1" in
     "close")
         [[ -e "/sys/class/net/$VOSM_HOSTBR" ]] || die "$VOSM_HOSTBR already closed."
 
-        (( $(id -u) == 0 )) || exec sudo -- "$0" "$@"
+        (( EUID == 0 )) || exec sudo -- "$0" "$@"
 
         iptables -t nat -D POSTROUTING ! -d "${OSM_SUBNET}.0/24" -s "${OSM_SUBNET}.0/24" -j SNAT --to-source "$main_ip"
 

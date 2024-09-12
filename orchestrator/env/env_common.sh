@@ -30,7 +30,7 @@ info "HOSTS_DIR: $HOSTS_DIR"
 export HOSTS_DIR
 mkdir -p "$HOSTS_DIR"
 
-[[ ! -e  "$HOSTS_DIR/env" ]] || source "$HOSTS_DIR/env"
+[[ ! -e "$HOSTS_DIR/env" ]] || source "${HOSTS_DIR}/env"
 
 save_env () {
     cat <<- EOF > "${HOSTS_DIR}/env"
@@ -45,8 +45,8 @@ EOF
 export VOSM_HOSTBR
 
 if [[ -e "/sys/class/net/${VOSM_HOSTBR}" ]]; then
-    osm_bridge_ip="$(ip addr show "$VOSM_HOSTBR" | awk -F '[[:blank:]/]+' '/inet / { print $3}')"
-    osm_bridge_range="$(echo "$osm_bridge_ip" | awk -F'.' '{print $1"."$2"."$3}')"
+    osm_bridge_ip="$(get_ip4_addr "$VOSM_HOSTBR")"
+    osm_bridge_range="${osm_bridge_ip%.*}"
 else
     osm_bridge_range="192.168.5"
 fi
@@ -57,7 +57,7 @@ export OSM_SUBNET
 [[ -n "$OSM_DOMAIN" ]] || OSM_DOMAIN="osmm.fake.co.uk"
 export OSM_DOMAIN
 
-ANSIBLE_HOSTS="$HOSTS_DIR/hosts"
+ANSIBLE_HOSTS="${HOSTS_DIR}/hosts"
 export ANSIBLE_HOSTS
 
 info "OSM DOMAIN: $OSM_DOMAIN"

@@ -67,7 +67,10 @@ TEMP_ORCHESTRATOR_HOSTS="vosmhosts"
 PROMETHEUS_TEMPLATE="../../templates/prometheus/prometheus.yml.j2"
 PROMETHEUS_RULES="../../templates/prometheus/prometheus.rules"
 
-awk '{print $3 ":" $4}' "${HOSTS_DIR}/${VOSM_HOSTBR}.leasefile" > "$TEMP_ORCHESTRATOR_HOSTS"
+awk '{print $3 ":" $4}' "${HOSTS_DIR}/${VOSM_HOSTBR}.leasefile" > "${ORCHESTRATOR_DIR}/${TEMP_ORCHESTRATOR_HOSTS}"
+# remove unkown host record
+sed -r '/\*/d' "${ORCHESTRATOR_DIR}/${TEMP_ORCHESTRATOR_HOSTS}"
+
 cat <<-EOF > "${TEMP_PROMETHEUS_PLAYBOOK}"
 	---
 	- hosts: "{{ target }}"

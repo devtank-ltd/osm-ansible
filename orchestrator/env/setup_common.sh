@@ -1,9 +1,14 @@
 # -*- mode: sh; sh-shell: bash; -*-
 
-readonly DEB_CD_URL="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd"
-# 12.6.0 is absent
-# readonly ISO_NAME="debian-12.6.0-amd64-netinst.iso"
-readonly ISO_NAME="debian-12.7.0-amd64-netinst.iso"
+readonly DEB_ISO_ARCH="amd64"
+readonly DEB_ISO_VER="12.7.0"
+readonly DEB_URL="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd"
+readonly ISO_NAME="debian-${DEB_ISO_VER}-${DEB_ISO_ARCH}-netinst.iso"
+readonly DEB_ISO_URL="${DEB_URL}/${ISO_NAME}"
+readonly CHECKSUM_FILE="SHA512SUMS"
+
+readonly WORKDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+readonly DLDIR="${WORKDIR}/downloads"
 
 source functions.sh
 source common.sh
@@ -12,8 +17,8 @@ readonly DEBISO="${HOSTS_DIR}/${ISO_NAME}"
 
 if [[ ! -e "${DEBISO}" ]]; then
     pushd "$HOSTS_DIR" >/dev/null 2>&1
-    edo curl -OL "${DEB_CD_URL}/${ISO_NAME}"
-    edo curl -OL "${DEB_CD_URL}/SHA512SUMS"
+    download_file "${DEB_ISO_URL}" "."
+    download_file "${DEB_URL}/${SHA512SUMS}" "."
     sed -i.backup '/'"${ISO_NAME}"'/!d' SHA512SUMS
     if ! sha512sum -c SHA512SUMS >/dev/null 2>&1; then
         die "ISO file '${ISO_NAME}' verification failed."
@@ -105,10 +110,11 @@ mkdir -p ~/.ssh
 ssh-keygen -f ~/.ssh/known_hosts -R "$vm_ip"
 ssh-keyscan -H "$vm_ip" >> ~/.ssh/known_hosts
 
-ssh root@$vm_ip exit
-[ "$?" = "0" ] || { echo "SSH access setup failed."; kill $run_pid; exit -1; }
-
-# ssh root@"$vm_ip" "exit" >/dev/null 2>&1 || kill "$run_pid"; die "SSH access setup failed."
+ssh root@"$vm_ip" exit
+(( $? == 0 )) || {
+    kill $run_pid
+    die "SSH access setup failed."
+}
 
 [[ -e "$ANSIBLE_HOSTS" ]] || cat <<-EOF > "$ANSIBLE_HOSTS"
 	[all:vars]
@@ -118,11 +124,15 @@ EOF
 
 [ -n "$(grep "$vm_ip" "$ANSIBLE_HOSTS")" ] || printf "$vm_ip\n$(cat "$ANSIBLE_HOSTS")" > "$ANSIBLE_HOSTS"
 
+# if ! grep -q "$vm_ip" "$ANSIBLE_HOSTS"; then
+#     sed -i 's/^/'"$vm_ip"'\n/' "$ANSIBLE_HOSTS"
+# fi
+
 edo ansible-playbook -v -e target="$vm_ip $ansible_args" -i "$ANSIBLE_HOSTS" "$ansible_file"
 
 ssh root@"$vm_ip" 'ls /srv/osm-lxc/ansible' 2>&1 > /dev/null
 rc=$?
 
-[ -n "$POWER_ON" ] || { ssh root@$vm_ip "poweroff"; wait $run_pid; }
+[[ -n "$POWER_ON" ]] || { ssh root@"$vm_ip" "poweroff"; wait $run_pid; }
 
-[ "$rc" = 0 ] || { echo 'Failed.'; exit -1; }
+(( $rc == 0 )) || die "Failed."

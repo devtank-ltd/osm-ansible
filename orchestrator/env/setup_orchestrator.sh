@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 
-# TODO: nounset fails on OSM_HOST
-#       how does this variable pass here?
-# set -o errexit
-# set -o nounset
-# set -o pipefail
-
 [[ -n "$OSM_HOST" ]] || OSM_HOST="orchestrator"
 
 info "Applying Orchestrator Ansible"
