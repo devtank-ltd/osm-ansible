@@ -1,8 +1,24 @@
+# -*- mode: sh; sh-shell: bash; -*-
+
 # COLOURS
 RED="$(tput setaf 9)"
 GREEN="$(tput setaf 2)"
 YELLOW="$(tput setaf 11)"
 RESET="$(tput setaf 15)"
+
+# mandatory config variables
+readonly CONF_VARS=(
+    "HOSTS_DIR"
+    "OSM_HOST_COUNT"
+    "OSMCUSTOMER_COUNT"
+    "VOSM_HOSTBR"
+    "OSM_SUBNET"
+    "OSM_DOMAIN"
+    "MAIL_SMTP_HOST"
+    "MAIL_SMTP_USER"
+    "MAIL_SMTP_PASSWORD"
+    "MAIL_RECIPIENTS"
+)
 
 die() {
     echo "${RED}FATAL:${RESET} $*"
@@ -18,8 +34,7 @@ info() {
 }
 
 warn() {
-    # not implemented yet
-    :
+    echo "${YELLOW}WARN:${RESET} $*"
 }
 
 edo() {
@@ -33,6 +48,53 @@ yesno() {
     local resp
     read -r -p "$1 [y/N] " resp
     [[ "$resp" == [yY] ]] || exit 1
+}
+
+_check_osm_vars() {
+    local -n ref=$1
+    local var="$2"
+
+    if [[ -v ref[$var] && -n "${ref[$var]}" ]]; then
+        info "$var=${ref[$var]}"
+        return
+    else
+        warn "The variable '$var' is not set"
+        return 1
+    fi
+}
+
+parse_config() {
+    local conf_file=
+    declare -A vars
+    local OLD_IFS="$IFS"
+    local pattern='^([^[:space:]]+)[[:space:]]*=[[:space:]]*"?([^"]+)"?$'
+
+    conf_file="$1"
+    [[ -z "$conf_file" ]] && die "No configuration file."
+    [[ ! -f "$conf_file" ]] && die "The configuration file '$conf_file' does not exist."
+
+    while IFS= read -r line; do
+        if [[ "$line" =~ $pattern ]]; then
+            vars[${BASH_REMATCH[1]}]="${BASH_REMATCH[2]}"
+        fi
+    done < "$conf_file"
+
+    # restore IFS
+    IFS="$OLD_IFS"
+
+    # verify mandatory config variables
+    for v in "${CONF_VARS[@]}"; do
+        if ! _check_osm_vars vars "$v"; then
+            die "Unable to proceed without 'HOSTS_DIR' variable"
+        fi
+    done
+
+    yesno "Is configuration correct? "
+
+    # make global variables
+    for k in "${!vars[@]}"; do
+        declare -g "$k"="${vars[$k]}"
+    done
 }
 
 configure_qemu_vm() {

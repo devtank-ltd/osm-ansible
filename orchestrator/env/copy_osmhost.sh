@@ -7,10 +7,10 @@ source env_common.sh
 
 dns_server="${OSM_SUBNET}.1"
 
-if [ ! -e "${HOSTS_DIR}/$src" ]
+if [ ! -e "${HOSTS_DIR}/${src}" ]
 then
   echo "Source host '$src' does not exist"
-  exit 1
+  exit -1
 fi
 
 mkdir "${HOSTS_DIR}/$dst"
@@ -37,8 +37,8 @@ mkdir -p ~/.ssh
 ssh-keygen -f ~/.ssh/known_hosts -R $vm_ip
 ssh-keyscan -H $vm_ip >> ~/.ssh/known_hosts
 
-ssh root@$vm_ip exit
-(( $? == 0 )) || { echo "SSH access setup failed."; kill $run_pid; exit 1; }
+ssh root@"$vm_ip" exit
+[ "$?" = "0" ] || { echo "SSH access setup failed."; kill $run_pid; exit -1; }
 
 ssh root@"$vm_ip" "sed -i \"s|$src|$dst|g\" /etc/{hosts,hostname}; hostname $dst"
 ssh root@"$vm_ip" "rm /etc/ssh/ssh_host_*; dpkg-reconfigure openssh-server; poweroff"

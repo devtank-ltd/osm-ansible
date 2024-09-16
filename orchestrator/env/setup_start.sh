@@ -1,14 +1,17 @@
+# -*- mode: sh; sh-shell: bash; -*-
 config="$1"
+
+parse_config "$config"
 
 # Reset arguments
 set --
 
-[[ -f "$config" ]] && {
-    info "Loading : $config"
-    source "$config"
-} || die "No config given."
+# [[ -f "$config" ]] && {
+#     info "Loading : $config"
+#     source "$config"
+# } || die "No config given."
 
-mkdir -p "$HOSTS_DIR"
+edo mkdir -p "$HOSTS_DIR"
 
 
 [[ -n "$VOSM_HOSTBR" ]] || die "VOSM_HOSTBR not set"

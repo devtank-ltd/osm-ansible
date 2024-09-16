@@ -32,6 +32,7 @@
       - rsync
       - snapper
       - sudo
+      - wireguard
       - ufw
     update_cache: yes
 
@@ -84,7 +85,7 @@
     repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
     dest: /srv/osm-lxc
     single_branch: yes
-    version: dev_test_env
+    version: wg_config
 
 - name: Apply OSM Host overlay.
   shell: rsync -a /srv/osm-lxc/root_overlay/ /
@@ -108,6 +109,12 @@
     template: debian
     state: stopped
     template_options: bookworm
+
+- name: Patch lxc-net script to support MTU setting
+  ansible.posix.patch:
+    src: patches/0001-lxc-net-add-bridge-MTU-support.patch
+    basedir: /usr/libexec/lxc
+    strip: 1
 
 - name: OSM Host Base OS container prep
   shell: |

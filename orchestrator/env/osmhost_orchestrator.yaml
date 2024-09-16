@@ -1,18 +1,33 @@
 - hosts: "{{ target }}"
+  vars:
+    wg_ipaddr: "{{ wg_ipaddr }}"
+    wg_port: "{{ wg_port }}"
+    orchestrator_private_key: "{{ orchestrator_private_key }}"
+
   tasks:
+
+    - name: "Setting host's network interface fact"
+      set_fact:
+        wg_interface: "{{ ansible_default_ipv4.interface }}"
+
     - name: Install required packages
       apt:
         name:
+          - ansible
           - default-mysql-client
           - default-mysql-server
           - git
+          - iproute2
+          - iptables
           - pdns-backend-mysql
           - prometheus
+          - prometheus-alertmanager
           - python3
           - python3-crcmod
           - python3-paramiko
           - python3-pymysql
           - python3-yaml
+          - wireguard
         update_cache: yes
 
     - name: Clone OSM Ansible git repo.
@@ -20,7 +35,7 @@
         repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
         dest: /srv/osm-lxc
         single_branch: yes
-        version: dev_test_env
+        version: wg_config
 
     - name: Stop PDNS
       service:
@@ -93,3 +108,51 @@
       service:
         name: pdns.service
         state: started
+
+    - name: "Enable IP forwarding"
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        sysctl_set: true
+        state: present
+        reload: true
+
+    - name: "Populate OSM WireGuard table with initial data"
+      shell: |
+        echo "INSERT INTO osm_wireguard (id, osm_hosts_id, public_key, private_key, ip_addr) VALUES (1, NULL, '{{ orchestrator_public_key }}', '{{ orchestrator_private_key }}', '{{ wg_ipaddr }}');" | mysql -uroot osm_orchestrator
+
+    - name: "Apply WireGuard configuration"
+      template:
+        src: "templates/orchestrator_wireguard.j2"
+        dest: "/etc/wireguard/wg0.conf"
+
+    - name: "Restart WireGuard"
+      systemd_service:
+        name: wg-quick@wg0.service
+        state: restarted
+        enabled: true
+
+    - name: "Apply prometheus configuration file"
+      template:
+        src: "templates/prometheus/prometheus.yml.j2"
+        dest: "/etc/prometheus/prometheus.yml"
+
+    - name: "Apply prometheus alert rules"
+      copy:
+        src: "templates/prometheus/prometheus.rules"
+        dest: "/etc/prometheus/prometheus.rules"
+
+    - name: "Apply alertmanager configuration file"
+      template:
+        src: "templates/alertmanager/alertmanager.yml.j2"
+        dest: "/etc/prometheus/alertmanager.yml"
+
+    - name: "Restart prometheus"
+      ansible.builtin.service:
+        name: prometheus
+        state: restarted
+
+    - name: "Restart alertmanager"
+      ansible.builtin.service:
+        name: prometheus-alertmanager
+        state: restarted

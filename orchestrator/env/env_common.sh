@@ -1,3 +1,5 @@
+source functions.sh
+
 declare -Ar PACKAGES=(
     ["ansible"]="ansible-playbook"
     ["qemu-system-x86"]="qemu-system-x86_64"
