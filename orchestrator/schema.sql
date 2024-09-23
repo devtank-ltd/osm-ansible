@@ -20,5 +20,16 @@ CREATE TABLE osm_customers (
     FOREIGN KEY(osm_hosts_id) REFERENCES osm_hosts (id)
 );
 
+CREATE table osm_wireguard (
+    id           INT  PRIMARY KEY AUTO_INCREMENT,
+    osm_hosts_id INT  NULL,
+    public_key   TEXT NOT NULL,
+    private_key  TEXT NOT NULL,
+    ip_addr      TEXT NOT NULL,
+    FOREIGN KEY(osm_hosts_id) REFERENCES osm_hosts (id)
+);
+
+ALTER TABLE osm_wireguard AUTO_INCREMENT = 2;
+
 GRANT ALL PRIVILEGES ON osm_orchestrator.* TO 'osm_orchestrator'@'localhost' IDENTIFIED BY 'change_this_password';
 GRANT ALL PRIVILEGES ON pdns.records TO 'osm_orchestrator'@'localhost';

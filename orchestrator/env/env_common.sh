@@ -1,48 +1,66 @@
-test -r /dev/kvm || { echo "User doesn't have KVM access."; exit -1; }
-[ -n "$(groups | grep netdev)" ] || { echo "User doesn't have netdev access."; exit -1; }
-[ -n "$(which resolvectl)" ] || { echo "Please install systemd-resolved"; exit -1; }
-[ -n "$(which qemu-system-x86_64)" ] || { echo "Please install qemu-system-x86"; exit -1; }
-[ -n "$(which dig)" ] || { echo "Please install dig (bind9-dnsutils)"; exit -1; }
-[ -n "$(which isoinfo)" ] || { echo "Please install genisoimage"; exit -1; }
-[ -n "$(which ssh-keygen)" ] || { echo "Please install OpenSSH client tools."; exit -1; }
-[ -e "/usr/sbin/dnsmasq" ] || { echo "Please install dnsmasq"; exit -1; }
-[ -e "/usr/sbin/iptables" ] || { echo "Please install iptables"; exit -1; }
+source functions.sh
 
-[ -n "$HOSTS_DIR" ] || HOSTS_DIR=hosts
+declare -Ar PACKAGES=(
+    ["ansible"]="ansible-playbook"
+    ["qemu-system-x86"]="qemu-system-x86_64"
+    ["ovmf"]="/usr/share/OVMF/OVMF_CODE_4M.fd"
+    ["isoinfo"]="isoinfo"
+    ["systemd-resolved"]="resolvectl"
+    ["dig (bind9-dnsutils)"]="dig"
+    ["openssh"]="ssh-keygen"
+    ["dnsmasq"]="dnsmasq"
+    ["iptables"]="iptables"
+)
 
-[ -d "$HOSTS_DIR" ] || { echo "Hosts folder doesn't exit."; exit -1; }
+# verify whethe needed packages are installed
+for p in "${!PACKAGES[@]}"; do
+    [[ "$p" == "ovmf" && ! -e "${PACKAGES[$p]}" ]] && {
+        die "Please install '$p'"
+    } || continue
+    command -v "${PACKAGES[$p]}" >/dev/null 2>&1 || die "Please install '$p'"
+done
 
-echo "HOSTS_DIR: $HOSTS_DIR"
+# verify that user has kvm and netdev access
+[[ -r /dev/kvm ]] || die "User doesn't have KVM access."
+if ! grep -q "netdev" < <(groups) >/dev/null 2>&1; then
+    die "User doesn't have netdev access."
+fi
+[[ -n "$HOSTS_DIR" ]] || HOSTS_DIR="hosts"
+[[ -d "$HOSTS_DIR" ]] || die "Hosts folder doesn't exit."
+
+info "HOSTS_DIR: $HOSTS_DIR"
 export HOSTS_DIR
 mkdir -p "$HOSTS_DIR"
 
-[ ! -e  "$HOSTS_DIR/env" ] || source "$HOSTS_DIR/env"
+[[ ! -e "$HOSTS_DIR/env" ]] || source "${HOSTS_DIR}/env"
 
 save_env () {
-  echo 'VOSM_HOSTBR="'$VOSM_HOSTBR'"
-HOSTS_DIR="'$HOSTS_DIR'"
-OSM_SUBNET="'$OSM_SUBNET'"
-OSM_DOMAIN="'$OSM_DOMAIN'"' > "$HOSTS_DIR/env"
+    cat <<- EOF > "${HOSTS_DIR}/env"
+	VOSM_HOSTBR="$VOSM_HOSTBR"
+	HOSTS_DIR="$HOSTS_DIR"
+	OSM_SUBNET="$OSM_SUBNET"
+	OSM_DOMAIN="$OSM_DOMAIN"
+EOF
 }
 
-[ -n "$VOSM_HOSTBR" ] || VOSM_HOSTBR=vosmhostbr0
+[[ -n "$VOSM_HOSTBR" ]] || VOSM_HOSTBR="vosmhostbr0"
 export VOSM_HOSTBR
 
-if [ -e /sys/class/net/$VOSM_HOSTBR ]
-then
-  osm_bridge_ip=$(ip addr show $VOSM_HOSTBR | awk -F '[[:blank:]/]+' '/inet / { print $3}')
-  osm_bridge_range=$(echo $osm_bridge_ip | awk -F'.' '{print $1"."$2"."$3}')
+if [[ -e "/sys/class/net/${VOSM_HOSTBR}" ]]; then
+    osm_bridge_ip="$(get_ip4_addr "$VOSM_HOSTBR")"
+    osm_bridge_range="${osm_bridge_ip%.*}"
 else
-  osm_bridge_range=192.168.5
+    osm_bridge_range="192.168.5"
 fi
 
-[ -n "$OSM_SUBNET" ] || OSM_SUBNET=$osm_bridge_range
+[[ -n "$OSM_SUBNET" ]] || OSM_SUBNET="$osm_bridge_range"
 export OSM_SUBNET
 
-[ -n "$OSM_DOMAIN" ] || OSM_DOMAIN=osmm.fake.co.uk
+[[ -n "$OSM_DOMAIN" ]] || OSM_DOMAIN="osmm.fake.co.uk"
 export OSM_DOMAIN
 
-export ANSIBLE_HOSTS="$HOSTS_DIR/hosts"
+ANSIBLE_HOSTS="${HOSTS_DIR}/hosts"
+export ANSIBLE_HOSTS
 
-echo "OSM DOMAIN: $OSM_DOMAIN"
-echo "OSM SUBNET: $OSM_SUBNET"
+info "OSM DOMAIN: $OSM_DOMAIN"
+info "OSM SUBNET: $OSM_SUBNET"

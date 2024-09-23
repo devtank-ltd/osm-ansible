@@ -1,0 +1,10 @@
+[Interface]
+PrivateKey = {{ osm_priv_key }}
+Address = {{ osm_ipaddr }}/24
+# DNS = 192.168.11.1
+
+[Peer]
+PublicKey = {{ orchestrator_key }}
+AllowedIPs =  0.0.0.0/0
+Endpoint = {{ orchestrator_ip }}:51820
+PersistentKeepalive = 20

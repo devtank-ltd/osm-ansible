@@ -4,3 +4,8 @@ OSMCUSTOMER_COUNT=5
 VOSM_HOSTBR="test_osm_br"
 OSM_SUBNET="192.168.5"
 OSM_DOMAIN="osmm.fake.co.uk"
+MAIL_SMTP_HOST="smtp.gmail.com:587"
+MAIL_SMTP_USER="noreply@devtank.co.uk"
+MAIL_SMTP_PASSWORD="<CHANGE ME>"
+# comma separated mail recipients
+MAIL_RECIPIENTS="<user1@mail.xxx>, <user2@mail.yyy>, <uses3@mail.zzz>"

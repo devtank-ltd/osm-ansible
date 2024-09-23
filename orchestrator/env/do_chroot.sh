@@ -1,6 +1,6 @@
 #! /bin/bash
 
-[ $(id -u) == 0 ] || exec sudo -- "$0" "$@"
+(( EUID == 0 )) || exec sudo -- "$0" "$@"
 
 [ -n "$(which kpartx)" ] || { echo "Press install kpartx"; exit -1; }
 

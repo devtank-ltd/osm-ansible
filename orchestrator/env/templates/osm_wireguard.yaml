@@ -1,0 +1,20 @@
+---
+- hosts: "{{ target }}"
+  vars:
+    osm_priv_key: "{{ osm_priv_key }}"
+    osm_pub_key: "{{ osm_pub_key }}"
+    osm_ipaddr: "{{ osm_ipaddr }}"
+    orchestrator_key: "{{ srv_key }}"
+    orchestrator_ip: "{{ srv_ip }}"
+
+  tasks:
+    - name: "Configure WireGuard {{ target }} peer"
+      template:
+        src: "wireguard.conf.j2"
+        dest: "/etc/wireguard/wg0.conf"
+
+    - name: "Restart Wireguard for {{ target }} peer"
+      ansible.builtin.systemd_service:
+        name: wg-quick@wg0
+        state: restarted
+        enabled: true

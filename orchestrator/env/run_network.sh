@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/usr/bin/env bash
 
 [ -z "$1" ] || HOSTS_DIR=$1
 [ -n "$HOSTS_DIR" ] || { echo "Not given a hosts dir as argument or env var."; exit -1; }
@@ -33,18 +33,18 @@ echo "Waiting on network of $host_count"
 count=0
 while [ $count != $host_count ]
 do
-  for n in `seq 0 $(($host_count - 1))`
+  for n in $(seq 0 $(( host_count - 1 )))
   do
     name=${host_name[$n]}
     if [ -z "${host_ip[$n]}" ]
     then
-      ip_addr=$(./get_active_ip_of.sh $name $OSM_SUBNET.1)
+      ip_addr=$(./get_active_ip_of.sh "$name" "${OSM_SUBNET}.1")
       [ -z "$ip_addr" ] || { echo "$name : $ip_addr"; host_ip[$n]=$ip_addr; }
     fi
   done
   count=0
-  for n in `seq 0 $host_count`
+  for n in $(seq 0 $host_count)
   do
-    [ -z "${host_ip[$n]}" ] || count=$(($count + 1))
+    [ -z "${host_ip[$n]}" ] || count=$(( count + 1 ))
   done
 done

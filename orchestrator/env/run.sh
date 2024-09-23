@@ -1,9 +1,9 @@
-#! /bin/bash
+#!/usr/bin/env bash
 
 source common.sh
 
-./net_ctrl.sh open $VOSM_HOSTBR $HOSTS_DIR $OSM_SUBNET $OSM_DOMAIN
-[ "$?" = "0" ] || { echo "Failed to setup bridge"; exit -1; }
+./net_ctrl.sh open "$VOSM_HOSTBR" "$HOSTS_DIR" "$OSM_SUBNET" "$OSM_DOMAIN"
+(( $? == 0 )) || die "Failed to setup bridge"
 
 echo "Running: $OSM_HOST"
 

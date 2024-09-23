@@ -21,16 +21,19 @@
 - name: Install required packages
   apt:
     name:
-      - btrfs-progs
-      - snapper
-      - certbot
       - ansible
+      - btrfs-progs
+      - certbot
       - git
-      - rsync
       - lxc
+      - netdata
+      - prometheus-node-exporter
       - python3-lxc
-      - ufw
+      - rsync
+      - snapper
       - sudo
+      - wireguard
+      - ufw
     update_cache: yes
 
 - name: Check for LetsEncrypt setup
@@ -62,12 +65,27 @@
     create_home: yes
     group: users
 
+- name: Add netdata main config
+  copy:
+    src: templates/netdata/netdata.conf
+    dest: /etc/netdata/netdata.conf
+
+- name: Add netdata cgroups config
+  copy:
+    src: templates/netdata/cgroups.conf
+    dest: /etc/netdata/python.d/cgroups.conf
+
+- name: Restart netdata
+  ansible.builtin.service:
+    name: netdata
+    state: restarted
+
 - name: Clone OSM Ansible git repo.
   ansible.builtin.git:
     repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
     dest: /srv/osm-lxc
     single_branch: yes
-    version: dev_test_env
+    version: wg_config
 
 - name: Apply OSM Host overlay.
   shell: rsync -a /srv/osm-lxc/root_overlay/ /
@@ -91,6 +109,12 @@
     template: debian
     state: stopped
     template_options: bookworm
+
+- name: Patch lxc-net script to support MTU setting
+  ansible.posix.patch:
+    src: patches/0001-lxc-net-add-bridge-MTU-support.patch
+    basedir: /usr/libexec/lxc
+    strip: 1
 
 - name: OSM Host Base OS container prep
   shell: |
