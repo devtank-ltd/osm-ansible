@@ -85,7 +85,7 @@ parse_config() {
     # verify mandatory config variables
     for v in "${CONF_VARS[@]}"; do
         if ! _check_osm_vars vars "$v"; then
-            die "Unable to proceed without 'HOSTS_DIR' variable"
+            die "Unable to proceed without '$v' variable"
         fi
     done
 
