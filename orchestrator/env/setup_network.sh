@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 
 source functions.sh
+
+if [ -z "$STY" ]; then
+  echo "Not running in GNU Screen"
+  yesno "Continue?"
+fi
+
 source setup_start.sh
 
 echo "========================================="
