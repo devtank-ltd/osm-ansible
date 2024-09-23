@@ -780,7 +780,7 @@ def main():
             osm_orch.find_osm_host_of
         ),
         "test_host": cmd_entry(
-            "test_host <name> : Test access to OSM Hosy",
+            "test_host <name> : Test access to OSM Host",
             osm_orch.test_osm_host
         ),
         "add_customer": cmd_entry(
