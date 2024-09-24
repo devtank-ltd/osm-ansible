@@ -1,3 +1,6 @@
 [submodule "orchestrator/env/upgrade/mk_initrc"]
 	path = orchestrator/env/upgrade/mk_initrc
 	url = ../mk_initrc.git
+[submodule "lib/grafana_api_client"]
+	path = lib/grafana_api_client
+	url = ../grafana_api_client.git

@@ -1170,6 +1170,21 @@ class cli_osm_orchestrator_t:
         self.logger.warning(f'Unable to get WG info for host {host_name}')
         return os.EX_CONFIG
 
+    def add_dashboards(self, config):
+        try:
+            with open(config) as f:
+                db_config = json.load(f)
+        except Exception as e:
+            print(f"Invalid config file. Exiting")
+            return os.EX_CONFIG
+        grafana_exists = self.ssh_command(f"ping -c1 {db_config['grafana_url']}")
+        if not grafana_exists:
+            print("Cannot ping domain. Exiting")
+            return os.EX_CONFIG
+        if not self.ssh_command(f'python3 /srv/osm-lxc/lib/grafana_api_client.py add {config}'):
+            print("Failed to create dashboards")
+            return os.EX_CONFIG
+
     def push_file_or_directory(self, customer_name, src, dest):
         osm_host = self._osm_orch.find_osm_host_of(customer_name)
         if not osm_host:
@@ -1282,6 +1297,10 @@ def main():
             "Pull a file or a directory to a specified destination from a "
             "customer container",
             cli_obj.pull_file_or_directory
+        ),
+        "add_dashboards" : cmd_entry(
+            "add_dashboards <config> : Creates Grafana dashboard solution for customer",
+            cli_obj.add_dashboards
         )
     }
 
