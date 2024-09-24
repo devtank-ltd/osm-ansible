@@ -1177,13 +1177,31 @@ class cli_osm_orchestrator_t:
         except Exception as e:
             print(f"Invalid config file. Exiting")
             return os.EX_CONFIG
-        grafana_exists = self.ssh_command(f"ping -c1 {db_config['grafana_url']}")
+        osm_host = self._find_osm_host_of(customer_name)
+        if not osm_host:
+            print(f"Could not find host with customer: {customer_name}")
+            return os.EX_CONFIG
+        grafana_exists = osm_host.ssh_command(f"ping -c1 {db_config['grafana_url']}")
         if not grafana_exists:
             print("Cannot ping domain. Exiting")
             return os.EX_CONFIG
-        if not self.ssh_command(f'python3 /srv/osm-lxc/lib/grafana_api_client.py add {config}'):
-            print("Failed to create dashboards")
+
+        grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'add', f'{config}']
+        grafana_proc = subprocess.Popen(
+            grafana_cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE
+        )
+        try:
+            out, err = grafana_proc.communicate()
+            self.logger.info(out.decode().split('\n'))
+        except subprocess.SubprocessError as errs:
+            grafana_proc.kill()
+            self.logger.error(errs)
             return os.EX_CONFIG
+        if grafana_proc.returncode:
+            return os.EX_CONFIG
+        return os.EX_OK
 
     def push_file_or_directory(self, customer_name, src, dest):
         osm_host = self._osm_orch.find_osm_host_of(customer_name)
@@ -1299,9 +1317,9 @@ def main():
             cli_obj.pull_file_or_directory
         ),
         "add_dashboards" : cmd_entry(
-            "add_dashboards <config> : Creates Grafana dashboard solution for customer",
+            "add_dashboards <customer_name> <config> : Creates Grafana dashboard solution for customer",
             cli_obj.add_dashboards
-        )
+        ),
     }
 
     directory = config["plugin_dir"]
