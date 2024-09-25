@@ -1170,7 +1170,7 @@ class cli_osm_orchestrator_t:
         self.logger.warning(f'Unable to get WG info for host {host_name}')
         return os.EX_CONFIG
 
-    def add_dashboards(self, config):
+    def _validate_grafana_config(self, customer_name, config):
         try:
             with open(config) as f:
                 db_config = json.load(f)
@@ -1185,23 +1185,49 @@ class cli_osm_orchestrator_t:
         if not grafana_exists:
             print("Cannot ping domain. Exiting")
             return os.EX_CONFIG
-
-        grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'add', f'{config}']
-        grafana_proc = subprocess.Popen(
-            grafana_cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE
-        )
-        try:
-            out, err = grafana_proc.communicate()
-            self.logger.info(out.decode().split('\n'))
-        except subprocess.SubprocessError as errs:
-            grafana_proc.kill()
-            self.logger.error(errs)
-            return os.EX_CONFIG
-        if grafana_proc.returncode:
-            return os.EX_CONFIG
         return os.EX_OK
+
+    def add_dashboards(self, customer_name, config):
+        if self._validate_grafana_config(customer_name, config) == os.EX_OK:
+            grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'add', config]
+            grafana_proc = subprocess.Popen(
+                grafana_cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE
+            )
+            try:
+                out, err = grafana_proc.communicate()
+                self.logger.info(out.decode().split('\n'))
+            except subprocess.SubprocessError as errs:
+                grafana_proc.kill()
+                self.logger.error(errs)
+                return os.EX_CONFIG
+            if grafana_proc.returncode:
+                return os.EX_CONFIG
+            return os.EX_OK
+        print("Validate grafana config failed.")
+        return os.EX_CONFIG
+
+    def del_dashboards(self, customer_name, config):
+        if self._validate_grafana_config(customer_name, config) == os.EX_OK:
+            grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'delete', config]
+            grafana_proc = subprocess.Popen(
+                grafana_cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE
+            )
+            try:
+                out, err = grafana_proc.communicate()
+                self.logger.info(out.decode().split('\n'))
+            except subprocess.SubprocessError as errs:
+                grafana_proc.kill()
+                self.logger.error(errs)
+                return os.EX_CONFIG
+            if grafana_proc.returncode:
+                return os.EX_CONFIG
+            return os.EX_OK
+        print("Validate grafana config failed.")
+        return os.EX_CONFIG
 
     def push_file_or_directory(self, customer_name, src, dest):
         osm_host = self._osm_orch.find_osm_host_of(customer_name)
@@ -1319,6 +1345,10 @@ def main():
         "add_dashboards" : cmd_entry(
             "add_dashboards <customer_name> <config> : Creates Grafana dashboard solution for customer",
             cli_obj.add_dashboards
+        ),
+        "del_dashboards" : cmd_entry(
+            "del_dashboards <customer_name> <config> : Deletes Grafana dashboard solution for customer",
+            cli_obj.del_dashboards
         ),
     }
 
