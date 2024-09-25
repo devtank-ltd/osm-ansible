@@ -1,0 +1,48 @@
+vintelehator@beast:/tmp$ curl -vk --cacert /tmp/root.crt https://customer1.fake.co.uk
+* Host customer1.fake.co.uk:443 was resolved.
+* IPv6: (none)
+* IPv4: 192.168.99.26
+*   Trying 192.168.99.26:443...
+* Connected to customer1.fake.co.uk (192.168.99.26) port 443
+* ALPN: curl offers h2,http/1.1
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+* TLSv1.3 (IN), TLS handshake, Server hello (2):
+* TLSv1.2 (IN), TLS handshake, Certificate (11):
+* TLSv1.2 (IN), TLS handshake, Server key exchange (12):
+* TLSv1.2 (IN), TLS handshake, Server finished (14):
+* TLSv1.2 (OUT), TLS handshake, Client key exchange (16):
+* TLSv1.2 (OUT), TLS change cipher, Change cipher spec (1):
+* TLSv1.2 (OUT), TLS handshake, Finished (20):
+* TLSv1.2 (IN), TLS handshake, Finished (20):
+* SSL connection using TLSv1.2 / ECDHE-ECDSA-AES256-GCM-SHA384 / X25519 / id-ecPublicKey
+* ALPN: server accepted http/1.1
+* Server certificate:
+*  subject: CN=customer1-svr
+*  start date: Oct  1 14:43:44 2024 GMT
+*  expire date: Oct  1 14:43:43 2029 GMT
+*  issuer: CN=Pebble Intermediate CA 032598
+*  SSL certificate verify result: unable to get local issuer certificate (20), continuing anyway.
+*   Certificate level 0: Public key type EC/prime256v1 (256/128 Bits/secBits), signed using sha256WithRSAEncryption
+*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption
+* using HTTP/1.x
+> GET / HTTP/1.1
+> Host: customer1.fake.co.uk
+> User-Agent: curl/8.5.0
+> Accept: */*
+>
+< HTTP/1.1 302 Found
+< Server: nginx/1.22.1
+< Date: Tue, 01 Oct 2024 16:20:27 GMT
+< Content-Type: text/html; charset=utf-8
+< Content-Length: 29
+< Connection: keep-alive
+< Cache-Control: no-store
+< Location: /login
+< X-Content-Type-Options: nosniff
+< X-Frame-Options: deny
+< X-Xss-Protection: 1; mode=block
+<
+<a href="/login">Found</a>.
+
+* Connection #0 to host customer1.fake.co.uk left intact
+vintelehator@beast:/tmp$

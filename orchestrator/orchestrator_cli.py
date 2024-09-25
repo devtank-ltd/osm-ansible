@@ -2,7 +2,7 @@
 # coding: utf-8
 
 import argparse
-import crcmod
+import crcmod  # type: ignore
 import fcntl
 import logging
 import os
@@ -18,6 +18,7 @@ import yaml
 
 from collections import namedtuple
 from pathlib import Path
+from typing import Union
 
 
 CONFIG_FILE = "config.yaml"
@@ -69,8 +70,8 @@ SELECT osm_customers.osm_hosts_id
 FROM osm_customers WHERE name=%s AND active_before IS NULL
 """
 
-SQL_HOST_GET_NAME     = "SELECT name FROM osm_hosts WHERE id=%s"
-SQL_HOST_GET_IP_ADDR  = "SELECT ip_addr FROM osm_hosts WHERE id=%s"
+SQL_HOST_GET_NAME = "SELECT name FROM osm_hosts WHERE id=%s"
+SQL_HOST_GET_IP_ADDR = "SELECT ip_addr FROM osm_hosts WHERE id=%s"
 SQL_HOST_GET_CAPACITY = "SELECT capacity FROM osm_hosts WHERE id=%s"
 
 SQL_HOST_GET_USED_MQTT_PORTS = "SELECT host_mqtt_port FROM osm_customers WHERE osm_hosts_id=%s"
@@ -214,7 +215,7 @@ class osm_host_t:
             self._capacity = self._look_by_id(SQL_HOST_GET_CAPACITY)
         return self._capacity
 
-    def _find_free_mqtt_port(self, customer_name):
+    def _find_free_mqtt_port(self, customer_name: str) -> int:
         rows = do_db_query(self.db, SQL_HOST_GET_USED_MQTT_PORTS, (self.id,))
         ports = [row[0] for row in rows]
         port = 8883 + crc8_func(customer_name.encode())
@@ -262,19 +263,32 @@ class osm_host_t:
             )
         )
 
-    def _del_customer_to_database(self, customer_name):
+    def _del_customer_to_database(self, customer_name: str) -> None:
         do_db_update(self.db, SQL_DEL_CUSTOMER, (self.id, customer_name))
         domain_id = self.config["pdns_domain_id"]
         domain = self.config["pdns_domain"]
 
-        do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
-                     (domain_id, "%s.%s" % (customer_name, domain), self.dns_entry))
-        do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
-                     (domain_id, "%s-chirpstack.%s" % (customer_name, domain), self.dns_entry))
-        do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
-                     (domain_id, "%s-influx.%s" % (customer_name, domain), self.dns_entry))
-        do_db_update(self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
-                     (domain_id, "%s-mqtt.%s" % (customer_name, domain), self.dns_entry))
+        do_db_update(
+            self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
+            (domain_id, "%s.%s" % (customer_name, domain), self.dns_entry)
+        )
+        do_db_update(
+            self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
+            (domain_id, "%s-chirpstack.%s" % (customer_name, domain),
+             self.dns_entry)
+        )
+        do_db_update(
+            self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
+            (
+                domain_id,
+                "%s-influx.%s" % (customer_name, domain),
+                self.dns_entry
+            )
+        )
+        do_db_update(
+            self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
+            (domain_id, "%s-mqtt.%s" % (customer_name, domain), self.dns_entry)
+        )
 
     def get_ssh(self):
         if self._ssh_ref:
@@ -290,20 +304,27 @@ class osm_host_t:
         try:
             ssh.connect(self.ip_addr, username="osm_orchestrator", timeout=2)
         except TimeoutError:
-            self.logger.error(f"Timeout connecting to {self.name} ({self.ip_addr}).")
+            self.logger.error(
+                f"Timeout connecting to {self.name} ({self.ip_addr})."
+            )
             ssh = None
         except paramiko.ssh_exception.AuthenticationException as e:
-            self.logger.error(f"Authentication fail connecting to {self.name} ({self.ip_addr}): {e}")
+            self.logger.error(
+                f"Authentication fail connecting to {self.name} "
+                f"({self.ip_addr}): {e}"
+            )
             ssh = None
         except OSError as e:
-            self.logger.error(f"OS Error connecting to {self.name} ({self.ip_addr}): {e}")
+            self.logger.error(
+                f"OS Error connecting to {self.name} ({self.ip_addr}): {e}"
+            )
             ssh = None
         if not ssh:
             return None
         self._ssh_ref = weakref.ref(ssh)
         return ssh
 
-    def ssh_command(self, cmd):
+    def ssh_command(self, cmd: str) -> bool:
         ssh = self.get_ssh()
         if not ssh:
             return False
@@ -312,28 +333,31 @@ class osm_host_t:
             self.logger.debug(line.rstrip())
         error_code = ssh_stdout.channel.recv_exit_status()
         if error_code:
-            self.logger.error(f"Command '{cmd}' failed : {error_code}:{os.strerror(error_code)}")
+            self.logger.error(
+                f"Command '{cmd}' failed : "
+                f"{error_code}:{os.strerror(error_code)}"
+            )
             for line in ssh_stderr:
                 self.logger.error(line.rstrip())
             return False
         return True
 
-    def can_ping_customer_container(self, customer_name):
+    def can_ping_customer_container(self, customer_name: str) -> bool:
         return self.ssh_command(f"ping -c1 {customer_name}-svr")
 
-    def can_ping_customer_grafana(self, customer_name):
+    def can_ping_customer_grafana(self, customer_name: str) -> bool:
         domain = self.config["pdns_domain"]
         return self.ssh_command(f"ping -c1 {customer_name}.{domain}")
 
-    def add_osm_customer(self, customer_name, timeout=4):
-
+    def add_osm_customer(self, customer_name: str, timeout: int = 4) -> bool:
         mqtt_port = self._find_free_mqtt_port(customer_name)
 
         if not mqtt_port:
             self.logger.error("No free MQTT found.")
             return False
 
-        self._add_customer_to_database(customer_name, mqtt_port)  # Needs DNS entry before Anisble called, for LetsEncrypt
+        # Needs DNS entry before Anisble called, for LetsEncrypt
+        self._add_customer_to_database(customer_name, mqtt_port)
 
         found = False
         start_end = time.monotonic() + timeout
@@ -347,7 +371,10 @@ class osm_host_t:
             return False
 
         failed = True
-        if self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-create-container.sh "{customer_name}" {mqtt_port}'):
+        if self.ssh_command(
+                'sudo /srv/osm-lxc/ansible/do-create-container.sh '
+                f'"{customer_name}" {mqtt_port}'
+        ):
             start_end = time.monotonic() + timeout
             while time.monotonic() < start_end:
                 if self.can_ping_customer_container(customer_name):
@@ -359,7 +386,10 @@ class osm_host_t:
 
         if failed:
             self._del_customer_to_database(customer_name)
-            self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-delete-container.sh "{customer_name}" {mqtt_port}')
+            self.ssh_command(
+                'sudo /srv/osm-lxc/ansible/do-delete-container.sh '
+                f'"{customer_name}" {mqtt_port}'
+            )
             return False
         return True
 
@@ -402,7 +432,7 @@ class osm_orchestrator_t:
         self._ipaddr = None
 
     @property
-    def ipaddr(self) -> str:
+    def ipaddr(self) -> Union[str, None]:
         """ get IP address of orchestrator host. (not reliable)"""
         if not self._ipaddr:
             interface = None
@@ -411,6 +441,13 @@ class osm_orchestrator_t:
                     # potentially it is what we need
                     interface = ni[1]
                     break
+
+            if interface is None:
+                self.logger.error(
+                    "Unable to find appopriate network interface"
+                )
+                return None
+
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._ipaddr = socket.inet_ntoa(
                 fcntl.ioctl(
@@ -433,7 +470,11 @@ class osm_orchestrator_t:
     def add_dns_host(self, osm_host, ip_addr):
         domain_id = self.config["pdns_domain_id"]
         domain = self.config["pdns_domain"]
-        do_db_update(self._pdns_db, SQL_PDNS_ADD_HOST, (domain_id, "%s.%s" % (osm_host, domain), ip_addr))
+        do_db_update(
+            self._pdns_db, SQL_PDNS_ADD_HOST,
+            (domain_id, "%s.%s" % (osm_host, domain),
+             ip_addr)
+        )
 
     def _delete_from_config(self, config_file: str, host_name: str) -> None:
         stop_copy = False
@@ -467,7 +508,9 @@ class osm_orchestrator_t:
                     return osm_host
 
     def _find_osm_host_of(self, customer_name):
-        row = do_db_single_query(self.db, SQL_GET_HOST_BY_CUSTOMER, (customer_name,))
+        row = do_db_single_query(
+            self.db, SQL_GET_HOST_BY_CUSTOMER, (customer_name,)
+        )
         if row:
             return osm_host_t(self, row[0])
 
@@ -521,16 +564,16 @@ class osm_orchestrator_t:
             capture_output=True, text=True
         ).stdout.strip('\n')
 
-        pub_key = subprocess.Popen(
+        pub_key_proc = subprocess.Popen(
             ['echo', priv_key], stdout=subprocess.PIPE
         )
-        pub_key = subprocess.Popen(
+        pub_key_proc = subprocess.Popen(
             ["wg", "pubkey"],
-            stdin=pub_key.stdout,
+            stdin=pub_key_proc.stdout,
             stdout=subprocess.PIPE,
         )
-        pub_key, stderr = pub_key.communicate()
-        pub_key = pub_key.decode("utf-8").rstrip("\n")
+        stdout, stderr = pub_key_proc.communicate()
+        pub_key = stdout.decode("utf-8").rstrip("\n")
 
         return priv_key, pub_key
 
@@ -562,7 +605,7 @@ class osm_orchestrator_t:
         # TODO: should we restart it via dbus API
         return self._restart_systemd_service("prometheus")
 
-    def add_osm_host(self, host_name: str, ip_addr: str, capcaity: str) -> int:
+    def add_osm_host(self, host_name: str, ip_addr: str, capcaity: int) -> int:
         # TODO: make it configurable via config.yaml file
         WG_IPADDR = "10.10.1."
 
@@ -583,7 +626,9 @@ class osm_orchestrator_t:
 
         osm_host = self.find_osm_host_by_addr(ip_addr)
         if osm_host:
-            self.logger.warning(f'Already osm host "{host_name}" of addr {ip_addr}')
+            self.logger.warning(
+                f'Already osm host "{host_name}" of addr {ip_addr}'
+            )
             return os.EX_CONFIG
 
         osm_host = osm_host_t(self, 0, host_name, ip_addr, capcaity)

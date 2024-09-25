@@ -4,7 +4,7 @@ mkdir -p /srv/osm-lxc/lxc/logs
 
 containers=(/srv/osm-lxc/lxc/containers/*)
 for container in "${containers[@]}"; do
-	name="$(basename $container)"
+	name="$(basename "$container")"
 	if [ ! -e "$container/lxc.container.conf" ]
 	then
 		continue
@@ -14,5 +14,3 @@ for container in "${containers[@]}"; do
 		echo "Container $container started" || \
 		echo "Error starting container $container"
 done
-
-

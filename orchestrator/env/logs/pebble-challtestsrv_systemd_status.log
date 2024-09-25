@@ -1,0 +1,18 @@
+root@vosmhost1:~# systemctl status pebble-challtestsrv
+● pebble-challtestsrv.service - pebble-challtestsrv ACME challenge mock server
+     Loaded: loaded (/etc/systemd/system/pebble-challtestsrv.service; enabled; preset: enabled)
+     Active: active (running) since Tue 2024-10-01 15:43:23 BST; 1h 18min ago
+   Main PID: 517 (pebble-challtes)
+      Tasks: 7 (limit: 4636)
+     Memory: 18.3M
+        CPU: 293ms
+     CGroup: /system.slice/pebble-challtestsrv.service
+             └─517 /usr/bin/pebble-challtestsrv -defaultIPv4 10.0.3.1 -http01 "" -https01 "" -tlsalpn01
+
+Oct 01 15:43:23 vosmhost1 systemd[1]: Started pebble-challtestsrv.service - pebble-challtestsrv ACME challenge mock server.
+Oct 01 15:43:23 vosmhost1 pebble-challtestsrv[517]: pebble-challtestsrv - 2024/10/01 15:43:23 Creating TCP and UDP DNS-01 challenge server on :8053
+Oct 01 15:43:23 vosmhost1 pebble-challtestsrv[517]: pebble-challtestsrv - 2024/10/01 15:43:23 Answering A queries with 10.0.3.1 by default
+Oct 01 15:43:23 vosmhost1 pebble-challtestsrv[517]: pebble-challtestsrv - 2024/10/01 15:43:23 Answering AAAA queries with ::1 by default
+Oct 01 15:43:23 vosmhost1 pebble-challtestsrv[517]: pebble-challtestsrv - 2024/10/01 15:43:23 Starting challenge servers
+Oct 01 15:43:23 vosmhost1 pebble-challtestsrv[517]: pebble-challtestsrv - 2024/10/01 15:43:23 Starting management server on :8055
+root@vosmhost1:~#

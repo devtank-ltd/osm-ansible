@@ -26,7 +26,7 @@ if ! grep -q "netdev" < <(groups) >/dev/null 2>&1; then
     die "User doesn't have netdev access."
 fi
 [[ -n "$HOSTS_DIR" ]] || HOSTS_DIR="hosts"
-[[ -d "$HOSTS_DIR" ]] || die "Hosts folder doesn't exit."
+[[ -d "$HOSTS_DIR" ]] || die "The '$HOSTS_DIR' directory doesn't exist."
 
 info "HOSTS_DIR: $HOSTS_DIR"
 export HOSTS_DIR

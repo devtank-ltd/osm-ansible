@@ -61,3 +61,5 @@ for n in $(seq 1 "$OSMCUSTOMER_COUNT"); do
     customer_name="customer${n}"
     ssh root@"$orchestrator_ip" "/srv/osm-lxc/orchestrator/orchestrator_cli.py add_customer $customer_name"
 done
+
+print_hosts_lease "$HOSTS_DIR"

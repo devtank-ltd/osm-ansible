@@ -75,6 +75,17 @@
     state: restarted
     enabled: yes
 
+- name: Request certificate for customer
+  shell: |
+    REQUESTS_CA_BUNDLE=devtank.minica.pem \
+    certbot certonly --standalone \
+    -d {{ container_hostname }} \
+    --server https://localhost:14000/dir \
+    --agree-tos \
+    --no-verify-ssl \
+    --http-01-port=5002 \
+    --register-unsafely-without-email
+
 - name: "Start the LXC container"
   command: "lxc-start -n '{{ container_hostname }}' -f '{{ container_dir }}/lxc.container.conf'"
 

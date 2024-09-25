@@ -1,0 +1,59 @@
+root@vosmhost1:~# curl --cacert /srv/osm-lxc/configs/pebble/devtank.minica.pem -o root.crt -s https://localhost:15000/roots/0 -v
+*   Trying 127.0.0.1:15000...
+* Connected to localhost (127.0.0.1) port 15000 (#0)
+* ALPN: offers h2,http/1.1
+} [5 bytes data]
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+} [512 bytes data]
+*  CAfile: /srv/osm-lxc/configs/pebble/devtank.minica.pem
+*  CApath: /etc/ssl/certs
+{ [5 bytes data]
+* TLSv1.3 (IN), TLS handshake, Server hello (2):
+{ [122 bytes data]
+* TLSv1.3 (IN), TLS handshake, Encrypted Extensions (8):
+{ [15 bytes data]
+* TLSv1.3 (IN), TLS handshake, Certificate (11):
+{ [507 bytes data]
+* TLSv1.3 (IN), TLS handshake, CERT verify (15):
+{ [111 bytes data]
+* TLSv1.3 (IN), TLS handshake, Finished (20):
+{ [36 bytes data]
+* TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
+} [1 bytes data]
+* TLSv1.3 (OUT), TLS handshake, Finished (20):
+} [36 bytes data]
+* SSL connection using TLSv1.3 / TLS_AES_128_GCM_SHA256
+* ALPN: server accepted h2
+* Server certificate:
+*  subject: CN=localhost
+*  start date: Oct  1 14:38:48 2024 GMT
+*  expire date: Oct 31 15:38:48 2026 GMT
+*  subjectAltName: host "localhost" matched cert's "localhost"
+*  issuer: CN=minica root ca 065bcc
+*  SSL certificate verify ok.
+} [5 bytes data]
+* using HTTP/2
+* h2h3 [:method: GET]
+* h2h3 [:path: /roots/0]
+* h2h3 [:scheme: https]
+* h2h3 [:authority: localhost:15000]
+* h2h3 [user-agent: curl/7.88.1]
+* h2h3 [accept: */*]
+* Using Stream ID: 1 (easy handle 0x558f8211cce0)
+} [5 bytes data]
+> GET /roots/0 HTTP/2
+> Host: localhost:15000
+> user-agent: curl/7.88.1
+> accept: */*
+>
+{ [5 bytes data]
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+{ [130 bytes data]
+< HTTP/2 200
+< content-type: application/pem-certificate-chain; charset=utf-8
+< content-length: 1151
+< date: Tue, 01 Oct 2024 16:04:04 GMT
+<
+{ [5 bytes data]
+* Connection #0 to host localhost left intact
+root@vosmhost1:~#

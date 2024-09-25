@@ -1,5 +1,5 @@
 - name: Get host LE domain
-  shell: "ls /etc/letsencrypt/live/ | grep -v README"
+  shell: find /etc/letsencrypt/live -mindepth 1 -type d ! -name 'README' -printf '%f\n'
   register: le_host_domain_detected
   when: le_host_domain_detected is not defined
 

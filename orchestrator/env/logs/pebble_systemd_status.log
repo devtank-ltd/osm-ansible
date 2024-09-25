@@ -1,0 +1,22 @@
+root@vosmhost1:~# systemctl status pebble
+● pebble.service - pebble ACME test server service
+     Loaded: loaded (/etc/systemd/system/pebble.service; enabled; preset: enabled)
+     Active: active (running) since Tue 2024-10-01 15:43:23 BST; 1h 16min ago
+   Main PID: 518 (pebble)
+      Tasks: 4 (limit: 4636)
+     Memory: 22.3M
+        CPU: 183ms
+     CGroup: /system.slice/pebble.service
+             └─518 /usr/bin/pebble -config /srv/osm-lxc/configs/pebble/pebble-config.json -dnsserver :8053
+
+Oct 01 16:02:41 vosmhost1 pebble[518]: Pebble 2024/10/01 16:02:41 PEBBLE_VA_ALWAYS_VALID is enabled. Skipping real validation of challenge Ozm12BWfh8MMPHFGX0qGdkO1tQEHKR901eMSzQmFmxQ
+Oct 01 16:02:41 vosmhost1 pebble[518]: Pebble 2024/10/01 16:02:41 PEBBLE_VA_ALWAYS_VALID is enabled. Skipping real validation of challenge Ozm12BWfh8MMPHFGX0qGdkO1tQEHKR901eMSzQmFmxQ
+Oct 01 16:02:41 vosmhost1 pebble[518]: Pebble 2024/10/01 16:02:41 PEBBLE_VA_ALWAYS_VALID is enabled. Skipping real validation of challenge Ozm12BWfh8MMPHFGX0qGdkO1tQEHKR901eMSzQmFmxQ
+Oct 01 16:02:41 vosmhost1 pebble[518]: Pebble 2024/10/01 16:02:41 authz 9v0WW47WFvZNLduJ44ylSPQsp2ryw6MbANiMxfWrOuI set VALID by completed challenge Ozm12BWfh8MMPHFGX0qGdkO1tQEHKR901eMSzQmFmxQ
+Oct 01 16:02:42 vosmhost1 pebble[518]: Pebble 2024/10/01 16:02:42 POST /authZ/ -> calling handler()
+Oct 01 16:02:42 vosmhost1 pebble[518]: Pebble 2024/10/01 16:02:42 POST /finalize-order/ -> calling handler()
+Oct 01 16:02:42 vosmhost1 pebble[518]: Pebble 2024/10/01 16:02:42 Order 7CwExkF4zTxowJPdkeSBRHO2RmSejv8HOevNwCj5m6s is fully authorized. Processing finalization
+Oct 01 16:02:42 vosmhost1 pebble[518]: Pebble 2024/10/01 16:02:42 Issued certificate serial 3b2a6a4637c27771 for order 7CwExkF4zTxowJPdkeSBRHO2RmSejv8HOevNwCj5m6s
+Oct 01 16:02:43 vosmhost1 pebble[518]: Pebble 2024/10/01 16:02:43 POST /my-order/ -> calling handler()
+Oct 01 16:02:43 vosmhost1 pebble[518]: Pebble 2024/10/01 16:02:43 POST /certZ/ -> calling handler()
+root@vosmhost1:~#
