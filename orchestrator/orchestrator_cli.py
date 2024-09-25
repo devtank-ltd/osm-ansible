@@ -15,6 +15,7 @@ import sys
 import time
 import weakref
 import yaml
+import json
 
 from collections import namedtuple
 from pathlib import Path
@@ -420,6 +421,10 @@ class osm_host_t:
         rows = do_db_query(self.db, SQL_HOST_GET_CUSTOMERS, (self.id,))
         return [row[0] for row in rows]
 
+    def get_osm_customer_passwords(self, customer_name):
+        if self.ssh_command(f"sudo /srv/osm-lxc/ansible/do-get-passwords.sh '{customer_name}'"):
+            return self.ssh_command(f"cat /tmp/{customer_name}_passwords.json")
+
 
 class osm_orchestrator_t:
     def __init__(self, config):
@@ -793,6 +798,17 @@ class osm_orchestrator_t:
                 print(f"\tCustomer: {customer}")
         return os.EX_OK
 
+    def get_customer_passwords(self, customer_name):
+        osm_host = self._find_osm_host_of(customer_name)
+        if osm_host:
+            pwds = osm_host.get_osm_customer_passwords(customer_name)
+            if pwds:
+                return pwds
+            print("Could not get passwords from customer")
+            return os.EX_CONFIG
+        print("Could not find customer host")
+        return os.EX_CONFIG
+
 
 def main():
     self_path = os.path.abspath(__file__)
@@ -848,6 +864,10 @@ def main():
             "list_customers : Lists all customers on all OSM Hosts",
             osm_orch.list_customers
         ),
+        "get_customer_passwords": cmd_entry(
+            "get_customer_passwords <name>: Return dictionary of passwords for a specified customer",
+            osm_orch.get_customer_passwords
+        )
     }
 
     args = parser.parse_args()
