@@ -801,8 +801,7 @@ class osm_orchestrator_t:
         return os.EX_OK
 
     def get_customer_passwords(self, customer_name):
-        osm_host = self._find_osm_host_of(customer_name)
-        if osm_host:
+        if (osm_host := self._find_osm_host_of(customer_name)):
             pwds = osm_host.get_osm_customer_passwords(customer_name)
             if pwds:
                 return os.EX_OK
@@ -878,7 +877,7 @@ def main():
             path_to_plugin = os.path.join(directory, plugin)
             files = os.listdir(path_to_plugin)
             for filename in files:
-                if filename == '__init__.py' or filename[-3:] != ".py":
+                if filename == '__init__.py' or not filename.endswith(".py"):
                     continue
                 module_path = os.path.join(path_to_plugin, filename)
                 spec = importlib.util.spec_from_file_location(filename, module_path)
@@ -886,16 +885,16 @@ def main():
                     module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(module)
                 except Exception as e:
-                    print("Error importing module: {filename}")
+                    print(f"Error importing module {filename} with error {e}")
                     continue
                 try:
                     cls = module.init_plugin()
                 except Exception as e:
-                    print("Could not init plugin: {e}")
+                    print(f"Could not init plugin: {e}")
                     continue
                 ver = None
                 try:
-                    ver = cls.get_version()
+                    ver = cls.get_version
                 except Exception as e:
                     print(f"Could not get plugin version with error: {e}")
                 if ver and ver == 1:
