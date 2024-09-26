@@ -423,7 +423,7 @@ class osm_host_t:
 
     def get_osm_customer_passwords(self, customer_name):
         if self.ssh_command(f"sudo /srv/osm-lxc/ansible/do-get-passwords.sh '{customer_name}'"):
-            return self.ssh_command(f"cat /tmp/{customer_name}_passwords.json")
+            return self.ssh_command(f"cat /tmp/{customer_name}_passwords.json && rm /tmp/{customer_name}_passwords.json")
 
 
 class osm_orchestrator_t:
@@ -803,7 +803,7 @@ class osm_orchestrator_t:
         if osm_host:
             pwds = osm_host.get_osm_customer_passwords(customer_name)
             if pwds:
-                return pwds
+                return os.EX_OK
             print("Could not get passwords from customer")
             return os.EX_CONFIG
         print("Could not find customer host")
