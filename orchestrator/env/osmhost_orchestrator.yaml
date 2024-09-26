@@ -183,6 +183,7 @@
                 database: 'pdns'
             pdns_domain: '{{ osm_domain }}'
             pdns_domain_id: 1
+            plugin_dir: /srv/osm-lxc/orchestrator/env/plugins
       copy:
         content: "{{ object | to_nice_yaml(indent=2) }}"
         dest: /srv/osm-lxc/orchestrator/config.yaml

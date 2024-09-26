@@ -16,6 +16,8 @@ import time
 import weakref
 import yaml
 import json
+import importlib.util
+import inspect
 
 from collections import namedtuple
 from pathlib import Path
@@ -869,6 +871,42 @@ def main():
             osm_orch.get_customer_passwords
         )
     }
+
+    directory = config["plugin_dir"]
+    if directory:
+        for plugin in os.listdir(directory):
+            path_to_plugin = os.path.join(directory, plugin)
+            files = os.listdir(path_to_plugin)
+            for filename in files:
+                if filename == '__init__.py' or filename[-3:] != ".py":
+                    continue
+                module_path = os.path.join(path_to_plugin, filename)
+                spec = importlib.util.spec_from_file_location(filename, module_path)
+                try:
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                except Exception as e:
+                    print("Error importing module: {filename}")
+                    continue
+                try:
+                    cls = module.init_plugin()
+                except Exception as e:
+                    print("Could not init plugin: {e}")
+                    continue
+                ver = None
+                try:
+                    ver = cls.get_version()
+                except Exception as e:
+                    print(f"Could not get plugin version with error: {e}")
+                if ver and ver == 1:
+                    try:
+                        cmds = cls.get_commands()
+                        commands.update(cmds)
+                        print(f"Updated commands with {cmds}")
+                    except Exception as e:
+                        print(f"Could not import commands from {cls} with error: {e}")
+                else:
+                    print(f"Unsupported plugin version: {ver} from plugin {cls}")
 
     args = parser.parse_args()
 
