@@ -866,7 +866,8 @@ def main():
             osm_orch.list_customers
         ),
         "get_customer_passwords": cmd_entry(
-            "get_customer_passwords <name>: Return dictionary of passwords for a specified customer",
+            "get_customer_passwords <name>: Return dictionary of \
+            passwords for a specified customer",
             osm_orch.get_customer_passwords
         )
     }
@@ -877,18 +878,22 @@ def main():
             path_to_plugin = os.path.join(directory, plugin)
             files = os.listdir(path_to_plugin)
             for filename in files:
-                if filename == '__init__.py' or not filename.endswith(".py"):
+                if filename == '__init__.py' \
+                or filename.endswith('base.py') \
+                or not filename.endswith(".py"):
                     continue
                 module_path = os.path.join(path_to_plugin, filename)
-                spec = importlib.util.spec_from_file_location(filename, module_path)
+                spec = importlib.util.spec_from_file_location(filename,
+                 module_path)
                 try:
                     module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(module)
                 except Exception as e:
-                    print(f"Error importing module {filename} with error {e}")
+                    print(f"Error importing module {filename} with \
+                        error {e}")
                     continue
                 try:
-                    cls = module.init_plugin()
+                    cls = module.init_plugin(osm_orch)
                 except Exception as e:
                     print(f"Could not init plugin: {e}")
                     continue
@@ -896,16 +901,19 @@ def main():
                 try:
                     ver = cls.get_version
                 except Exception as e:
-                    print(f"Could not get plugin version with error: {e}")
+                    print(f"Could not get plugin version with \
+                        error: {e}")
                 if ver and ver == 1:
                     try:
                         cmds = cls.get_commands()
                         commands.update(cmds)
                         print(f"Updated commands with {cmds}")
                     except Exception as e:
-                        print(f"Could not import commands from {cls} with error: {e}")
+                        print(f"Could not import commands from {cls} \
+                            with error: {e}")
                 else:
-                    print(f"Unsupported plugin version: {ver} from plugin {cls}")
+                    print(f"Unsupported plugin version: {ver} from \
+                        plugin {cls}")
 
     args = parser.parse_args()
 
