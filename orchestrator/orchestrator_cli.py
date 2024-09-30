@@ -424,7 +424,14 @@ class osm_host_t:
         return [row[0] for row in rows]
 
     def get_osm_customer_passwords(self, customer_name):
-        if self.ssh_command(f"sudo /srv/osm-lxc/ansible/do-get-passwords.sh '{customer_name}'"):
+        get_pwd_cmd = f'''
+            lxc-attach -n "${customer_name}"-svr \
+            -- bash -c 'cat /root/passwords.json' > \
+            /tmp/"${customer_name}"_passwords.json \
+            && chown osm_orchestrator \
+            /tmp/"${customer_name}"_passwords.json'''
+
+        if self.ssh_command(f"sudo /srv/osm-lxc/ansible/do-shell.sh '{get_pwd_cmd}'"):
             return self.ssh_command(f"cat /tmp/{customer_name}_passwords.json && rm /tmp/{customer_name}_passwords.json")
 
 
