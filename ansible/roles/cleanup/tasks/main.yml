@@ -33,6 +33,6 @@
         "Postgres": {{ postgres_passwords | to_json }},
         "Mosquitto": {"{{ customer_name }}": {{ mosquitto_passwd | to_json }}},
         "Grafana Admin": {"admin": {{ grafana_admin_password | to_json }}},
-        "Grafana Viewer": {"viewer": {{ grafana_viewer_password | to_json }}}"
+        "Grafana Viewer": {"viewer": {{ grafana_viewer_password | to_json }}}
       }
     dest: "/root/passwords.json"
