@@ -2,17 +2,17 @@ import os
 import sys
 from collections import namedtuple
 
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
-from example_plugin_base import example_plugin_base_t
+from plugin_base import plugin_base_t
 
-class example_plugin_t(example_plugin_base_t):
+class example_plugin_t(plugin_base_t):
     def __init__(self, parent):
         super().__init__(parent)
         self._version = 1
 
     @property
-    def get_version(self) -> int:
+    def version(self) -> int:
         return self._version
 
     def example_cmd(self, arg: str) -> int:

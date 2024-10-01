@@ -1,6 +1,6 @@
 import weakref
 
-class example_plugin_base_t:
+class plugin_base_t:
     def __init__(self, parent):
         self._parent = weakref.ref(parent)
 
@@ -9,7 +9,7 @@ class example_plugin_base_t:
         return self._parent()
 
     @property
-    def get_version(self) -> int:
+    def version(self) -> int:
         raise NotImplementedError
 
     def get_commands(self) -> dict:

@@ -876,6 +876,8 @@ def main():
     directory = config["plugin_dir"]
     if directory:
         for plugin in os.listdir(directory):
+            if plugin.endswith(".py"):
+                continue
             path_to_plugin = os.path.join(directory, plugin)
             files = os.listdir(path_to_plugin)
             for filename in files:
@@ -900,7 +902,7 @@ def main():
                     continue
                 ver = None
                 try:
-                    ver = cls.get_version
+                    ver = cls.version
                 except Exception as e:
                     print(f"Could not get plugin version with \
                         error: {e}")
