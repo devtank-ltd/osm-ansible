@@ -23,8 +23,7 @@ class example_plugin_t(example_plugin_base_t):
         cmd_entry = namedtuple("cmd_entry", ["help", "func"])
         self.commands = {
             "example_imported_cmd": cmd_entry(
-                "example_imported_cmd <arg> : call example function \
-                 with argument",
+                "example_imported_cmd <arg> : call example function with argument",
                  self.example_cmd
             )
         }
