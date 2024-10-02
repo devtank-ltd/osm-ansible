@@ -45,4 +45,4 @@
   command: "{{ item }}"
   with_items:
     - "nginx -t"
-    - "nginx -s reload"
+    - "systemctl restart nginx"

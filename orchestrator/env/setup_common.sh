@@ -119,11 +119,9 @@ ssh root@"$vm_ip" exit
 	ansible_user=root
 EOF
 
-[ -n "$(grep "$vm_ip" "$ANSIBLE_HOSTS")" ] || printf "$vm_ip\n$(cat "$ANSIBLE_HOSTS")" > "$ANSIBLE_HOSTS"
-
-# if ! grep -q "$vm_ip" "$ANSIBLE_HOSTS"; then
-#     sed -i 's/^/'"$vm_ip"'\n/' "$ANSIBLE_HOSTS"
-# fi
+if ! grep -q "$vm_ip" "$ANSIBLE_HOSTS"; then
+    sed -i '1 i\'"$vm_ip"'' "$ANSIBLE_HOSTS"
+fi
 
 if [[ "$OSM_HOST" == "orchestrator" ]]; then
     readonly ORCHESTRATOR_DIR="${HOSTS_DIR}/${OSM_HOST}"
@@ -139,7 +137,10 @@ if [[ "$OSM_HOST" == "orchestrator" ]]; then
     ansible_args="${ansible_args} orchestrator_public_key=${ORCHESTRATOR_PUB_KEY[0]} orchestrator_private_key=${ORCHESTRATOR_PRIV_KEY[0]} wg_ipaddr=10.10.1.1 wg_port=51820"
 fi
 
-ansible-playbook -v -e target="$vm_ip $ansible_args" -i "$ANSIBLE_HOSTS" "$ansible_file"
+ansible-playbook \
+    -v -e target="$vm_ip $ansible_args" \
+    -i "$ANSIBLE_HOSTS" "$ansible_file" \
+    --skip-tags "pebble"
 
 ssh root@"$vm_ip" 'ls /srv/osm-lxc/ansible' >/dev/null 2>&1
 rc=$?

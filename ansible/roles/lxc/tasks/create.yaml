@@ -80,7 +80,7 @@
     REQUESTS_CA_BUNDLE=devtank.minica.pem \
     certbot certonly --standalone \
     -d {{ container_hostname }} \
-    --server https://localhost:14000/dir \
+    --server https://10.10.1.1:14000/dir \
     --agree-tos \
     --no-verify-ssl \
     --http-01-port=5002 \

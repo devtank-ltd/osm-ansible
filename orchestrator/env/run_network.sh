@@ -22,9 +22,6 @@ declare -a machines
 
 mapfile -t machines < <(find "$HOSTS_DIR" -name "mac" -exec dirname {} \;)
 
-# DEBUG
-declare -p machines
-
 echo "========================================="
 info "Starting network"
 
