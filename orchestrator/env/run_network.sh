@@ -20,7 +20,7 @@ declare -i count=0
 declare -i host_count=0
 declare -a machines
 
-mapfile -t machines < <(find ./hosts -name "mac" -exec dirname {} \;)
+mapfile -t machines < <(find "$HOSTS_DIR" -name "mac" -exec dirname {} \;)
 
 # DEBUG
 declare -p machines
