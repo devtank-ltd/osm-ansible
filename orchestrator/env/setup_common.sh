@@ -10,7 +10,8 @@ readonly CHECKSUM_FILE="SHA512SUMS"
 source functions.sh
 source common.sh
 
-git_branch=$(git branch --show-current)
+# git_branch=$(git branch --show-current)
+git_branch="crypt_pwds"
 
 readonly DEBISO="${HOSTS_DIR}/${ISO_NAME}"
 

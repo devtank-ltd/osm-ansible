@@ -13,6 +13,7 @@
     - name: Extra packages
       apt:
         name:
+          - jq
           - python3-influxdb
           - python3-paho-mqtt
           - python3-urllib3

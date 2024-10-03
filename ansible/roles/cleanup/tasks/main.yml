@@ -24,6 +24,88 @@
   debug:
     msg: "Grafana admin for {{ customer_name }}: {{ grafana_admin_password }}\nGrafana viewer for {{ customer_name }}: {{ grafana_viewer_password }}"
 
+- name: Copy files for encryption
+  copy:
+    src: '{{ item }}'
+    dest: /tmp
+  loop:
+    - /srv/osm-lxc/orchestrator/encrypt.py
+    - /srv/osm-lxc/orchestrator/crypt.py
+
+- name: Encrypt influx passwords
+  shell: |
+    /usr/bin/python3 /tmp/encrypt.py -p '{{ pswd }}' -k '{{ priv_key }}' -v '{{ iv }}' -s '{{ salt }}' -e '{{ influx_passwords[item] }}'
+  loop:
+    - "chirpstack"
+    - "customer"
+    - "devtank"
+    - "grafana"
+  register: encrypted_influx_passwords
+
+- name: Create new encrypted influx passwords
+  set_fact:
+    enc_influx_passwords: "{{ enc_influx_passwords | default({}) | combine ({ item.item : item.stdout }) }}"
+  loop: "{{ encrypted_influx_passwords.results }}"
+
+- name: Encrypt influx token
+  shell: |
+    /usr/bin/python3 encrypt.py -p {{ pswd }} -k {{ priv_key }} -v {{ iv }} -s {{ salt }} -e {{ influx_new_token }}
+  args:
+    chdir: /tmp
+  register: encrypted_influx_new_token
+
+- name: Set encrypted influx token
+  set_fact:
+    enc_influx_new_token: "{{ encrypted_influx_new_token.stdout }}"
+
+- name: Encrypt postgres_passwords
+  shell: |
+    /usr/bin/python3 encrypt.py -p {{ pswd }} -k {{ priv_key }} -v {{ iv }} -s {{ salt }} -e {{ postgres_passwords[item] }}
+  args:
+    chdir: /tmp
+  loop:
+    - "chirpstack_as"
+    - "chirpstack_ns"
+  register: encrypted_postgres_passwords
+
+- name: Create new encrypted postgres passwords
+  set_fact:
+    enc_postgres_passwords: "{{ enc_postgres_passwords | default({}) | combine ({ item.item : item.stdout }) }}"
+  loop: "{{ encrypted_postgres_passwords.results }}"
+
+- name: Encrypt mosquitto password
+  shell: |
+    /usr/bin/python3 encrypt.py -p {{ pswd }} -k {{ priv_key }} -v {{ iv }} -s {{ salt }} -e {{ mosquitto_passwd }}
+  args:
+    chdir: /tmp
+  register: encrypted_mosquitto_passwd
+
+- name: Set encrypted mosquitto password
+  set_fact:
+    enc_mosquitto_passwd: "{{ encrypted_mosquitto_passwd.stdout }}"
+
+- name: Encrypt grafana admin password
+  shell: |
+    /usr/bin/python3 encrypt.py -p {{ pswd }} -k {{ priv_key }} -v {{ iv }} -s {{ salt }} -e {{ grafana_admin_password }}
+  args:
+    chdir: /tmp
+  register: encrypted_grafana_admin_password
+
+- name: Set encrypted grafana admin password
+  set_fact:
+    enc_grafana_admin_password: "{{ encrypted_grafana_admin_password.stdout }}"
+
+- name: Encrypt grafana_viewer_password
+  shell: |
+    /usr/bin/python3 encrypt.py -p {{ pswd }} -k {{ priv_key }} -v {{ iv }} -s {{ salt }} -e {{ grafana_viewer_password }}
+  args:
+    chdir: /tmp
+  register: encrypted_grafana_viewer_password
+
+- name: Set encrypted grafana viewer encrypted password
+  set_fact:
+    enc_grafana_viewer_password: "{{ encrypted_grafana_viewer_password.stdout }}"
+
 - name: Write passwords to JSON file
   vars:
     json_pwds: |
@@ -39,3 +121,18 @@
   ansible.builtin.copy:
     content: "{{ json_pwds | to_nice_json }}"
     dest: "/root/passwords.json"
+
+- name: Write encrypted passwords to JSON file
+  vars:
+    json_pwds: |
+      {
+        "Influx": {{ enc_influx_passwords | to_json }},
+        "Influx Token": {{ enc_influx_new_token | to_json }},
+        "Postgres": {{ enc_postgres_passwords | to_json }},
+        "Mosquitto": {"{{ customer_name }}": {{ enc_mosquitto_passwd | to_json }}},
+        "Grafana Admin": {"admin": {{ enc_grafana_admin_password | to_json }}},
+        "Grafana Viewer": {"viewer": {{ enc_grafana_viewer_password | to_json }}}
+      }
+  ansible.builtin.copy:
+    content: "{{ json_pwds | to_nice_json }}"
+    dest: "/root/passwords-v2.json"

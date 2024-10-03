@@ -4,6 +4,9 @@
 import argparse
 import crcmod  # type: ignore
 import fcntl
+import importlib.util
+import inspect
+import json
 import logging
 import os
 import paramiko
@@ -15,16 +18,16 @@ import sys
 import time
 import weakref
 import yaml
-import json
-import importlib.util
-import inspect
 
 from collections import namedtuple
 from pathlib import Path
 from typing import Union
 
+from crypt import MasterCrypt, Passwords
+
 
 CONFIG_FILE = "config.yaml"
+MASTER_FILE = "master.json"
 WG_CONF_FILE = "/etc/wireguard/wg0.conf"
 PROMETHEUS_CONF_FILE = "/etc/prometheus/prometheus.yml"
 WG_PEER_TMPL = """
@@ -175,6 +178,7 @@ class osm_host_t:
         self._ssh_ref = None
         self._dns_entry = None
         self.logger = logging.getLogger(self.name)
+
 
     @property
     def db(self):
@@ -462,9 +466,15 @@ class osm_host_t:
             return False
 
         failed = True
+        enc_data = self._orchestrator.crypt.encryption_data
+        key = enc_data["priv key"]
+        iv = enc_data["iv"]
+        pswd = enc_data["password"]
+        salt = enc_data["salt"]
         if self.ssh_command(
                 'sudo /srv/osm-lxc/ansible/do-create-container.sh '
-                f'"{customer_name}" {mqtt_port}'
+                f'"{customer_name}" {mqtt_port} "" '
+                f'"{pswd}" "{key}" "{iv}" "{salt}"'
         ):
             start_end = time.monotonic() + timeout
             while time.monotonic() < start_end:
@@ -506,14 +516,29 @@ class osm_host_t:
         )
         return False
 
+    def get_osm_customer_passwords(self, customer_name: str) -> dict:
 
-    def get_osm_customer_passwords(self, customer_name):
-        get_pwd_cmd = "'cat /root/passwords.json'"
-        lines = self.ssh_read_command(f'sudo /srv/osm-lxc/ansible/do-shell.sh "{customer_name}-svr" {get_pwd_cmd}')
+        def walk_encrypted_dict(d: dict) -> None:
+            if isinstance(d, dict):
+                for k, v in d.items():
+                    if isinstance(v, str):
+                        d[k] = self._orchestrator.crypt.decrypt(v)
+                    else:
+                        walk_encrypted_dict(v)
+
+        get_pwd_cmd = "'cat /root/passwords-v2.json'"
+        lines = self.ssh_read_command(
+            f'sudo /srv/osm-lxc/ansible/do-shell.sh "{customer_name}-svr" '
+            f'{get_pwd_cmd}'
+        )
         try:
-            return json.loads("".join(lines))
+            pwds_json = json.loads("".join(lines))
+            walk_encrypted_dict(pwds_json)
+            return pwds_json
         except json.decoder.JSONDecodeError:
-            self.logger.error(f"Failed to decode {customer_name} password json.")
+            self.logger.error(
+                f"Failed to decode {customer_name} password json."
+            )
             return {}
 
 
@@ -526,6 +551,7 @@ class osm_orchestrator_t:
         self._pdns_db = pymysql.connect(**pdns_config, connect_timeout=10)
         self.logger = logging.getLogger("OSMORCH")
         self._ipaddr = None
+        self.crypt = MasterCrypt(MASTER_FILE)
 
     @property
     def ipaddr(self) -> Union[str, None]:

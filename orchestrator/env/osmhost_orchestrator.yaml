@@ -189,6 +189,13 @@
         content: "{{ object | to_nice_yaml(indent=2) }}"
         dest: /srv/osm-lxc/orchestrator/config.yaml
 
+    - name: Generate master encryption data
+      shell: |
+        /usr/bin/python3 crypt.py
+      args:
+        chdir: /srv/osm-lxc/orchestrator
+        creates: master.json
+
     - name: Restart PDNS
       service:
         name: pdns.service
