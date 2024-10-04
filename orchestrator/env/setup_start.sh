@@ -6,13 +6,7 @@ parse_config "$config"
 # Reset arguments
 set --
 
-# [[ -f "$config" ]] && {
-#     info "Loading : $config"
-#     source "$config"
-# } || die "No config given."
-
 edo mkdir -p "$HOSTS_DIR"
-
 
 [[ -n "$VOSM_HOSTBR" ]] || die "VOSM_HOSTBR not set"
 [[ -n "$HOSTS_DIR" ]] || die "HOSTS_DIR not set"

@@ -22,6 +22,8 @@
           - pdns-backend-mysql
           - prometheus
           - prometheus-alertmanager
+          - pebble
+          - golang-go
           - python3
           - python3-crcmod
           - python3-paramiko
@@ -35,12 +37,93 @@
         repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
         dest: /srv/osm-lxc
         single_branch: yes
-        version: wg_config
+        version: main
+
+    - name: "Prepare MiniCA"
+      block:
+        - name: "Fetch MiniCA sources from github"
+          git:
+            repo: https://github.com/jsha/minica.git
+            dest: /srv/osm-lxc/utils/minica
+            single_branch: yes
+            version: master
+
+        - name: "Build MiniCA"
+          shell: go build
+          args:
+            chdir: /srv/osm-lxc/utils/minica
+
+    # TODO: move names to variables
+    - name: "Generate key and cert"
+      shell: |
+        ./minica -ca-cert devtank.minica.pem -ca-key devtank.minica.key.pem --domains localhost,{{ osm_domain }}
+      args:
+        chdir: /srv/osm-lxc/utils/minica
+
+    - name: "Prepare pebble configuration"
+      block:
+        - name: "Create pebble configuration directory"
+          file:
+            path: /srv/osm-lxc/configs/pebble/
+            state: directory
+
+        - name: "Create pebble configuration file"
+          copy:
+            dest: "/srv/osm-lxc/configs/pebble/pebble-config.json"
+            content: |
+              {
+                "pebble": {
+                  "listenAddress": "0.0.0.0:14000",
+                  "managementListenAddress": "0.0.0.0:15000",
+                  "certificate": "/srv/osm-lxc/configs/pebble/localhost/cert.pem",
+                  "privateKey": "/srv/osm-lxc/configs/pebble/localhost/key.pem",
+                  "httpPort": 5002,
+                  "tlsPort": 5001,
+                  "ocspResponderURL": "",
+                  "externalAccountBindingRequired": false
+                }
+              }
+
+    # TODO: bash for names expansion?
+    - name: "Copy certificates to pebble configuration directory"
+      shell: |
+        cp devtank.minica.pem /srv/osm-lxc/configs/pebble/
+        cp devtank.minica.key.pem /srv/osm-lxc/configs/pebble/
+        cp -r localhost /srv/osm-lxc/configs/pebble/
+      args:
+        chdir: /srv/osm-lxc/utils/minica
+
+    - name: "Install pebble systemd service"
+      copy:
+        src: /srv/osm-lxc/orchestrator/env/dist/systemd/pebble.service
+        dest: /etc/systemd/system/
+        remote_src: yes
+
+    - name: "Install pebble systemd service"
+      copy:
+        src: /srv/osm-lxc/orchestrator/env/dist/systemd/pebble-challtestsrv.service
+        dest: /etc/systemd/system/
+        remote_src: yes
 
     - name: Stop PDNS
       service:
         name: pdns.service
         state: stopped
+
+    - name: "Start pebble-challtestsrv"
+      systemd_service:
+        name: pebble-challtestsrv
+        state: started
+        daemon_reload: true
+        enabled: true
+      tags: pebble
+
+    - name: "Start pebble ACME"
+      systemd_service:
+        name: pebble
+        state: restarted
+        enabled: true
+      tags: pebble
 
     - name: "Create PDNS DB Password"
       ansible.builtin.set_fact:

@@ -17,7 +17,7 @@ case "$1" in
         if [[ -e "/sys/class/net/${VOSM_HOSTBR}" ]]; then
             osm_bridge_ip="$(get_ip4_addr "$VOSM_HOSTBR")"
             [[ "${OSM_SUBNET}.1" = "$osm_bridge_ip" ]] || die "IP address of bridge $osm_bridge_ip doesn't match ${OSM_SUBNET}.1"
-            info "$VOSM_HOSTBR already open."
+            warn "$VOSM_HOSTBR already open."
             exit 0
         fi
 
@@ -61,9 +61,11 @@ EOF
             echo "$OSM_ORCHESTRATOR_MAC" > "${HOSTS_DIR}/orchestrator/mac"
         fi
 
-        echo "Orchestrator MAC: $OSM_ORCHESTRATOR_MAC"
+        info "Orchestrator MAC: $OSM_ORCHESTRATOR_MAC"
 
-        [[ ! -e "$HOSTS_DIR/$VOSM_HOSTBR.leasefile" ]] || sed -i "/${OSM_SUBNET}.2/d" "${HOSTS_DIR}/${VOSM_HOSTBR}.leasefile"
+        [[ ! -e "$HOSTS_DIR/$VOSM_HOSTBR.leasefile" ]] || {
+            sed -i "/${OSM_SUBNET}.2/d" "${HOSTS_DIR}/${VOSM_HOSTBR}.leasefile"
+        }
 
         dnsmasq_params=(
             --pid-file="$HOSTS_DIR/$VOSM_HOSTBR.pid"
@@ -95,6 +97,6 @@ EOF
         ip link del "$VOSM_HOSTBR" type bridge
         ;;
     *)
-        echo "Unknown operation, options are: open, close"
+        warn "Unknown operation, options are: open, close"
         ;;
 esac

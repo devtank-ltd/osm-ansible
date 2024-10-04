@@ -1,10 +1,10 @@
 # -*- mode: sh; sh-shell: bash; -*-
 
 # COLOURS
-RED="$(tput setaf 9)"
+RED="$(tput setaf 1)"
 GREEN="$(tput setaf 2)"
-YELLOW="$(tput setaf 11)"
-RESET="$(tput setaf 15)"
+YELLOW="$(tput setaf 3)"
+RESET="$(tput sgr0)"
 
 # mandatory config variables
 readonly CONF_VARS=(
@@ -46,7 +46,7 @@ edo() {
 yesno() {
     [[ -t 0 ]] || return 0
     local resp
-    read -r -p "$1 [y/N] " resp
+    read -r -p "$1 [${GREEN}y${RESET}/${RED}N${RESET}] " resp
     [[ "$resp" == [yY] ]] || exit 1
 }
 
@@ -54,10 +54,7 @@ _check_osm_vars() {
     local -n ref=$1
     local var="$2"
 
-    if [[ -v ref[$var] && -n "${ref[$var]}" ]]; then
-        info "$var=${ref[$var]}"
-        return
-    else
+    if [[ ! -v ref[$var] && -z "${ref[$var]}" ]]; then
         warn "The variable '$var' is not set"
         return 1
     fi
@@ -86,15 +83,50 @@ parse_config() {
     for v in "${CONF_VARS[@]}"; do
         if ! _check_osm_vars vars "$v"; then
             die "Unable to proceed without '$v' variable"
+        elif [[ "${vars[$v]}" =~ \<.*\> ]]; then
+            warn "It seems that variable '$v' has default value '${vars[$v]}'"
+            yesno "Do you want to proceed? "
         fi
     done
 
-    yesno "Is configuration correct? "
+    warn "The following configuration will be used:"
+    for v in "${!vars[@]}"; do
+        info "${v}=${vars[$v]}"
+    done
+
+    yesno "Is this correct? "
 
     # make global variables
     for k in "${!vars[@]}"; do
         declare -g "$k"="${vars[$k]}"
     done
+}
+
+print_hosts_lease() {
+    local hosts_dir="$1"
+    local -a hosts
+    local leasefile
+
+    if [[ -d "$hosts_dir" ]]; then
+        leasefile="$(find "$hosts_dir" -name '*.leasefile' -type f -printf '%f\n')"
+    fi
+
+    if [[ ! -f "${hosts_dir}/${leasefile}" ]]; then
+        warn "Unable to find '$leasefile'"
+    else
+        leasefile="${hosts_dir}/${leasefile}"
+    fi
+
+    # get "hostname|ip address" pairs
+    mapfile -t hosts < <(sed -rn 's/.*\s([0-9]{1,3}\.[0-9]{1,3}.*).*\s([[:alnum:]].*)\s.*/\2|\1/p' "${leasefile}")
+
+    if (( ${#hosts[@]} > 0 )); then
+        for host in "${hosts[@]}"; do
+            printf "%-25s: %s\n" "${RED}${host%|*}${RESET}" "${YELLOW}${host#*|}${RESET}"
+        done
+    else
+        warn "No hosts found"
+    fi
 }
 
 configure_qemu_vm() {

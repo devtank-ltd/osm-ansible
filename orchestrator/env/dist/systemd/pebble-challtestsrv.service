@@ -1,0 +1,17 @@
+[Unit]
+Description=pebble-challtestsrv ACME challenge mock server
+After=network.target
+Before=pebble.service
+
+[Service]
+Environment=DEFAULT_IP=10.0.3.1
+
+Type=simple
+Restart=always
+RestartSec=1
+User=root
+ExecStart=/usr/bin/pebble-challtestsrv -defaultIPv4 ${DEFAULT_IP} -http01 "" -https01 "" -tlsalpn01 ""
+
+[Install]
+RequiredBy=pebble.service
+WantedBy=multi-user.target

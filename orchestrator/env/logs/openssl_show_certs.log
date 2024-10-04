@@ -1,0 +1,92 @@
+vintelehator@beast:~$ openssl s_client -CAfile /tmp/root.crt --showcerts -servername fake.co.uk customer1.fake.co.uk:443
+CONNECTED(00000003)
+depth=0 CN = localhost
+verify error:num=18:self-signed certificate
+verify return:1
+depth=0 CN = localhost
+verify return:1
+---
+Certificate chain
+ 0 s:CN = localhost
+   i:CN = localhost
+   a:PKEY: rsaEncryption, 4096 (bit); sigalg: RSA-SHA256
+   v:NotBefore: Oct  1 14:37:37 2024 GMT; NotAfter: Oct  2 14:37:37 2024 GMT
+-----BEGIN CERTIFICATE-----
+MIIFCTCCAvGgAwIBAgIUDSSbIE4E3H+Q9x8bZrc4GucFq94wDQYJKoZIhvcNAQEL
+BQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI0MTAwMTE0MzczN1oXDTI0MTAw
+MjE0MzczN1owFDESMBAGA1UEAwwJbG9jYWxob3N0MIICIjANBgkqhkiG9w0BAQEF
+AAOCAg8AMIICCgKCAgEA5OQwjFHyPdnMgJs83nNCR2+Nr1ogJuHSS1eciL7DzZNb
+hrhDn2RXzs4dN+NbMyAcKqtVc7XLGOqvBF6rGJ84ijsRbjWf9gCzCVG155Akq/Ay
+4LKmoVVaZggDmcfyA9aW/qqs8MkYx8NceeexplQNdHK9DrCP/yq1WlxkIzvi6plr
+TpnqNdGTxp9VSoBC4qRLArihVo0usHSIJkIWzf3avcxPZvfz6AVpL5kWkI+VUDx0
+5p1y/H8z42JcxSp4BZYHMYhBgXVUiCmIX0IqCSnzKwZRfrk34f/DyZg6Q1GWdDHK
+OCsPeMZkNjYYk/Et7UXwmMPLHRyVWpDx2NojdPYIVBSXJp3xX7QXXd8rOWGr39Qb
+7POeYxOTPvYBDfubdiSSqWqVtNPtVgfQ4S0k6qs/uE3LxPIOe5LXslxnVZQjl1LK
+Z5JQ5U+aZyZ5cUrWOxZDcIf9E5OOT+KRVwX1Qz90tby7AjDnMBtfEb8Bj7RjtHWw
+kahmSVMhxbNhmoPL7MsQbj8B7jofeEltF4VMUvH1bSnmk8ExVmxlfIWal0gsQQBc
+w5CTYTfG8FvHaYuTU3cNygT1OciOofxpa2oycmnbKUlWp2VX1FwLYrGkbuesy7kH
+3ijfdqDbA/759WhjUJr9xpttxLmLD2FWxPjyG+YDVLVDo4n9malCpeH94NwU3vEC
+AwEAAaNTMFEwHQYDVR0OBBYEFJJTelnd8YN7QoYhYtKPyvtFs/T0MB8GA1UdIwQY
+MBaAFJJTelnd8YN7QoYhYtKPyvtFs/T0MA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZI
+hvcNAQELBQADggIBAHzvlLKmtk+Qg0WOFjfAma8rDq/KFcdHdHg3oxEkFHU3lR8+
+dUwH4BNNCiHYMfyj8IrUwyUcgg9LtnoAnwMxHcHHwzjRR3xMeVCBrLgzAHGU/JZH
+i8Mkz6bbJeNly8gikGyz0toEhML1oBavk5ZjC9x2wFM4IxAUsMZksl/1LjGqu2ii
+ZUEbBT7nOJ9GECk5st9HSqD9kztV4f9tqSFpGBNzNHdrZdlG3knCotgSFTqCW7pV
+7o51jeCLLdiluF0gcNLdEXRjSFXvJXOaUhiOnsTaOpL2RU9LS13stEPQpb1ixPX8
+M4GNtFamHuPzVrwgrW49XUBJYszXOjgkos0z1xD00mKGmuxQBtcSXKo5U9pUZFV4
+FhyOtqE9tvrtDbI9YtwyU81t4M0Z/8W58x68+E29RSaiQrw13JQfLc3PUlmZmO/y
+Ux/Ym4PLQV80xZxWg5jXCpLMARnouIv/grETIt2XnM86NmTu4xyz7sEvwcA1N79Q
+0xJP+EV0zt4RBIw4mo1xZs4t6aXK8+NnmBYHSSZc4lfIHH7YnIOy8O+8QZATDAHC
+DQbHP3JgFFKJlgKxFveU6rb+43alNXcf2NLnqpkoirGVOjMQ/3tK0xEGdd2cMjAc
+PFLL1yVTbyBT35n3DfHxgcvT2YE6fHSZ3ekrf2YPpIXLBdMtoX2Lf4YuodkT
+-----END CERTIFICATE-----
+---
+Server certificate
+subject=CN = localhost
+issuer=CN = localhost
+---
+No client certificate CA names sent
+Peer signing digest: SHA256
+Peer signature type: RSA-PSS
+Server Temp Key: X25519, 253 bits
+---
+SSL handshake has read 2210 bytes and written 405 bytes
+Verification error: self-signed certificate
+---
+New, TLSv1.2, Cipher is ECDHE-RSA-AES256-GCM-SHA384
+Server public key is 4096 bit
+Secure Renegotiation IS supported
+Compression: NONE
+Expansion: NONE
+No ALPN negotiated
+SSL-Session:
+    Protocol  : TLSv1.2
+    Cipher    : ECDHE-RSA-AES256-GCM-SHA384
+    Session-ID: FB63A9536B1A1E753101AAB91AB53211EC277CABE9573572059C572AEA61BADE
+    Session-ID-ctx:
+    Master-Key: F05C12A0786589F30210D8A0DBAA07E1044B7F14A0CCD11914F3ACB7A6DEE92D6475C18BC02771CDBD7A646D9BA8E9FE
+    PSK identity: None
+    PSK identity hint: None
+    SRP username: None
+    TLS session ticket lifetime hint: 600 (seconds)
+    TLS session ticket:
+    0000 - 49 04 09 55 cc 44 d9 61-6e 2d 2c d3 22 e2 77 62   I..U.D.an-,.".wb
+    0010 - cd fe 8f d5 92 33 bb 24-fd c9 ad be 9e b8 d9 0f   .....3.$........
+    0020 - f9 30 61 a3 4d 43 b2 fa-74 7e e7 e5 ee ea aa 67   .0a.MC..t~.....g
+    0030 - 94 99 7d 9c 4c 76 cb 27-ba 15 3a 92 5e 91 26 89   ..}.Lv.'..:.^.&.
+    0040 - d3 37 3c 26 0e 1b 34 2b-ad 9e 8c 58 e8 df 37 fd   .7<&..4+...X..7.
+    0050 - e5 bc 81 b8 e3 5f 5c 1f-81 ec 8e bb a7 76 03 24   ....._\......v.$
+    0060 - 45 70 45 86 72 19 47 aa-24 7f 6a 20 12 93 90 1f   EpE.r.G.$.j ....
+    0070 - 8b 5f 49 ad ec 85 75 87-3f 7f cf a6 30 2b a0 30   ._I...u.?...0+.0
+    0080 - 63 49 09 59 cd 81 56 8d-57 40 58 d0 fe 88 07 3b   cI.Y..V.W@X....;
+    0090 - 96 3a 36 54 1a bb bc 6c-09 86 03 f7 a7 d3 18 9e   .:6T...l........
+    00a0 - 65 be c8 9f 49 84 9a 0c-54 18 61 d4 d7 bd b7 7a   e...I...T.a....z
+    00b0 - 70 90 58 96 7e 9c 32 1e-5b 7c 40 b6 b2 bb 46 ea   p.X.~.2.[|@...F.
+
+    Start Time: 1727796708
+    Timeout   : 7200 (sec)
+    Verify return code: 18 (self-signed certificate)
+    Extended master secret: yes
+---
+closed
+vintelehator@beast:~$

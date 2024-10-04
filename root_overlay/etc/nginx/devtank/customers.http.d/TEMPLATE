@@ -8,6 +8,8 @@ map $http_upgrade $connection_upgrade {
 server {
 	server_name CUSTOMERNAME.OSMDOMAIN;
 	listen 443 ssl;
+        ssl_certificate      "/etc/letsencrypt/live/CUSTOMERNAME.OSMDOMAIN/fullchain.pem";
+        ssl_certificate_key  "/etc/letsencrypt/live/CUSTOMERNAME.OSMDOMAIN/privkey.pem";
 
 	location / {
 
@@ -30,6 +32,8 @@ server {
 server {
 	server_name CUSTOMERNAME-chirpstack.OSMDOMAIN;
 	listen 443 ssl;
+        ssl_certificate      "/etc/letsencrypt/live/CUSTOMERNAME.OSMDOMAIN/fullchain.pem";
+        ssl_certificate_key  "/etc/letsencrypt/live/CUSTOMERNAME.OSMDOMAIN/privkey.pem";
 
 	location / {
 
@@ -47,6 +51,8 @@ server {
 server {
 	server_name CUSTOMERNAME-mqtt.OSMDOMAIN;
 	listen 443 ssl;
+        ssl_certificate      "/etc/letsencrypt/live/CUSTOMERNAME.OSMDOMAIN/fullchain.pem";
+        ssl_certificate_key  "/etc/letsencrypt/live/CUSTOMERNAME.OSMDOMAIN/privkey.pem";
 
 	location / {
 
@@ -62,6 +68,8 @@ server {
 server {
 	server_name CUSTOMERNAME-influx.OSMDOMAIN;
 	listen 443 ssl;
+        ssl_certificate      "/etc/letsencrypt/live/CUSTOMERNAME.OSMDOMAIN/fullchain.pem";
+        ssl_certificate_key  "/etc/letsencrypt/live/CUSTOMERNAME.OSMDOMAIN/privkey.pem";
 
 	location / {
 

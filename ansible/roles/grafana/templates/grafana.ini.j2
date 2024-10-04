@@ -41,7 +41,7 @@
 ;http_port = 3000
 
 # This is needed for reverse proxying to work correctly
-domain = {{ customer_domain }}
+domain = {{ customer_name }}.{{ le_domain }}
 
 # Redirect to correct domain if host header does not match domain
 # Prevents DNS rebinding attacks
