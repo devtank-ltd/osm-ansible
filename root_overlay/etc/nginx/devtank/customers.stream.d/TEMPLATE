@@ -1,4 +1,6 @@
 server {
 	listen CUSTOMER_MQTT ssl;
+		ssl_certificate      "/etc/letsencrypt/live/CUSTOMERNAME.OSMDOMAIN/fullchain.pem";
+		ssl_certificate_key  "/etc/letsencrypt/live/CUSTOMERNAME.OSMDOMAIN/privkey.pem";
 	proxy_pass CUSTOMERNAME-svr:1883;
 }

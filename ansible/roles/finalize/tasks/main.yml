@@ -1,8 +1,4 @@
 ---
-
-- name: "Get Domain"
-  import_tasks: ../../domain.yaml
-
 - name: "Create NGINX HTTP config"
   ansible.builtin.copy:
     src: /etc/nginx/devtank/customers.http.d/TEMPLATE
@@ -37,6 +33,40 @@
     regexp: 'CUSTOMERNAME'
     replace: "{{ customer_name }}"
 
+- name: "Setup NGINX MQTT Container SSL config"
+  ansible.builtin.replace:
+    path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+    regexp: 'OSMDOMAIN'
+    replace: "{{ le_domain }}"
+
+- name: Set default value to Undefined, if the variable is not defined
+  set_fact:
+    test_lets_encrypt: "{{ lookup('ansible.builtin.env', 'TEST_LETS_ENCRYPT', default=False) }}"
+
+- name: Set certbot to use Pebble instance for testing cerbot in test/dev environment.
+  set_fact:
+     certbot_prefix : "REQUESTS_CA_BUNDLE=devtank.minica.pem "
+     certbot_postfix : "--server https://10.10.1.1:14000/dir \
+      --agree-tos \
+      --no-verify-ssl \
+      --http-01-port=5002 \
+      --register-unsafely-without-email"
+    when: test_lets_encrypt
+
+- name: Set certbot to normal:
+  set_fact:
+     certbot_prefix : ""
+     certbot_postfix : ""
+    when: not test_lets_encrypt
+
+- name: Request certificate for customer
+  shell: |
+    {{ certbot_prefix }}certbot certonly --nginx \
+    -d {{ customer_name }}.{{ le_domain }} \
+    -d {{ customer_name }}-chirpstack.{{ le_domain }} \
+    -d {{ customer_name }}-mqtt.{{ le_domain }} \
+    -d {{ customer_name }}-influx.{{ le_domain }} \
+    {{ certbot_postfix }}
 
 - name: "Open UFW port"
   command: "ufw allow {{ mqtt_port }}"

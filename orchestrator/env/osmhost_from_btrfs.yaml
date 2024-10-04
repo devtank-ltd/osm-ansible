@@ -17,5 +17,5 @@
 
     - name: Ready for faking customer setup
       shell: |
-        echo "SKIP_LETS_ENCRYPT=1" >> /etc/environment
-        echo "Defaults env_keep += SKIP_LETS_ENCRYPT" >> /etc/sudoers.d/osm-anisble
+        echo "TEST_LETS_ENCRYPT=1" >> /etc/environment
+        echo "Defaults env_keep += TEST_LETS_ENCRYPT" >> /etc/sudoers.d/osm-anisble
