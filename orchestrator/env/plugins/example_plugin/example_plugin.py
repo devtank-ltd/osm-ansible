@@ -9,11 +9,11 @@ from plugin_base import plugin_base_t
 class example_plugin_t(plugin_base_t):
     def __init__(self, parent):
         super().__init__(parent)
-        self._version = 1
+        self._api_version = 1
 
     @property
-    def version(self) -> int:
-        return self._version
+    def api_version(self) -> int:
+        return self._api_version
 
     def example_cmd(self, arg: str) -> int:
         print(f"Example cmd - you supplied the argument: {arg}")

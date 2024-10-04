@@ -345,6 +345,22 @@ class osm_host_t:
             return False
         return True
 
+    def ssh_read_command(self, cmd):
+        ssh = self.get_ssh()
+        if not ssh:
+            return False
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+        stdout_r = []
+        error_code = ssh_stdout.channel.recv_exit_status()
+        if error_code:
+            self.logger.error(f"Command '{cmd}' failed : {error_code}:{os.strerror(error_code)}")
+            for line in ssh_stderr:
+                self.logger.error(line.rstrip())
+            return False
+        for line in ssh_stdout:
+            stdout_r += [line.rstrip()]
+        return stdout_r
+
     def can_ping_customer_container(self, customer_name: str) -> bool:
         return self.ssh_command(f"ping -c1 {customer_name}-svr")
 
@@ -424,9 +440,13 @@ class osm_host_t:
         return [row[0] for row in rows]
 
     def get_osm_customer_passwords(self, customer_name):
-        get_pwd_cmd = f"lxc-attach -n {customer_name}-svr -- bash -c 'cat /root/passwords.json' > /tmp/{customer_name}_passwords.json && chown osm_orchestrator /tmp/{customer_name}_passwords.json"
-        if self.ssh_command(f'sudo /srv/osm-lxc/ansible/do-shell.sh "{get_pwd_cmd}"'):
-            return self.ssh_command(f"cat /tmp/{customer_name}_passwords.json && rm /tmp/{customer_name}_passwords.json")
+        get_pwd_cmd = "'cat /root/passwords.json'"
+        lines = self.ssh_read_command(f'sudo /srv/osm-lxc/ansible/do-shell.sh "{customer_name}-svr" "{get_pwd_cmd}"')
+        try:
+            return json.loads("".join(lines))
+        except json.decoder.JSONDecodeError:
+            self.logger.error(f"Failed to decode {customer_name} password json.")
+            return {}
 
 
 class osm_orchestrator_t:
@@ -902,9 +922,9 @@ def main():
                     continue
                 ver = None
                 try:
-                    ver = cls.version
+                    ver = cls.api_version
                 except Exception as e:
-                    print(f"Could not get plugin version with \
+                    print(f"Could not get plugin API version with \
                         error: {e}")
                 if ver and ver == 1:
                     try:

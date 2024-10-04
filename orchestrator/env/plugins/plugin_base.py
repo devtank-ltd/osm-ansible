@@ -9,7 +9,7 @@ class plugin_base_t:
         return self._parent()
 
     @property
-    def version(self) -> int:
+    def api_version(self) -> int:
         raise NotImplementedError
 
     def get_commands(self) -> dict:
