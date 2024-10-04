@@ -4,4 +4,3 @@
     delete_container: True
   roles:
     - { role: lxc, tags: lxc }
-    - { role: letsencrypt, tags: letsencrypt }
