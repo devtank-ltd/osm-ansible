@@ -28,6 +28,5 @@ le_cert_name=$(ls /etc/letsencrypt/live/ | grep -v README | head -n 1)
 ansible-playbook -v -i hosts -e "customer_name=${customer_name} mqtt_port=${mqtt_port} le_domain=${domain}" create-container.yaml
 
 echo "${customer_name}-svr" >> hosts
-customer_domain="${customer_name}.${domain}"
 
-ansible-playbook -v -i hosts -e "target=${customer_name}-svr customer_name=${customer_name} customer_domain=${customer_domain} le_domain=${domain}" provision-container.yaml
+ansible-playbook -v -i hosts -e "target=${customer_name}-svr customer_name=${customer_name} le_domain=${domain}" provision-container.yaml
