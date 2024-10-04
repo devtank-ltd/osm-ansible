@@ -66,7 +66,7 @@ for n in $(seq 0 ${#host_name[@]}); do
         )
         ssh root@"$ip_addr" "echo $orchestrator_pub >> /root/.ssh/authorized_keys"
         info "Request certificate from $orchestrator_ip for ${name}.${OSM_DOMAIN} domain."
-	ssh root@"$ip_addr" "REQUESTS_CA_BUNDLE=devtank.minica.pem certbot ${REQ_PEBBLE_CRT_ARGS[*]}"
+        ssh root@"$ip_addr" "REQUESTS_CA_BUNDLE=devtank.minica.pem certbot ${REQ_PEBBLE_CRT_ARGS[*]}"
 
         info "Put $name SSH host keys to Orchestrator"
         ssh root@"$orchestrator_ip" "ssh-keyscan -H $ip_addr >> /root/.ssh/known_hosts"
