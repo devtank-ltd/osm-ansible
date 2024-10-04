@@ -823,12 +823,15 @@ class osm_orchestrator_t:
 
     def get_customer_passwords(self, customer_name):
         if (osm_host := self._find_osm_host_of(customer_name)):
-            pwds = osm_host.get_osm_customer_passwords(customer_name)
-            if pwds:
-                return os.EX_OK
-            print("Could not get passwords from customer")
-            return os.EX_CONFIG
-        print("Could not find customer host")
+            return osm_host.get_osm_customer_passwords(customer_name)
+        return {}
+
+    def cli_customer_passwords(self, customer_name):
+        pws = self.get_customer_passwords(customer_name)
+        if pws:
+            print(json.dumps(pws, indent=4))
+            return os.EX_OK
+        self.logger.warning(f'No passwords for "{customer_name}"')
         return os.EX_CONFIG
 
 
@@ -889,7 +892,7 @@ def main():
         "get_customer_passwords": cmd_entry(
             "get_customer_passwords <name>: Return dictionary of \
             passwords for a specified customer",
-            osm_orch.get_customer_passwords
+            osm_orch.cli_customer_passwords
         )
     }
 
