@@ -15,7 +15,7 @@ server {
 
 		# This stops Grafana origin errors
 		proxy_set_header Host $http_host;
-		proxy_pass "http://CUSTOMERNAME.OSMDOMAIN:3000";
+		proxy_pass "http://CUSTOMERNAME-svr:3000";
 	}
 
 	location /api/live/ {
@@ -23,7 +23,7 @@ server {
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
 		proxy_set_header Host $http_host;
-		proxy_pass "http://CUSTOMERNAME.OSMDOMAIN:3000";
+		proxy_pass "http://CUSTOMERNAME-svr:3000";
 	}
 
 }
