@@ -444,7 +444,7 @@ class osm_host_t:
 
     def get_osm_customer_passwords(self, customer_name):
         get_pwd_cmd = "'cat /root/passwords.json'"
-        lines = self.ssh_read_command(f'sudo /srv/osm-lxc/ansible/do-shell.sh "{customer_name}-svr" "{get_pwd_cmd}"')
+        lines = self.ssh_read_command(f'sudo /srv/osm-lxc/ansible/do-shell.sh "{customer_name}-svr" {get_pwd_cmd}')
         try:
             return json.loads("".join(lines))
         except json.decoder.JSONDecodeError:
