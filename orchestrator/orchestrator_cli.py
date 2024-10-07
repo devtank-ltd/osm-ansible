@@ -930,7 +930,7 @@ def main():
     }
 
     directory = config["plugin_dir"]
-    if directory:
+    if directory and os.path.exists(directory):
         for plugin in os.listdir(directory):
             if plugin.endswith(".py"):
                 continue
