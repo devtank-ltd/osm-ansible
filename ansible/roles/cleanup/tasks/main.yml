@@ -25,14 +25,16 @@
     msg: "Grafana admin for {{ customer_name }}: {{ grafana_admin_password }}\nGrafana viewer for {{ customer_name }}: {{ grafana_viewer_password }}"
 
 - name: Write passwords to JSON file
-  ansible.builtin.copy:
-    content: |
+  vars:
+    json_pwds: |
       {
         "Influx": {{ influx_passwords | to_json }},
         "Influx Token": {{ influx_new_token | to_json }},
         "Postgres": {{ postgres_passwords | to_json }},
         "Mosquitto": {"{{ customer_name }}": {{ mosquitto_passwd | to_json }}},
         "Grafana Admin": {"admin": {{ grafana_admin_password | to_json }}},
-        "Grafana Viewer": {"viewer": {{ grafana_viewer_password | to_json }}}"
+        "Grafana Viewer": {"viewer": {{ grafana_viewer_password | to_json }}}
       }
+  ansible.builtin.copy:
+    content: "{{ json_pwds | to_nice_json }}"
     dest: "/root/passwords.json"

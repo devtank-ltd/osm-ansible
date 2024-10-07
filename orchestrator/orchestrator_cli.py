@@ -15,6 +15,9 @@ import sys
 import time
 import weakref
 import yaml
+import json
+import importlib.util
+import inspect
 
 from collections import namedtuple
 from pathlib import Path
@@ -215,6 +218,11 @@ class osm_host_t:
             self._capacity = self._look_by_id(SQL_HOST_GET_CAPACITY)
         return self._capacity
 
+    @property
+    def customers(self):
+        rows = do_db_query(self.db, SQL_HOST_GET_CUSTOMERS, (self.id,))
+        return [row[0] for row in rows]
+
     def _find_free_mqtt_port(self, customer_name: str) -> int:
         rows = do_db_query(self.db, SQL_HOST_GET_USED_MQTT_PORTS, (self.id,))
         ports = [row[0] for row in rows]
@@ -342,6 +350,22 @@ class osm_host_t:
             return False
         return True
 
+    def ssh_read_command(self, cmd):
+        ssh = self.get_ssh()
+        if not ssh:
+            return False
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+        stdout_r = []
+        error_code = ssh_stdout.channel.recv_exit_status()
+        if error_code:
+            self.logger.error(f"Command '{cmd}' failed : {error_code}:{os.strerror(error_code)}")
+            for line in ssh_stderr:
+                self.logger.error(line.rstrip())
+            return False
+        for line in ssh_stdout:
+            stdout_r += [line.rstrip()]
+        return stdout_r
+
     def can_ping_customer_container(self, customer_name: str) -> bool:
         return self.ssh_command(f"ping -c1 {customer_name}-svr")
 
@@ -350,6 +374,8 @@ class osm_host_t:
         return self.ssh_command(f"ping -c1 {customer_name}.{domain}")
 
     def add_osm_customer(self, customer_name: str, timeout: int = 4) -> bool:
+        if len(self.customers) >= self.capacity:
+            return False
         mqtt_port = self._find_free_mqtt_port(customer_name)
 
         if not mqtt_port:
@@ -415,10 +441,15 @@ class osm_host_t:
         )
         return False
 
-    @property
-    def customers(self):
-        rows = do_db_query(self.db, SQL_HOST_GET_CUSTOMERS, (self.id,))
-        return [row[0] for row in rows]
+
+    def get_osm_customer_passwords(self, customer_name):
+        get_pwd_cmd = "'cat /root/passwords.json'"
+        lines = self.ssh_read_command(f'sudo /srv/osm-lxc/ansible/do-shell.sh "{customer_name}-svr" {get_pwd_cmd}')
+        try:
+            return json.loads("".join(lines))
+        except json.decoder.JSONDecodeError:
+            self.logger.error(f"Failed to decode {customer_name} password json.")
+            return {}
 
 
 class osm_orchestrator_t:
@@ -497,7 +528,7 @@ class osm_orchestrator_t:
 
         tmp_conf.rename(conf_dir / tmp_conf.stem)
 
-    def _find_free_osm_host(self):
+    def find_free_osm_host(self):
         row = do_db_single_query(self.db, SQL_GET_FREEST_HOST, tuple())
         if row:
             osm_host = osm_host_t(self, row[0])
@@ -507,7 +538,7 @@ class osm_orchestrator_t:
                 if used < osm_host.capacity:
                     return osm_host
 
-    def _find_osm_host_of(self, customer_name):
+    def find_osm_host_of(self, customer_name):
         row = do_db_single_query(
             self.db, SQL_GET_HOST_BY_CUSTOMER, (customer_name,)
         )
@@ -530,32 +561,36 @@ class osm_orchestrator_t:
         if row:
             return osm_host_t(self, row[0])
 
+    def list_hosts(self):
+        rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
+        return [ osm_host_t(self, row[0]) for row in rows ]
+
     def add_osm_customer(self, customer_name: str) -> int:
-        osm_host = self._find_osm_host_of(customer_name)
+        osm_host = self.find_osm_host_of(customer_name)
         if osm_host:
             self.logger.warning(f'Already customer "{customer_name}"')
-            return os.EX_CONFIG
+            return False
 
-        osm_host = self._find_free_osm_host()
+        osm_host = self.find_free_osm_host()
 
         if not osm_host:
             self.logger.error(f"No free OSM host for customer {customer_name}")
-            return os.EX_UNAVAILABLE
+            return False
 
         if osm_host.add_osm_customer(customer_name):
-            return os.EX_OK
+            return True
 
-        return os.EX_UNAVAILABLE
+        return False
 
     def del_osm_customer(self, customer_name: str) -> int:
-        osm_host = self._find_osm_host_of(customer_name)
+        osm_host = self.find_osm_host_of(customer_name)
         if not osm_host:
             self.logger.warning(f'No customer "{customer_name}"')
-            return os.EX_UNAVAILABLE
+            return False
         if osm_host.del_osm_customer(customer_name):
-            return os.EX_OK
+            return True
         else:
-            return os.EX_UNAVAILABLE
+            return False
 
     def generate_wg_keys(self) -> tuple:
         """generate wireguard private and public key pairs"""
@@ -613,32 +648,32 @@ class osm_orchestrator_t:
             capcaity = int(capcaity)
         except ValueError:
             self.logger.error(f'Invalid number "{capcaity}" for capcaity')
-            return os.EX_CONFIG
+            return False
 
         if capcaity < 1:
             self.logger.error(f'Invalid number "{capcaity}" for capcaity')
-            return os.EX_CONFIG
+            return False
 
         osm_host = self.find_osm_host(host_name)
         if osm_host:
             self.logger.warning(f'Already osm host of name "{host_name}"')
-            return os.EX_CONFIG
+            return False
 
         osm_host = self.find_osm_host_by_addr(ip_addr)
         if osm_host:
             self.logger.warning(
                 f'Already osm host "{host_name}" of addr {ip_addr}'
             )
-            return os.EX_CONFIG
+            return False
 
         osm_host = osm_host_t(self, 0, host_name, ip_addr, capcaity)
 
         if not osm_host.get_ssh():
-            return os.EX_CONFIG
+            return False
 
         if not osm_host.ssh_command('ls /srv/osm-lxc/ansible/'):
             self.logger.error("Unable to find expected ansible tools.")
-            return os.EX_CONFIG
+            return False
 
         do_db_insert(self.db, SQL_ADD_HOST, (host_name, ip_addr, capcaity))
 
@@ -646,7 +681,7 @@ class osm_orchestrator_t:
             self.db, SQL_GET_HOST_ID_IPADDR, (host_name)
         )
 
-        print(f"Generate wg config for host '{host_ipaddr}'")
+        self.logger.info(f"Generate wg config for host '{host_ipaddr}'")
         srv_pub_key = do_db_single_query(self.db, SQL_GET_WG_SRV_KEY, (1))[0]
         osm_ipaddr = f"{WG_IPADDR}{host_id + 1}"
         osm_priv_key, osm_pub_key = self.generate_wg_keys()
@@ -689,7 +724,7 @@ class osm_orchestrator_t:
         self.add_prometheus_host(host_name, osm_ipaddr)
 
         self.add_dns_host(host_name, ip_addr)
-        return os.EX_OK
+        return True
 
     def del_wg_peer(self, conf_file: str, host_name: str) -> None:
         """delete WireGuard peer"""
@@ -705,7 +740,7 @@ class osm_orchestrator_t:
         osm_host = self.find_osm_host(host_name)
         if not osm_host:
             self.logger.warning(f'No osm host of name "{host_name}"')
-            return os.EX_CONFIG
+            return False
 
         customers = osm_host.customers
         if customers:
@@ -714,7 +749,7 @@ class osm_orchestrator_t:
                 f'Host of name "{host_name}" has '
                 f'active customers: {customers}'
             )
-            return os.EX_CONFIG
+            return False
 
         domain_id = self.config["pdns_domain_id"]
         do_db_single_query(
@@ -731,10 +766,42 @@ class osm_orchestrator_t:
             self.pdns_db, SQL_PDNS_DEL_HOST,
             (domain_id, osm_host.dns_entry, osm_host.ip_addr)
         )
-        return os.EX_OK
+        return True
+
+    def get_customer_passwords(self, customer_name):
+        if (osm_host := self.find_osm_host_of(customer_name)):
+            return osm_host.get_osm_customer_passwords(customer_name)
+        return {}
+
+
+class cli_osm_orchestrator_t:
+    def __init__(self, osm_orch):
+        self._osm_orch = osm_orch
+
+    def add_osm_customer(self, customer_name: str) -> int:
+        if self._osm_orch.add_osm_customer(customer_name):
+            return os.EX_OK
+        else:
+            return os.EX_UNAVAILABLE
+
+    def del_osm_customer(self, customer_name: str) -> int:
+        if self._osm_orch.del_osm_customer(customer_name):
+            return os.EX_OK
+        else:
+            return os.EX_UNAVAILABLE
+
+    def add_osm_host(self, host_name: str, ip_addr: str, capcaity: str) -> int:
+        if self._osm_orch.add_osm_host(host_name, ip_addr, capcaity):
+            return os.EX_OK
+        return os.EX_CONFIG
+
+    def del_osm_host(self, host_name):
+        if self._osm_orch.del_osm_host(host_name):
+            return os.EX_OK
+        return os.EX_CONFIG
 
     def find_osm_host_of(self, customer_name):
-        osm_host = self._find_osm_host_of(customer_name)
+        osm_host = self._osm_orch.find_osm_host_of(customer_name)
         if osm_host:
             print("Found on host : %s" % osm_host.name)
             return os.EX_OK
@@ -743,7 +810,7 @@ class osm_orchestrator_t:
             return os.EX_CONFIG
 
     def test_osm_host(self, host_name):
-        osm_host = self.find_osm_host(host_name)
+        osm_host = self._osm_orch.find_osm_host(host_name)
         if not osm_host:
             self.logger.warning(f'No osm host of name "{host_name}"')
             return os.EX_CONFIG
@@ -752,10 +819,9 @@ class osm_orchestrator_t:
             return os.EX_CONFIG
 
     def list_hosts(self):
-        rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
+        osm_hosts = self._osm_orch.list_hosts()
         print("Hosts:")
-        for row in rows:
-            osm_host = osm_host_t(self, row[0])
+        for osm_host in osm_hosts:
             print(
                 f"\tHost: {osm_host.name}: capacity: "
                 f"{len(osm_host.customers)}/{osm_host.capacity}"
@@ -763,7 +829,7 @@ class osm_orchestrator_t:
         return os.EX_OK
 
     def list_host_customers(self,  host_name):
-        osm_host = self.find_osm_host(host_name)
+        osm_host = self._osm_orch.find_osm_host(host_name)
         if not osm_host:
             self.logger.warning(f'No osm host of name "{host_name}"')
             return os.EX_CONFIG
@@ -780,10 +846,9 @@ class osm_orchestrator_t:
         return os.EX_OK
 
     def list_customers(self):
-        rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
+        osm_hosts = self._osm_orch.list_hosts()
         print("Hosts:")
-        for row in rows:
-            osm_host = osm_host_t(self, row[0])
+        for osm_host in osm_hosts:
             customers = osm_host.customers
             print(
                 f"Host: {osm_host.name}: capacity: "
@@ -792,6 +857,14 @@ class osm_orchestrator_t:
             for customer in customers:
                 print(f"\tCustomer: {customer}")
         return os.EX_OK
+
+    def customer_passwords(self, customer_name):
+        pws = self._osm_orch.get_customer_passwords(customer_name)
+        if pws:
+            print(json.dumps(pws, indent=4))
+            return os.EX_OK
+        self.logger.warning(f'No passwords for "{customer_name}"')
+        return os.EX_CONFIG
 
 
 def main():
@@ -808,47 +881,98 @@ def main():
         config = yaml.safe_load(open("config.yaml"))
 
     osm_orch = osm_orchestrator_t(config)
+    cli_obj = cli_osm_orchestrator_t(osm_orch)
 
     cmd_entry = namedtuple("cmd_entry", ["help", "func"])
 
     commands = {
         "add_host": cmd_entry(
             "add_host <name> <ip_addr> <capacity> : Add host to OSM system",
-            osm_orch.add_osm_host
+            cli_obj.add_osm_host
         ),
         "del_host": cmd_entry(
             "del_host <name> : Remove host from OSM system",
-            osm_orch.del_osm_host
+            cli_obj.del_osm_host
         ),
         "find_host": cmd_entry(
             "find_host <name> : Find host of given customer in OSM system",
-            osm_orch.find_osm_host_of
+            cli_obj.find_osm_host_of
         ),
         "test_host": cmd_entry(
             "test_host <name> : Test access to OSM Host",
-            osm_orch.test_osm_host
+            cli_obj.test_osm_host
         ),
         "add_customer": cmd_entry(
             "add_customer <name> : Add customer to OSM system",
-            osm_orch.add_osm_customer
+            cli_obj.add_osm_customer
         ),
         "del_customer": cmd_entry(
             "del_customer <name> : Remove customer from OSM system",
-            osm_orch.del_osm_customer
+            cli_obj.del_osm_customer
         ),
         "list_hosts": cmd_entry(
             "list_hosts : Lists OSM Hosts in system",
-            osm_orch.list_hosts
+            cli_obj.list_hosts
         ),
         "list_host_customers": cmd_entry(
             "list_host_customers <name> : Lists customers on OSM Host",
-            osm_orch.list_host_customers
+            cli_obj.list_host_customers
         ),
         "list_customers": cmd_entry(
             "list_customers : Lists all customers on all OSM Hosts",
-            osm_orch.list_customers
+            cli_obj.list_customers
         ),
+        "get_customer_passwords": cmd_entry(
+            "get_customer_passwords <name>: Return dictionary of \
+            passwords for a specified customer",
+            cli_obj.customer_passwords
+        )
     }
+
+    directory = config["plugin_dir"]
+    if directory and os.path.exists(directory):
+        for plugin in os.listdir(directory):
+            if plugin.endswith(".py"):
+                continue
+            path_to_plugin = os.path.join(directory, plugin)
+            files = os.listdir(path_to_plugin)
+            for filename in files:
+                if filename == '__init__.py' \
+                or filename.endswith('base.py') \
+                or not filename.endswith(".py"):
+                    continue
+                module_path = os.path.join(path_to_plugin, filename)
+                spec = importlib.util.spec_from_file_location(filename,
+                 module_path)
+                try:
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                except Exception as e:
+                    print(f"Error importing module {filename} with \
+                        error {e}")
+                    continue
+                try:
+                    cls = module.init_plugin(osm_orch)
+                except Exception as e:
+                    print(f"Could not init plugin: {e}")
+                    continue
+                ver = None
+                try:
+                    ver = cls.api_version
+                except Exception as e:
+                    print(f"Could not get plugin API version with \
+                        error: {e}")
+                if ver and ver == 1:
+                    try:
+                        cmds = cls.get_commands()
+                        commands.update(cmds)
+                        print(f"Updated commands with {cmds}")
+                    except Exception as e:
+                        print(f"Could not import commands from {cls} \
+                            with error: {e}")
+                else:
+                    print(f"Unsupported plugin version: {ver} from \
+                        plugin {cls}")
 
     args = parser.parse_args()
 

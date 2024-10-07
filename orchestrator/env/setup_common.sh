@@ -10,6 +10,8 @@ readonly CHECKSUM_FILE="SHA512SUMS"
 source functions.sh
 source common.sh
 
+git_branch=$(git branch --show-current)
+
 readonly DEBISO="${HOSTS_DIR}/${ISO_NAME}"
 
 if [[ ! -e "${DEBISO}" ]]; then
@@ -138,7 +140,7 @@ if [[ "$OSM_HOST" == "orchestrator" ]]; then
 fi
 
 ansible-playbook \
-    -v -e target="$vm_ip $ansible_args" \
+    -v -e target="$vm_ip $ansible_args osm_ansible_branch=$git_branch" \
     -i "$ANSIBLE_HOSTS" "$ansible_file" \
     --skip-tags "pebble"
 
