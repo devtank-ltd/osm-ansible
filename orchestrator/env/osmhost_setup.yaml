@@ -41,7 +41,7 @@
     repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
     dest: /srv/osm-lxc
     single_branch: yes
-    version: {{ osm_ansible_branch }}
+    version: "{{ osm_ansible_branch }}"
 
 - name: Add OSM orchestrator user
   ansible.builtin.user:
