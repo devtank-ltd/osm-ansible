@@ -37,7 +37,7 @@
         repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
         dest: /srv/osm-lxc
         single_branch: yes
-        version: main
+        version: {{ osm_ansible_branch }}
 
     - name: "Prepare MiniCA"
       block:

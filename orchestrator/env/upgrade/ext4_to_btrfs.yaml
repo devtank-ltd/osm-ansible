@@ -35,7 +35,7 @@
       ansible.builtin.git:
         repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
         dest: /srv/osm-lxc
-        version: dev_test_env
+        version: {{ osm_ansible_branch }}
 
     - name: Prepare Btrfs upgrade
       shell: |
