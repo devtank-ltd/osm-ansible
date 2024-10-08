@@ -350,6 +350,68 @@ class osm_host_t:
             return False
         return True
 
+    def ssh_pull_file_or_directory(self, customer_name, src, dst):
+        path = Path(src)
+        ssh = self.get_ssh()
+        if not ssh:
+            return False
+        parent = path.parent.absolute()
+        basename = os.path.basename(path)
+        remote_tar_cmd = f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' 'tar -C {parent} -Jc {basename}'"
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(remote_tar_cmd)
+
+        local_extract_cmd = f'tar -Jx -C {dst}'
+        with subprocess.Popen(local_extract_cmd,
+                              shell=True,
+                              stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE) as tar_process:
+            try:
+                for chunk in iter(lambda: ssh_stdout.read(4096), b''):
+                    tar_process.stdin.write(chunk)
+                tar_process.stdin.close()
+                tar_process.wait()
+                if tar_process.returncode != 0:
+                    print(f"Error: Local tar extraction failed with code {tar_process.returncode}")
+                    return False
+                ssh_error = ssh_stderr.read().decode()
+                if ssh_error:
+                    print(f"Error: SSH command failed with message: {ssh_error}")
+                    return False
+            except Exception as e:
+                print(f"Error occurred during file transfer: {e}")
+                return False
+        return True
+
+    def ssh_push_file_or_directory(self, customer_name, src, dst):
+        path = Path(src)
+        ssh = self.get_ssh()
+        if not ssh:
+            return False
+        if not os.path.exists(path):
+            self.logger.error(f"Cannot find path to {src}")
+            return False
+        parent = path.parent.absolute()
+        basename = os.path.basename(src)
+        tar_cmd = f'tar -C {parent} -Jc {basename}'
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' 'tar -Jx -C {dst}'")
+
+        with subprocess.Popen(tar_cmd, shell=True, stdout=subprocess.PIPE) as tar_process:
+            try:
+                for chunk in iter(lambda: tar_process.stdout.read(4096), b''):
+                    ssh_stdin.write(chunk)
+                ssh_stdin.close()
+            except Exception as e:
+                print(f"Error occurred: {e}")
+                return False
+        error_code = ssh_stdout.channel.recv_exit_status()
+        if error_code:
+            self.logger.error(f"Push failed : {error_code}:{os.strerror(error_code)}")
+            for line in ssh_stderr:
+                self.logger.error(line.rstrip())
+            return False
+        return True
+
     def ssh_read_command(self, cmd):
         ssh = self.get_ssh()
         if not ssh:
@@ -866,6 +928,25 @@ class cli_osm_orchestrator_t:
         self.logger.warning(f'No passwords for "{customer_name}"')
         return os.EX_CONFIG
 
+    def push_file_or_directory(self, customer_name, src, dest):
+        osm_host = self._osm_orch.find_osm_host_of(customer_name)
+        if not osm_host:
+            self.logger.warning(f'No osm host for customer "{customer_name}"')
+            return os.EX_CONFIG
+        do_push = osm_host.ssh_push_file_or_directory(customer_name, src, dest)
+        if not do_push:
+            return os.EX_CONFIG
+        return os.EX_OK
+
+    def pull_file_or_directory(self, customer_name, src, dest):
+        osm_host = self._osm_orch.find_osm_host_of(customer_name)
+        if not osm_host:
+            self.logger.warning(f'No osm host for customer "{customer_name}"')
+            return os.EX_CONFIG
+        do_pull = osm_host.ssh_pull_file_or_directory(customer_name, src, dest)
+        if not do_pull:
+            return os.EX_CONFIG
+        return os.EX_OK
 
 def main():
     self_path = os.path.abspath(__file__)
@@ -923,9 +1004,16 @@ def main():
             cli_obj.list_customers
         ),
         "get_customer_passwords": cmd_entry(
-            "get_customer_passwords <name>: Return dictionary of \
-            passwords for a specified customer",
+            "get_customer_passwords <name>: Return dictionary of passwords for a specified customer",
             cli_obj.customer_passwords
+        ),
+        "push_file_or_directory": cmd_entry(
+            "push_file_or_directory <customer> <source> <destination>: Push a file or a directory to a specified destination on a customer container",
+            cli_obj.push_file_or_directory
+        ),
+        "pull_file_or_directory": cmd_entry(
+            "pull_file_or_directory <customer> <source> <destination>: Pull a file or a directory to a specified destination from a customer container",
+            cli_obj.pull_file_or_directory
         )
     }
 

@@ -30,6 +30,7 @@
           - python3-pymysql
           - python3-yaml
           - wireguard
+          - curl
         update_cache: yes
 
     - name: Clone OSM Ansible git repo.
