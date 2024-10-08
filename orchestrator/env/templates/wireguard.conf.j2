@@ -5,6 +5,6 @@ Address = {{ osm_ipaddr }}/24
 
 [Peer]
 PublicKey = {{ orchestrator_key }}
-AllowedIPs =  0.0.0.0/0
+AllowedIPs =  {{ osm_ipaddr }}/24
 Endpoint = {{ orchestrator_ip }}:51820
 PersistentKeepalive = 20
