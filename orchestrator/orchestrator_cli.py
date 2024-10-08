@@ -391,32 +391,19 @@ class osm_host_t:
         if not os.path.exists(path):
             self.logger.error(f"Cannot find path to {src}")
             return False
-        if os.path.isdir(path):
-            parent = path.parent.absolute()
-            basename = os.path.basename(src)
-            tar_cmd = f'tar -C {parent} -Jc {basename}'
-            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' 'tar -Jx -C {dst}'")
+        parent = path.parent.absolute()
+        basename = os.path.basename(src)
+        tar_cmd = f'tar -C {parent} -Jc {basename}'
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' 'tar -Jx -C {dst}'")
 
-            with subprocess.Popen(tar_cmd, shell=True, stdout=subprocess.PIPE) as tar_process:
-                try:
-                    for chunk in iter(lambda: tar_process.stdout.read(4096), b''):
-                        ssh_stdin.write(chunk)
-                    ssh_stdin.close()
-                except Exception as e:
-                    print(f"Error occurred: {e}")
-                    return False
-        else:
-            cat_cmd = f'cat {src}'
-            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' 'cat > {dst}'")
-
-            with subprocess.Popen(cat_cmd, shell=True, stdout=subprocess.PIPE) as cat_process:
-                try:
-                    for chunk in iter(lambda: cat_process.stdout.read(4096), b''):
-                        ssh_stdin.write(chunk)
-                    ssh_stdin.close()
-                except Exception as e:
-                    print(f"Error occurred: {e}")
-                    return False
+        with subprocess.Popen(tar_cmd, shell=True, stdout=subprocess.PIPE) as tar_process:
+            try:
+                for chunk in iter(lambda: tar_process.stdout.read(4096), b''):
+                    ssh_stdin.write(chunk)
+                ssh_stdin.close()
+            except Exception as e:
+                print(f"Error occurred: {e}")
+                return False
         error_code = ssh_stdout.channel.recv_exit_status()
         if error_code:
             self.logger.error(f"Push failed : {error_code}:{os.strerror(error_code)}")
