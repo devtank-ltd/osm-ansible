@@ -350,6 +350,48 @@ class osm_host_t:
             return False
         return True
 
+    def ssh_copy_file_or_directory(self, customer_name, src, dst):
+        path = Path(src)
+        ssh = self.get_ssh()
+        if not ssh:
+            return False
+        if not os.path.exists(path):
+            self.logger.error(f"Cannot find path to {src}")
+            return False
+        if os.path.isdir(path):
+            parent = path.parent.absolute()
+            basename = os.path.basename(src)
+            tar_cmd = f'tar -C {parent} -Jc {basename}'
+            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' 'tar -Jx -C {dst}'")
+
+            with subprocess.Popen(tar_cmd, shell=True, stdout=subprocess.PIPE) as tar_process:
+                try:
+                    for chunk in iter(lambda: tar_process.stdout.read(4096), b''):
+                        ssh_stdin.write(chunk)
+                    ssh_stdin.close()
+                except Exception as e:
+                    print(f"Error occurred: {e}")
+                    return False
+        else:
+            cat_cmd = f'cat {src}'
+            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' 'cat > {dst}'")
+
+            with subprocess.Popen(cat_cmd, shell=True, stdout=subprocess.PIPE) as cat_process:
+                try:
+                    for chunk in iter(lambda: cat_process.stdout.read(4096), b''):
+                        ssh_stdin.write(chunk)
+                    ssh_stdin.close()
+                except Exception as e:
+                    print(f"Error occurred: {e}")
+                    return False
+        error_code = ssh_stdout.channel.recv_exit_status()
+        if error_code:
+            self.logger.error(f"Copy failed : {error_code}:{os.strerror(error_code)}")
+            for line in ssh_stderr:
+                self.logger.error(line.rstrip())
+            return False
+        return True
+
     def ssh_read_command(self, cmd):
         ssh = self.get_ssh()
         if not ssh:
@@ -866,6 +908,15 @@ class cli_osm_orchestrator_t:
         self.logger.warning(f'No passwords for "{customer_name}"')
         return os.EX_CONFIG
 
+    def transfer_file_or_dir(self, customer_name, src, dest):
+        osm_host = self._osm_orch.find_osm_host_of(customer_name)
+        if not osm_host:
+            self.logger.warning(f'No osm host for customer "{customer_name}"')
+            return os.EX_CONFIG
+        do_transfer = osm_host.ssh_copy_file_or_directory(customer_name, src, dest)
+        if not do_transfer:
+            return os.EX_CONFIG
+        return os.EX_OK
 
 def main():
     self_path = os.path.abspath(__file__)
@@ -923,9 +974,12 @@ def main():
             cli_obj.list_customers
         ),
         "get_customer_passwords": cmd_entry(
-            "get_customer_passwords <name>: Return dictionary of \
-            passwords for a specified customer",
+            "get_customer_passwords <name>: Return dictionary of passwords for a specified customer",
             cli_obj.customer_passwords
+        ),
+        "do_transfer_file_or_dir": cmd_entry(
+            "do_transfer_file_or_dir <customer> <source> <destination>: Copy a file or a directory to a specified destination on a customer container",
+            cli_obj.transfer_file_or_dir
         )
     }
 
