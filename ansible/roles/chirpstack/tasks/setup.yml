@@ -25,3 +25,35 @@
   loop:
     - "application"
     - "network"
+
+- name: Wait for port 8080 to become open on the host
+  ansible.builtin.wait_for:
+    port: 8080
+    timeout: 10
+
+- name: "Create chirpstack admin password"
+  ansible.builtin.set_fact:
+    chirpstack_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
+
+- name: "Get chirpstack jwt token"
+  ansible.builtin.uri:
+    url: http://localhost:8080/api/internal/login
+    method: POST
+    body: '{"email": "admin", "password": "admin"}'
+    body_format: json
+    headers:
+      Content-Type: 'application/json'
+      Accept: 'application/json'
+    return_content: true
+  register: chirp_api_token
+
+- name: "Set chirpstack admin password"
+  ansible.builtin.uri:
+    url: http://localhost:8080/api/users/1/password
+    method: PUT
+    body: '{"password": "{{ chirpstack_admin_password }}", "userId": "1"}'
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+      Grpc-Metadata-Authorization: 'Bearer {{ chirp_api_token.json.jwt }}'
