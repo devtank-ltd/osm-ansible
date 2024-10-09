@@ -26,6 +26,10 @@
     - "application"
     - "network"
 
+- name: Wait for port 8080 to become open on the host
+  ansible.builtin.wait_for:
+    port: 8080
+
 - name: "Create chirpstack admin password"
   ansible.builtin.set_fact:
     chirpstack_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
@@ -51,4 +55,4 @@
     headers:
       Content-Type: "application/json"
       Accept: "application/json"
-      Grpc-Metadata-Authorization: 'Bearer "{{ chirp_api_token.content.jwt }}"'
+      Grpc-Metadata-Authorization: 'Bearer {{ chirp_api_token.json.jwt }}'
