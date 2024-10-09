@@ -29,6 +29,7 @@
 - name: Wait for port 8080 to become open on the host
   ansible.builtin.wait_for:
     port: 8080
+    timeout: 10
 
 - name: "Create chirpstack admin password"
   ansible.builtin.set_fact:
