@@ -1177,7 +1177,7 @@ class cli_osm_orchestrator_t:
         except Exception as e:
             print(f"Invalid config file. Exiting")
             return os.EX_CONFIG
-        osm_host = self._find_osm_host_of(customer_name)
+        osm_host = self._osm_orch.find_osm_host_of(customer_name)
         if not osm_host:
             print(f"Could not find host with customer: {customer_name}")
             return os.EX_CONFIG
@@ -1187,9 +1187,11 @@ class cli_osm_orchestrator_t:
             return os.EX_CONFIG
         return os.EX_OK
 
-    def add_dashboards(self, customer_name, config):
+    def add_dashboards(self, customer_name, config, cert=None):
         if self._validate_grafana_config(customer_name, config) == os.EX_OK:
             grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'add', config]
+            if cert:
+                grafana_cmd += ['-c', cert]
             grafana_proc = subprocess.Popen(
                 grafana_cmd,
                 stdin=subprocess.PIPE,
@@ -1208,9 +1210,11 @@ class cli_osm_orchestrator_t:
         print("Validate grafana config failed.")
         return os.EX_CONFIG
 
-    def del_dashboards(self, customer_name, config):
+    def del_dashboards(self, customer_name, config, cert=None):
         if self._validate_grafana_config(customer_name, config) == os.EX_OK:
             grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'delete', config]
+            if cert:
+                grafana_cmd += ['-c', cert]
             grafana_proc = subprocess.Popen(
                 grafana_cmd,
                 stdin=subprocess.PIPE,
@@ -1343,11 +1347,11 @@ def main():
             cli_obj.pull_file_or_directory
         ),
         "add_dashboards" : cmd_entry(
-            "add_dashboards <customer_name> <config> : Creates Grafana dashboard solution for customer",
+            "add_dashboards <customer_name> <config> <cert>: Creates Grafana dashboard solution for customer with optional cert",
             cli_obj.add_dashboards
         ),
         "del_dashboards" : cmd_entry(
-            "del_dashboards <customer_name> <config> : Deletes Grafana dashboard solution for customer",
+            "del_dashboards <customer_name> <config> <cert>: Deletes Grafana dashboard solution for customer with optional cert",
             cli_obj.del_dashboards
         ),
     }
