@@ -385,6 +385,7 @@ class osm_host_t:
 
     def ssh_push_file_or_directory(self, customer_name, src, dst):
         path = Path(src)
+        dstpath = Path(dst)
         ssh = self.get_ssh()
         if not ssh:
             return False
@@ -394,6 +395,8 @@ class osm_host_t:
         parent = path.parent.absolute()
         basename = os.path.basename(src)
         tar_cmd = f'tar -C {parent} -Jc {basename}'
+        if not os.path.isdir(path):
+            dst = dstpath.parent.absolute()
         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' 'tar -Jx -C {dst}'")
 
         with subprocess.Popen(tar_cmd, shell=True, stdout=subprocess.PIPE) as tar_process:
