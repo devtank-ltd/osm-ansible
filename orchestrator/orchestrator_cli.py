@@ -41,7 +41,8 @@ PROMETHEUS_HOST_TMPL = """
       - targets: ["{wg_ipaddr}:9100"]
 
   - job_name: "{host_name}-lxc"
-    metrics_path: "/api/v1/allmetrics?format=prometheus"
+    metrics_path: "/api/v1/allmetrics?format=prometheus&help=yes"
+    honor_labels: true
     static_configs:
       - targets: ["{wg_ipaddr}:19999"]
 
