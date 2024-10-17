@@ -9,8 +9,31 @@ groups:
     annotations:
       title: Node {{ $labels.instance }} is down
       description: Failed to scrape {{ $labels.job }} on {{ $labels.instance }} for more than 2 minutes. Node seems down
+  - alert: "Container is down"
+    expr: time() - timestamp(netdata_cgroup_mem_usage_MiB_average{dimension="ram", chart=~".*"}) > 60
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: Container on the {{ $labels.chart | reReplaceAll "(cgroup_|\\.mem_usage)" "" }} is down
 
-  - alert: "Host Out Of Memory"
+  - alert: "Container out of memory"
+    expr: (netdata_cgroup_mem_usage_limit_MiB_average{dimension="used"} / 640 * 100) > 90
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: More than 90% of RAM used on the customer container {{ $labels.chart | reReplaceAll "(cgroup_|\\.mem.+)" "" }}
+
+  - alert: "Container high CPU usage"
+    expr: (netdata_cgroup_cpu_percentage_average{chart=~"cgroup_.+\\-svr.cpu",dimension="user"}) > 80
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: More than 90% of CPU usage is detected on the container {{ $labels.chart | reReplaceAll "(cgroup_|\\.cpu)" ""}}
+
+  - alert: "Host out of memory"
     expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
     for: 2m
     labels:
@@ -19,7 +42,7 @@ groups:
       summary: Host out of memory (instance {{ $labels.instance }})
       description: "Node memory is filling up (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
-  - alert: "Host Out Of Disk Space"
+  - alert: "Host out of disk space"
     expr: ((node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 10 and ON (instance, device, mountpoint) node_filesystem_readonly == 0) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
     for: 2m
     labels:
@@ -28,7 +51,7 @@ groups:
       summary: Host out of disk space (instance {{ $labels.instance }})
       description: "Disk is almost full (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
-  - alert: "Host Disk Will Fill In 24 Hours"
+  - alert: "Host disk will fill in 24 hours"
     expr: ((node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 10 and ON (instance, device, mountpoint) predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs"}[1h], 24 * 3600) < 0 and ON (instance, device, mountpoint) node_filesystem_readonly == 0) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
     for: 2m
     labels:
@@ -37,7 +60,7 @@ groups:
       summary: Host disk will fill in 24 hours (instance {{ $labels.instance }})
       description: "Filesystem is predicted to run out of space within the next 24 hours at current write rate\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
-  - alert: "Host High CPU Load"
+  - alert: "Host high CPU load"
     expr: (sum by (instance) (avg by (mode, instance) (rate(node_cpu_seconds_total{mode!="idle"}[2m]))) > 0.8) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
     for: 10m
     labels:
