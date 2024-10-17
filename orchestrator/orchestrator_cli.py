@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import argparse
+import base64
 import crcmod  # type: ignore
 import fcntl
 import importlib.util
@@ -10,6 +11,7 @@ import json
 import logging
 import os
 import paramiko
+import pickle
 import pymysql
 import socket
 import struct
@@ -87,6 +89,14 @@ SQL_GET_CUSTOMER_PORT = "SELECT host_mqtt_port FROM osm_customers WHERE name=%s 
 
 SQL_ADD_CUSTOMER = "INSERT INTO osm_customers (osm_hosts_id, name, host_mqtt_port, active_since) VALUES(%s, %s, %s, UNIX_TIMESTAMP())"
 SQL_DEL_CUSTOMER = "UPDATE osm_customers SET active_before=UNIX_TIMESTAMP() WHERE osm_hosts_id=%s AND name=%s"
+SQL_ADD_CUSTOMER_SECRETS = """
+INSERT INTO osm_secrets (osm_customer_id, secrets)
+VALUES ((SELECT id FROM osm_customers WHERE name=%s), %s)
+"""
+SQL_GET_CUSTOMER_SECRETS = """
+SELECT secrets FROM osm_secrets WHERE
+osm_customer_id=(SELECT id FROM osm_customers WHERE name=%s)
+"""
 
 SQL_GET_FREEST_HOST = """
 SELECT id, (
@@ -164,6 +174,10 @@ def do_db_insert(db, cmd, args):
         row_id = c.lastrowid
     db.commit()
     return row_id
+
+
+class SSHException(Exception):
+    pass
 
 
 class osm_host_t:
@@ -302,37 +316,38 @@ class osm_host_t:
             (domain_id, "%s-mqtt.%s" % (customer_name, domain), self.dns_entry)
         )
 
-    def get_ssh(self):
+    def get_ssh(self) -> paramiko.SSHClient | None:
         if self._ssh_ref:
             current = self._ssh_ref()
             if current:
                 return current
         ssh = paramiko.SSHClient()
         known_hosts = os.environ["HOME"] + '/.ssh/known_hosts'
+
         if not os.path.exists(known_hosts):
             self.logger.error("No known_hosts files.")
             return None
         ssh.load_host_keys(known_hosts)
+
         try:
             ssh.connect(self.ip_addr, username="osm_orchestrator", timeout=2)
         except TimeoutError:
             self.logger.error(
                 f"Timeout connecting to {self.name} ({self.ip_addr})."
             )
-            ssh = None
+            return None
         except paramiko.ssh_exception.AuthenticationException as e:
             self.logger.error(
                 f"Authentication fail connecting to {self.name} "
                 f"({self.ip_addr}): {e}"
             )
-            ssh = None
+            return None
         except OSError as e:
             self.logger.error(
                 f"OS Error connecting to {self.name} ({self.ip_addr}): {e}"
             )
-            ssh = None
-        if not ssh:
             return None
+
         self._ssh_ref = weakref.ref(ssh)
         return ssh
 
@@ -354,33 +369,44 @@ class osm_host_t:
             return False
         return True
 
-    def ssh_pull_file_or_directory(self, customer_name, src, dst):
+    def ssh_pull_file_or_directory(
+            self, customer_name: str, src: str, dst: str
+    ) -> bool:
         path = Path(src)
-        ssh = self.get_ssh()
-        if not ssh:
+        if not (ssh := self.get_ssh()):
             return False
         parent = path.parent.absolute()
-        basename = os.path.basename(path)
-        remote_tar_cmd = f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' 'tar -C {parent} -Jc {basename}'"
+        basename = path.name
+        remote_tar_cmd = (
+            f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' "
+            f"'tar -C {parent} -Jc {basename}'"
+        )
         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(remote_tar_cmd)
+        local_extract_cmd = ['tar', '-Jx', '-C', '{dst}']
 
-        local_extract_cmd = f'tar -Jx -C {dst}'
-        with subprocess.Popen(local_extract_cmd,
-                              shell=True,
-                              stdin=subprocess.PIPE,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE) as tar_process:
+        with subprocess.Popen(
+                local_extract_cmd, shell=True,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+        ) as tar_process:
             try:
-                for chunk in iter(lambda: ssh_stdout.read(4096), b''):
-                    tar_process.stdin.write(chunk)
-                tar_process.stdin.close()
+                if tar_process.stdin is not None:
+                    for chunk in iter(lambda: ssh_stdout.read(4096), b''):
+                        tar_process.stdin.write(chunk)
+                    tar_process.stdin.close()
                 tar_process.wait()
                 if tar_process.returncode != 0:
-                    print(f"Error: Local tar extraction failed with code {tar_process.returncode}")
+                    print(
+                        "Error: Local tar extraction failed with code "
+                        f"{tar_process.returncode}"
+                    )
                     return False
                 ssh_error = ssh_stderr.read().decode()
                 if ssh_error:
-                    print(f"Error: SSH command failed with message: {ssh_error}")
+                    print(
+                        f"Error: SSH command failed with message: {ssh_error}"
+                    )
                     return False
             except Exception as e:
                 print(f"Error occurred during file transfer: {e}")
@@ -419,20 +445,28 @@ class osm_host_t:
             return False
         return True
 
-    def ssh_read_command(self, cmd):
-        ssh = self.get_ssh()
-        if not ssh:
-            return False
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
-        stdout_r = []
+    def ssh_read_command(self, cmd: str) -> list:
+        if not (ssh := self.get_ssh()):
+            print("Unable to get SSH")
+            raise SSHException("Unable to get ssh")
+
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd, timeout=10)
+        stdout_r: list[str] = []
         error_code = ssh_stdout.channel.recv_exit_status()
+
         if error_code:
-            self.logger.error(f"Command '{cmd}' failed : {error_code}:{os.strerror(error_code)}")
+            self.logger.error(
+                "Command '%s' failed : %s:%s" % cmd, error_code, os.strerror(
+                    error_code
+                )
+            )
             for line in ssh_stderr:
                 self.logger.error(line.rstrip())
-            return False
+            return stdout_r
+
         for line in ssh_stdout:
             stdout_r += [line.rstrip()]
+
         return stdout_r
 
     def can_ping_customer_container(self, customer_name: str) -> bool:
@@ -482,6 +516,24 @@ class osm_host_t:
                     failed = False
             if failed:
                 self.logger.error("Container creation ping")
+            else:
+                out = self.ssh_read_command(
+                    f'sudo /srv/osm-lxc/ansible/do-shell.sh "{customer_name}-svr" '
+                    "'cat /root/passwords-v2.json'"
+                )
+                try:
+                    customer_pwds = json.loads(''.join(out))
+                except json.JSONDecodeError as err:
+                    self.logger.error("Not valid JSON: %s" % err)
+                    return False
+                else:
+                    bin_pwds = pickle.dumps(customer_pwds)
+                    str_pwds = base64.b64encode(bin_pwds).decode("utf-8")
+                    do_db_insert(
+                        self.db,
+                        SQL_ADD_CUSTOMER_SECRETS,
+                        (customer_name, str_pwds)
+                    )
         else:
             self.logger.error("Container creation failed")
 
@@ -517,7 +569,6 @@ class osm_host_t:
         return False
 
     def get_osm_customer_passwords(self, customer_name: str) -> dict:
-
         def walk_encrypted_dict(d: dict) -> None:
             if isinstance(d, dict):
                 for k, v in d.items():
@@ -525,21 +576,22 @@ class osm_host_t:
                         d[k] = self._orchestrator.crypt.decrypt(v)
                     else:
                         walk_encrypted_dict(v)
-
-        get_pwd_cmd = "'cat /root/passwords-v2.json'"
-        lines = self.ssh_read_command(
-            f'sudo /srv/osm-lxc/ansible/do-shell.sh "{customer_name}-svr" '
-            f'{get_pwd_cmd}'
-        )
+        passwords = {}
+        secrets = do_db_single_query(
+            self.db,
+            SQL_GET_CUSTOMER_SECRETS,
+            (customer_name),
+        )[0]
+        bin_secrets = secrets.encode("utf-8")
+        bin_secrets = base64.b64decode(bin_secrets)
         try:
-            pwds_json = json.loads("".join(lines))
-            walk_encrypted_dict(pwds_json)
-            return pwds_json
-        except json.decoder.JSONDecodeError:
-            self.logger.error(
-                f"Failed to decode {customer_name} password json."
-            )
-            return {}
+            passwords = pickle.loads(bin_secrets)
+        except pickle.PickleError as err:
+            self.logger.error(err)
+            return passwords
+        else:
+            walk_encrypted_dict(passwords)
+        return passwords
 
 
 class osm_orchestrator_t:

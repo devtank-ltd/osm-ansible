@@ -32,11 +32,7 @@ CREATE TABLE osm_wireguard (
 CREATE TABLE osm_secrets (
     id              INT PRIMARY KEY AUTO_INCREMENT,
     osm_customer_id INTEGER NOT NULL,
-    osm_customer    TEXT    NOT NULL,
-    password        TEXT    NOT NULL,
-    init_vector     TEXT    NOT NULL,
-    private_key     TEXT    NOT NULL,
-    salt            TEXT    NOT NULL,
+    secrets         TEXT    NOT NULL,
     FOREIGN KEY(osm_customer_id) REFERENCES osm_customers (id)
 );
 
