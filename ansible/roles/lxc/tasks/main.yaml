@@ -1,7 +1,7 @@
-- name: "Check all variables are set"       
-  fail:             
-    msg: "All needed parameters are not set!" 
-  when:                                     
+- name: "Check all variables are set"
+  fail:
+    msg: "All needed parameters are not set!"
+  when:
     - customer_name is not defined
 
 - name: "Set container name variable."

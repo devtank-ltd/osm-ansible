@@ -9,6 +9,11 @@ owndir="$(dirname "$path")"
 customer_name="$1"
 mqtt_port="$2"
 domain="$3"
+# encryption data
+password="$4"
+priv_key="$5"
+iv="$6"
+salt="$7"
 
 [[ -n "$customer_name" ]] || { echo "No customer name given."; exit 1; }
 [[ -n "$mqtt_port" ]] || { echo "No MQTT port given."; exit 1; }
@@ -25,8 +30,20 @@ le_cert_name=$(ls /etc/letsencrypt/live/ | grep -v README | head -n 1)
 [[ ! -e "custom_domain" ]] || domain=$(< "custom_domain")
 [[ -n "$domain" ]] || domain=$(echo $le_cert_name | awk -F '.' 'BEGIN { OFS="."}; {$1=""; print substr($0, 2)}')
 
-ansible-playbook -v -i hosts -e "customer_name=${customer_name} mqtt_port=${mqtt_port} le_domain=${domain}" create-container.yaml
+if [[ -z "$password" || -z "$priv_key" || -z "$iv" || -z "$salt" ]]; then
+    echo "Encryption data incomplete"
+    exit 1
+fi
+
+ansible-playbook \
+    -v -i hosts \
+    -e "customer_name=${customer_name} mqtt_port=${mqtt_port} le_domain=${domain}" \
+    create-container.yaml
 
 echo "${customer_name}-svr" >> hosts
 
-ansible-playbook -v -i hosts -e "target=${customer_name}-svr customer_name=${customer_name} le_domain=${domain}" provision-container.yaml
+ansible-playbook \
+    -v -i hosts \
+    -e "target=${customer_name}-svr customer_name=${customer_name} le_domain=${domain}" \
+    -e "pswd=${password} priv_key=${priv_key} iv=${iv} salt=${salt}" \
+    provision-container.yaml
