@@ -93,6 +93,10 @@ SQL_ADD_CUSTOMER_SECRETS = """
 INSERT INTO osm_secrets (osm_customer_id, secrets)
 VALUES ((SELECT id FROM osm_customers WHERE name=%s), %s)
 """
+SQL_DEL_CUSTOMER_SECRETS = """
+DELETE FROM osm_secrets WHERE
+osm_customer_id=(SELECT id FROM osm_customers WHERE name=%s)
+"""
 SQL_GET_CUSTOMER_SECRETS = """
 SELECT secrets FROM osm_secrets WHERE
 osm_customer_id=(SELECT id FROM osm_customers WHERE name=%s)
@@ -560,6 +564,11 @@ class osm_host_t:
         while time.monotonic() < start_end:
             if not self.can_ping_customer_container(customer_name):
                 self._del_customer_to_database(customer_name)
+                do_db_update(
+                    self.db,
+                    SQL_DEL_CUSTOMER_SECRETS,
+                    (customer_name)
+                )
                 return True
 
         self.logger.error(
