@@ -510,7 +510,9 @@ class osm_host_t:
                 else:
                     self._add_customer_secrets_to_database(
                         customer_name,
-                        base64.b64encode(enc_customer_key).decode(self.encoding),
+                        base64.b64encode(enc_customer_key).decode(
+                            self.encoding
+                        ),
                         json.dumps(customer_pwds)
                     )
         else:
@@ -647,9 +649,11 @@ class osm_orchestrator_t:
     @property
     def master_key(self) -> bytes:
         key_file = Path(self.MASTER_FILE)
+        key_file = Path(__file__).parent / key_file
         if key_file.exists():
             self._master_key = key_file.read_bytes()
         else:
+            key_file.touch(mode=0o600)
             key = Fernet.generate_key()
             key_file.write_bytes(key)
             self._master_key = key
