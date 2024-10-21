@@ -296,7 +296,7 @@ class osm_host_t:
         do_db_update(self.db, SQL_DEL_CUSTOMER_SECRETS, (customer_id))
         do_db_update(self.db, SQL_DEL_CUSTOMER_KEY, (customer_id))
 
-    def get_ssh(self) -> paramiko.SSHClient | None:
+    def get_ssh(self) -> Union[paramiko.SSHClient, None]:
         if self._ssh_ref:
             current = self._ssh_ref()
             if current:
