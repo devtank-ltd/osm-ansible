@@ -32,11 +32,14 @@ CREATE TABLE osm_wireguard (
 CREATE TABLE osm_secrets (
     id              INT PRIMARY KEY AUTO_INCREMENT,
     osm_customer_id INTEGER NOT NULL,
-    osm_customer    TEXT    NOT NULL,
-    password        TEXT    NOT NULL,
-    init_vector     TEXT    NOT NULL,
-    private_key     TEXT    NOT NULL,
-    salt            TEXT    NOT NULL,
+    secrets         JSON    NOT NULL, CHECK (JSON_VALID(secrets)),
+    FOREIGN KEY(osm_customer_id) REFERENCES osm_customers (id)
+);
+
+CREATE TABLE osm_keys (
+    id              INT PRIMARY KEY AUTO_INCREMENT,
+    osm_customer_id INTEGER NOT NULL,
+    customer_key    TEXT    NOT NULL,
     FOREIGN KEY(osm_customer_id) REFERENCES osm_customers (id)
 );
 

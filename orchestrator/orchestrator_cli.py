@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import argparse
+import base64
 import crcmod  # type: ignore
 import fcntl
 import importlib.util
@@ -10,6 +11,7 @@ import json
 import logging
 import os
 import paramiko
+import pickle
 import pymysql
 import socket
 import struct
@@ -20,14 +22,13 @@ import weakref
 import yaml
 
 from collections import namedtuple
+from cryptography.fernet import Fernet
 from pathlib import Path
 from typing import Union
 
-from crypt import MasterCrypt, Passwords
-
 
 CONFIG_FILE = "config.yaml"
-MASTER_FILE = "master.json"
+
 WG_CONF_FILE = "/etc/wireguard/wg0.conf"
 PROMETHEUS_CONF_FILE = "/etc/prometheus/prometheus.yml"
 WG_PEER_TMPL = """
@@ -88,7 +89,17 @@ SQL_GET_CUSTOMER_PORT = "SELECT host_mqtt_port FROM osm_customers WHERE name=%s 
 
 SQL_ADD_CUSTOMER = "INSERT INTO osm_customers (osm_hosts_id, name, host_mqtt_port, active_since) VALUES(%s, %s, %s, UNIX_TIMESTAMP())"
 SQL_DEL_CUSTOMER = "UPDATE osm_customers SET active_before=UNIX_TIMESTAMP() WHERE osm_hosts_id=%s AND name=%s"
-
+SQL_ADD_CUSTOMER_KEY = """
+INSERT INTO osm_keys (osm_customer_id, customer_key)
+VALUES (%s, %s)
+"""
+SQL_ADD_CUSTOMER_SECRETS = "INSERT INTO osm_secrets (osm_customer_id, secrets) VALUES (%s, %s)"
+SQL_DEL_CUSTOMER_SECRETS = "DELETE FROM osm_secrets WHERE osm_customer_id=%s"
+SQL_GET_CUSTOMER_SECRETS = "SELECT secrets FROM osm_secrets WHERE osm_customer_id=%s"
+SQL_ADD_CUSTOMER_KEY = "INSERT INTO osm_keys (osm_customer_id, customer_key) VALUES (%s, %s)"
+SQL_DEL_CUSTOMER_KEY = "DELETE FROM osm_keys WHERE osm_customer_id=%s"
+SQL_GET_CUSTOMER_KEY = "SELECT customer_key FROM osm_keys WHERE osm_customer_id=%s"
+SQL_GET_CUSTOMER_ID = "SELECT id FROM osm_customers WHERE name=%s"
 SQL_GET_FREEST_HOST = """
 SELECT id, (
 (SELECT COUNT(osm_customers.id) FROM osm_customers WHERE active_before IS NULL AND osm_hosts_id = osm_hosts.id) / capacity
@@ -167,6 +178,10 @@ def do_db_insert(db, cmd, args):
     return row_id
 
 
+class SSHException(Exception):
+    pass
+
+
 class osm_host_t:
     def __init__(
             self, orchestrator, db_id, name=None, ip_addr=None, capacity=None
@@ -179,6 +194,7 @@ class osm_host_t:
         self._ssh_ref = None
         self._dns_entry = None
         self.logger = logging.getLogger(self.name)
+        self.encoding = "utf-8"
 
 
     @property
@@ -243,97 +259,75 @@ class osm_host_t:
         do_db_insert(
             self.db, SQL_ADD_CUSTOMER, (self.id, customer_name, mqtt_port)
         )
-
         domain_id = self.config["pdns_domain_id"]
         domain = self.config["pdns_domain"]
+        parts = ("", "-chirpstack", "-influx", "-mqtt")
 
-        do_db_insert(
-            self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
-            (
-                domain_id, "%s.%s" % (customer_name, domain),
-                self.dns_entry
+        for d in parts:
+            do_db_insert(
+                self.pdns_db,
+                SQL_PDNS_ADD_CUSTOMER,
+                (domain_id, f"{customer_name}{d}.{domain}", self.dns_entry)
             )
-        )
-        do_db_insert(
-            self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
-            (
-                domain_id, "%s-chirpstack.%s" % (customer_name, domain),
-                self.dns_entry
-            )
-        )
-        do_db_insert(
-            self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
-            (
-                domain_id, "%s-influx.%s" % (customer_name, domain),
-                self.dns_entry
-            )
-        )
-        do_db_insert(
-            self.pdns_db, SQL_PDNS_ADD_CUSTOMER,
-            (
-                domain_id, "%s-mqtt.%s" % (customer_name, domain),
-                self.dns_entry
-            )
-        )
+
+    def _add_customer_secrets_to_database(
+            self, name: str, key: str, secrets: str
+    ) -> None:
+        customer_id = do_db_single_query(
+            self.db, SQL_GET_CUSTOMER_ID, (name)
+        )[0]
+        do_db_insert(self.db, SQL_ADD_CUSTOMER_KEY, (customer_id, key))
+        do_db_insert(self.db, SQL_ADD_CUSTOMER_SECRETS, (customer_id, secrets))
 
     def _del_customer_to_database(self, customer_name: str) -> None:
+        customer_id = do_db_single_query(
+            self.db, SQL_GET_CUSTOMER_ID, (customer_name)
+        )[0]
         do_db_update(self.db, SQL_DEL_CUSTOMER, (self.id, customer_name))
         domain_id = self.config["pdns_domain_id"]
         domain = self.config["pdns_domain"]
 
-        do_db_update(
-            self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
-            (domain_id, "%s.%s" % (customer_name, domain), self.dns_entry)
-        )
-        do_db_update(
-            self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
-            (domain_id, "%s-chirpstack.%s" % (customer_name, domain),
-             self.dns_entry)
-        )
-        do_db_update(
-            self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
-            (
-                domain_id,
-                "%s-influx.%s" % (customer_name, domain),
-                self.dns_entry
+        parts = ("", "-chirpstack", "-influx", "-mqtt")
+        for d in parts:
+            do_db_update(
+                self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
+                (domain_id, f"{customer_name}{d}.{domain}", self.dns_entry)
             )
-        )
-        do_db_update(
-            self.pdns_db, SQL_PDNS_DEL_CUSTOMER,
-            (domain_id, "%s-mqtt.%s" % (customer_name, domain), self.dns_entry)
-        )
+        do_db_update(self.db, SQL_DEL_CUSTOMER_SECRETS, (customer_id))
+        do_db_update(self.db, SQL_DEL_CUSTOMER_KEY, (customer_id))
 
-    def get_ssh(self):
+    def get_ssh(self) -> paramiko.SSHClient | None:
         if self._ssh_ref:
             current = self._ssh_ref()
             if current:
                 return current
         ssh = paramiko.SSHClient()
         known_hosts = os.environ["HOME"] + '/.ssh/known_hosts'
+
         if not os.path.exists(known_hosts):
             self.logger.error("No known_hosts files.")
             return None
         ssh.load_host_keys(known_hosts)
+
         try:
             ssh.connect(self.ip_addr, username="osm_orchestrator", timeout=2)
         except TimeoutError:
             self.logger.error(
                 f"Timeout connecting to {self.name} ({self.ip_addr})."
             )
-            ssh = None
+            return None
         except paramiko.ssh_exception.AuthenticationException as e:
             self.logger.error(
                 f"Authentication fail connecting to {self.name} "
                 f"({self.ip_addr}): {e}"
             )
-            ssh = None
+            return None
         except OSError as e:
             self.logger.error(
                 f"OS Error connecting to {self.name} ({self.ip_addr}): {e}"
             )
-            ssh = None
-        if not ssh:
             return None
+
         self._ssh_ref = weakref.ref(ssh)
         return ssh
 
@@ -355,33 +349,44 @@ class osm_host_t:
             return False
         return True
 
-    def ssh_pull_file_or_directory(self, customer_name, src, dst):
+    def ssh_pull_file_or_directory(
+            self, customer_name: str, src: str, dst: str
+    ) -> bool:
         path = Path(src)
-        ssh = self.get_ssh()
-        if not ssh:
+        if not (ssh := self.get_ssh()):
             return False
         parent = path.parent.absolute()
-        basename = os.path.basename(path)
-        remote_tar_cmd = f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' 'tar -C {parent} -Jc {basename}'"
+        basename = path.name
+        remote_tar_cmd = (
+            f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' "
+            f"'tar -C {parent} -Jc {basename}'"
+        )
         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(remote_tar_cmd)
+        local_extract_cmd = ['tar', '-Jx', '-C', '{dst}']
 
-        local_extract_cmd = f'tar -Jx -C {dst}'
-        with subprocess.Popen(local_extract_cmd,
-                              shell=True,
-                              stdin=subprocess.PIPE,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE) as tar_process:
+        with subprocess.Popen(
+                local_extract_cmd, shell=True,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+        ) as tar_process:
             try:
-                for chunk in iter(lambda: ssh_stdout.read(4096), b''):
-                    tar_process.stdin.write(chunk)
-                tar_process.stdin.close()
+                if tar_process.stdin is not None:
+                    for chunk in iter(lambda: ssh_stdout.read(4096), b''):
+                        tar_process.stdin.write(chunk)
+                    tar_process.stdin.close()
                 tar_process.wait()
                 if tar_process.returncode != 0:
-                    print(f"Error: Local tar extraction failed with code {tar_process.returncode}")
+                    print(
+                        "Error: Local tar extraction failed with code "
+                        f"{tar_process.returncode}"
+                    )
                     return False
                 ssh_error = ssh_stderr.read().decode()
                 if ssh_error:
-                    print(f"Error: SSH command failed with message: {ssh_error}")
+                    print(
+                        f"Error: SSH command failed with message: {ssh_error}"
+                    )
                     return False
             except Exception as e:
                 print(f"Error occurred during file transfer: {e}")
@@ -420,20 +425,28 @@ class osm_host_t:
             return False
         return True
 
-    def ssh_read_command(self, cmd):
-        ssh = self.get_ssh()
-        if not ssh:
-            return False
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
-        stdout_r = []
+    def ssh_read_command(self, cmd: str) -> list:
+        if not (ssh := self.get_ssh()):
+            print("Unable to get SSH")
+            raise SSHException("Unable to get ssh")
+
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd, timeout=10)
+        stdout_r: list[str] = []
         error_code = ssh_stdout.channel.recv_exit_status()
+
         if error_code:
-            self.logger.error(f"Command '{cmd}' failed : {error_code}:{os.strerror(error_code)}")
+            self.logger.error(
+                "Command '%s' failed : %s:%s" % cmd, error_code, os.strerror(
+                    error_code
+                )
+            )
             for line in ssh_stderr:
                 self.logger.error(line.rstrip())
-            return False
+            return stdout_r
+
         for line in ssh_stdout:
             stdout_r += [line.rstrip()]
+
         return stdout_r
 
     def can_ping_customer_container(self, customer_name: str) -> bool:
@@ -467,15 +480,15 @@ class osm_host_t:
             return False
 
         failed = True
-        enc_data = self._orchestrator.crypt.encryption_data
-        key = enc_data["priv key"]
-        iv = enc_data["iv"]
-        pswd = enc_data["password"]
-        salt = enc_data["salt"]
+        customer_key = Fernet.generate_key()
+        enc_customer_key = Fernet(
+            self._orchestrator.master_key
+        ).encrypt(customer_key)
+
         if self.ssh_command(
                 'sudo /srv/osm-lxc/ansible/do-create-container.sh '
                 f'"{customer_name}" {mqtt_port} "" '
-                f'"{pswd}" "{key}" "{iv}" "{salt}"'
+                f'"{customer_key.decode(self.encoding)}"'
         ):
             start_end = time.monotonic() + timeout
             while time.monotonic() < start_end:
@@ -483,6 +496,23 @@ class osm_host_t:
                     failed = False
             if failed:
                 self.logger.error("Container creation ping")
+            else:
+                out = self.ssh_read_command(
+                    'sudo /srv/osm-lxc/ansible/do-shell.sh '
+                    f'"{customer_name}-svr" '
+                    "'cat /root/passwords-v2.json'"
+                )
+                try:
+                    customer_pwds = json.loads(''.join(out))
+                except json.JSONDecodeError as err:
+                    self.logger.error("Not valid JSON: %s" % err)
+                    return False
+                else:
+                    self._add_customer_secrets_to_database(
+                        customer_name,
+                        base64.b64encode(enc_customer_key).decode(self.encoding),
+                        json.dumps(customer_pwds)
+                    )
         else:
             self.logger.error("Container creation failed")
 
@@ -509,6 +539,7 @@ class osm_host_t:
         while time.monotonic() < start_end:
             if not self.can_ping_customer_container(customer_name):
                 self._del_customer_to_database(customer_name)
+
                 return True
 
         self.logger.error(
@@ -517,33 +548,47 @@ class osm_host_t:
         )
         return False
 
-    def get_osm_customer_passwords(self, customer_name: str) -> dict:
-
-        def walk_encrypted_dict(d: dict) -> None:
+    def get_osm_customer_passwords(self, customer_name) -> dict:
+        def walk_encrypted_dict(d: dict, crypt: Fernet, key: str) -> None:
             if isinstance(d, dict):
                 for k, v in d.items():
                     if isinstance(v, str):
-                        d[k] = self._orchestrator.crypt.decrypt(v)
+                        d[k] = crypt.decrypt(v).decode(self.encoding)
                     else:
-                        walk_encrypted_dict(v)
+                        walk_encrypted_dict(v, crypt, key)
 
-        get_pwd_cmd = "'cat /root/passwords-v2.json'"
-        lines = self.ssh_read_command(
-            f'sudo /srv/osm-lxc/ansible/do-shell.sh "{customer_name}-svr" '
-            f'{get_pwd_cmd}'
+        customer_id = do_db_single_query(
+            self.db, SQL_GET_CUSTOMER_ID, (customer_name)
         )
+        k = do_db_single_query(self.db, SQL_GET_CUSTOMER_KEY, (customer_id))[0]
+        passwords: dict = {}
+
+        if not k:
+            self.logger.error("Unable to get customer key")
+            return passwords
+
+        k = k.encode(self.encoding)
+        k = base64.b64decode(k)
+        k = Fernet(self._orchestrator.master_key).decrypt(k)
+        crypt = Fernet(k)
+        secrets = do_db_single_query(
+            self.db, SQL_GET_CUSTOMER_SECRETS, (customer_id)
+        )[0]
+
         try:
-            pwds_json = json.loads("".join(lines))
-            walk_encrypted_dict(pwds_json)
-            return pwds_json
-        except json.decoder.JSONDecodeError:
-            self.logger.error(
-                f"Failed to decode {customer_name} password json."
-            )
-            return {}
+            passwords = json.loads(secrets)
+        except json.JSONDecodeError as err:
+            self.logger.error("Invalid JSON: ", err)
+            return passwords
+        else:
+            walk_encrypted_dict(passwords, crypt, k)
+
+        return passwords
 
 
 class osm_orchestrator_t:
+    MASTER_FILE = "master.key"
+
     def __init__(self, config):
         self.config = config
         orch_config = self.config["orchestrator"]
@@ -552,7 +597,7 @@ class osm_orchestrator_t:
         self._pdns_db = pymysql.connect(**pdns_config, connect_timeout=10)
         self.logger = logging.getLogger("OSMORCH")
         self._ipaddr = None
-        self.crypt = MasterCrypt(MASTER_FILE)
+        self._master_key = None
 
     @property
     def ipaddr(self) -> Union[str, None]:
@@ -598,6 +643,17 @@ class osm_orchestrator_t:
             (domain_id, "%s.%s" % (osm_host, domain),
              ip_addr)
         )
+
+    @property
+    def master_key(self) -> bytes:
+        key_file = Path(self.MASTER_FILE)
+        if key_file.exists():
+            self._master_key = key_file.read_bytes()
+        else:
+            key = Fernet.generate_key()
+            key_file.write_bytes(key)
+            self._master_key = key
+        return self._master_key
 
     def _delete_from_config(self, config_file: str, host_name: str) -> None:
         stop_copy = False
@@ -800,7 +856,6 @@ class osm_orchestrator_t:
 
         ansible_proc = subprocess.Popen(
             ansible_cmd,
-
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
         )
@@ -869,6 +924,7 @@ class osm_orchestrator_t:
 class cli_osm_orchestrator_t:
     def __init__(self, osm_orch):
         self._osm_orch = osm_orch
+        self.logger = logging.getLogger("ORCHESTRATOR CLI")
 
     def add_osm_customer(self, customer_name: str) -> int:
         if self._osm_orch.add_osm_customer(customer_name):
