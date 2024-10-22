@@ -28,7 +28,6 @@ from typing import Union
 
 
 CONFIG_FILE = "config.yaml"
-
 WG_CONF_FILE = "/etc/wireguard/wg0.conf"
 PROMETHEUS_CONF_FILE = "/etc/prometheus/prometheus.yml"
 WG_PEER_TMPL = """

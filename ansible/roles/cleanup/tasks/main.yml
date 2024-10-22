@@ -33,7 +33,7 @@
 
 - name: Encrypt influx passwords
   shell: |
-     /usr/bin/python3 /tmp/crypt.py -k '{{ priv_key }}' -e '{{ influx_passwords[item] }}'
+     /usr/bin/python3 /tmp/crypt.py -k '{{ priv_key }}' -e -s="{{ influx_passwords[item] }}"
   loop:
     - "chirpstack"
     - "customer"
@@ -48,7 +48,7 @@
 
 - name: Encrypt influx token
   shell: |
-    /usr/bin/python3 crypt.py -k {{ priv_key }} -e {{ influx_new_token }}
+    /usr/bin/python3 crypt.py -k={{ priv_key }} -e -s="{{ influx_new_token }}"
   args:
     chdir: /tmp
   register: encrypted_influx_new_token
@@ -59,7 +59,7 @@
 
 - name: Encrypt postgres_passwords
   shell: |
-    /usr/bin/python3 crypt.py -k {{ priv_key }} -e {{ postgres_passwords[item] }}
+    /usr/bin/python3 crypt.py -k={{ priv_key }} -e -s="{{ postgres_passwords[item] }}"
   args:
     chdir: /tmp
   loop:
@@ -74,7 +74,7 @@
 
 - name: Encrypt mosquitto password
   shell: |
-    /usr/bin/python3 crypt.py -k {{ priv_key }} -e {{ mosquitto_passwd }}
+    /usr/bin/python3 crypt.py -k={{ priv_key }} -e -s="{{ mosquitto_passwd }}"
   args:
     chdir: /tmp
   register: encrypted_mosquitto_passwd
@@ -85,7 +85,7 @@
 
 - name: Encrypt grafana admin password
   shell: |
-    /usr/bin/python3 crypt.py -k {{ priv_key }} -e {{ grafana_admin_password }}
+    /usr/bin/python3 crypt.py -k={{ priv_key }} -e -s="{{ grafana_admin_password }}"
   args:
     chdir: /tmp
   register: encrypted_grafana_admin_password
@@ -96,7 +96,7 @@
 
 - name: Encrypt grafana_viewer_password
   shell: |
-    /usr/bin/python3 crypt.py -k {{ priv_key }} -e {{ grafana_viewer_password }}
+    /usr/bin/python3 crypt.py -k={{ priv_key }} -e -s="{{ grafana_viewer_password }}"
   args:
     chdir: /tmp
   register: encrypted_grafana_viewer_password
