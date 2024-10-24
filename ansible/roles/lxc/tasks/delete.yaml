@@ -72,12 +72,8 @@
 
 - name: Set certbot to use Pebble instance for testing cerbot in test/dev environment.
   set_fact:
-     certbot_prefix : "REQUESTS_CA_BUNDLE=devtank.minica.pem "
-     certbot_postfix : "--server https://10.10.1.1:14000/dir \
-      --agree-tos \
-      --no-verify-ssl \
-      --http-01-port=5002 \
-      --register-unsafely-without-email"
+     certbot_prefix : "REQUESTS_CA_BUNDLE=devtank.minica.pem"
+     certbot_postfix : "--non-interactive"
   when: test_lets_encrypt
 
 - name: Set certbot to normal
@@ -88,11 +84,10 @@
 
 - name: Remove certificate for customer
   shell: |
-    {{ certbot_prefix }}certbot delete --cert-name \
-    {{ customer_name }}.{{ le_domain }} \
-    {{ certbot_postfix }}
+    {{ certbot_prefix }} certbot delete --cert-name {{ le_domain }} {{ certbot_postfix }}
+  register: certbot
+  failed_when: certbot.rc > 0
 
 - name: "Note"
   debug:
     msg: "*** REMEMBER TO REMOVE ALL REFERENCE TO {{ container_hostname }} from nginx configs and reload! ***"
-

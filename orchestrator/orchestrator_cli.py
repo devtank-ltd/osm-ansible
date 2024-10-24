@@ -521,7 +521,7 @@ class osm_host_t:
             self._del_customer_to_database(customer_name)
             self.ssh_command(
                 'sudo /srv/osm-lxc/ansible/do-delete-container.sh '
-                f'"{customer_name}" {mqtt_port}'
+                f'"{customer_name}"'
             )
             return False
         return True
