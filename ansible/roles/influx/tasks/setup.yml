@@ -18,12 +18,12 @@
 
     - name: Setup influx
       command: >
-        influx setup 
-        --force 
-        --username devtank 
-        --password {{ influx_passwords['devtank'] }} 
-        --org devtank 
-        --bucket dtbucket 
+        influx setup
+        --force
+        --username devtank
+        --password={{ influx_passwords['devtank'] }}
+        --org devtank
+        --bucket dtbucket
       ignore_errors: True
 
   when: influx_config_list.stdout_lines | length == 0 or overwrite_passwords
@@ -106,15 +106,15 @@
         replace: "{{ influx_new_token }}"
 
     - name: "Deactivate old token"
-      command: "influx auth inactive --id {{ influx_old_token_id }}"
+      command: "influx auth inactive --id={{ influx_old_token_id }}"
 
     - name: "Delete old token"
-      command: "influx auth delete --id {{ influx_old_token_id }}"
+      command: "influx auth delete --id={{ influx_old_token_id }}"
 
   tags: influx_gen_new_token
 
 - name: Create other influx users
-  shell: "influx user create -n '{{ item.key }}' -p '{{ item.value }}' || influx user password -n '{{ item.key }}' -p '{{ item.value }}'" 
+  shell: "influx user create -n '{{ item.key }}' -p '{{ item.value }}' || influx user password --name='{{ item.key }}' --password='{{ item.value }}'"
   loop: "{{ influx_passwords | dict2items }}"
 
 - name: Create sf bucket
@@ -128,4 +128,3 @@
 - name: Create v1 auth on sf bucket for devtank
   shell: influx v1 auth create  --read-bucket "$(influx bucket list | awk '/sf/ { print $1 }')" --write-bucket "$(influx bucket list | awk '/sf/ { print $1 }')" --username devtank --password '{{ influx_passwords['devtank'] }}'
   ignore_errors: True
-

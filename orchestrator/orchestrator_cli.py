@@ -26,7 +26,6 @@ from typing import Union, Dict
 
 
 CONFIG_FILE = "config.yaml"
-
 WG_CONF_FILE = "/etc/wireguard/wg0.conf"
 PROMETHEUS_CONF_FILE = "/etc/prometheus/prometheus.yml"
 WG_PEER_TMPL = """
@@ -511,7 +510,9 @@ class osm_host_t:
                 else:
                     self._add_customer_secrets_to_database(
                         customer_name,
-                        base64.b64encode(enc_customer_key).decode(self.encoding),
+                        base64.b64encode(enc_customer_key).decode(
+                            self.encoding
+                        ),
                         json.dumps(customer_pwds)
                     )
         else:
@@ -521,7 +522,7 @@ class osm_host_t:
             self._del_customer_to_database(customer_name)
             self.ssh_command(
                 'sudo /srv/osm-lxc/ansible/do-delete-container.sh '
-                f'"{customer_name}" {mqtt_port}'
+                f'"{customer_name}"'
             )
             return False
         return True
@@ -648,9 +649,11 @@ class osm_orchestrator_t:
     @property
     def master_key(self) -> bytes:
         key_file = Path(self.MASTER_FILE)
+        key_file = Path(__file__).parent / key_file
         if key_file.exists():
             self._master_key = key_file.read_bytes()
         else:
+            key_file.touch(mode=0o600)
             key = Fernet.generate_key()
             key_file.write_bytes(key)
             self._master_key = key
@@ -1169,7 +1172,6 @@ def main():
                     try:
                         cmds = cls.get_commands()
                         commands.update(cmds)
-                        print(f"Updated commands with {cmds}")
                     except Exception as e:
                         print(f"Could not import commands from {cls} \
                             with error: {e}")

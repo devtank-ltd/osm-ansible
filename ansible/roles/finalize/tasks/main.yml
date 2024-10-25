@@ -27,6 +27,10 @@
     {{ customer_name }}-mqtt.{{ le_domain }},\
     {{ customer_name }}-influx.{{ le_domain }} \
     {{ certbot_postfix }}
+  register: certbot_result
+  until: "certbot_result is not failed"
+  retries: 3
+  delay: 5
 
 - name: "Create NGINX HTTP config"
   ansible.builtin.copy:

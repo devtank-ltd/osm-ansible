@@ -7,7 +7,9 @@ from cryptography.fernet import Fernet
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     excl_grp = parser.add_mutually_exclusive_group()
-    parser.add_argument("string", type=str, help="String to (de/en)crypt")
+    parser.add_argument(
+        "-s", "--string", type=str, help="String to (de/en)crypt"
+    )
     excl_grp.add_argument(
         "-d", "--decrypt", action="store_true", help="decrypt string"
     )
