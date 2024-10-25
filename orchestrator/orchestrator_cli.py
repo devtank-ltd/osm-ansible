@@ -6,12 +6,10 @@ import base64
 import crcmod  # type: ignore
 import fcntl
 import importlib.util
-import inspect
 import json
 import logging
 import os
 import paramiko
-import pickle
 import pymysql
 import socket
 import struct
@@ -24,7 +22,7 @@ import yaml
 from collections import namedtuple
 from cryptography.fernet import Fernet
 from pathlib import Path
-from typing import Union
+from typing import Union, Dict
 
 
 CONFIG_FILE = "config.yaml"
@@ -71,6 +69,9 @@ SQL_ADD_WG_HOST = """
 INSERT INTO osm_wireguard
 (osm_hosts_id, public_key, private_key, ip_addr)
 VALUES(%s, %s, %s, %s)
+"""
+SQL_GET_WG_INFO = """
+SELECT public_key, ip_addr FROM osm_wireguard WHERE osm_hosts_id=%s
 """
 
 SQL_GET_HOST_BY_CUSTOMER = """
@@ -920,6 +921,21 @@ class osm_orchestrator_t:
             return osm_host.get_osm_customer_passwords(customer_name)
         return {}
 
+    def get_wg_info(self, host_name: str) -> Dict[str, str]:
+        try:
+            osm_host_id = do_db_single_query(
+                self.db, SQL_GET_HOST, (host_name,)
+            )[0]
+        except TypeError:
+            return {}
+
+        if osm_host_id:
+            wg_key, wg_ipaddr = do_db_single_query(
+                self.db, SQL_GET_WG_INFO, (osm_host_id,)
+            )
+            return {'wg_key': wg_key, 'wg_ipaddr': wg_ipaddr}
+        return {}
+
 
 class cli_osm_orchestrator_t:
     def __init__(self, osm_orch):
@@ -1014,6 +1030,15 @@ class cli_osm_orchestrator_t:
         self.logger.warning(f'No passwords for "{customer_name}"')
         return os.EX_CONFIG
 
+    def wg_info(self, host_name: str) -> int:
+        if (wg_info := self._osm_orch.get_wg_info(host_name)):
+            print(
+                f"pubkey: {wg_info['wg_key']} IP: {wg_info['wg_ipaddr']}"
+            )
+            return os.EX_OK
+        self.logger.warning(f'Unable to get WG info for host {host_name}')
+        return os.EX_CONFIG
+
     def push_file_or_directory(self, customer_name, src, dest):
         osm_host = self._osm_orch.find_osm_host_of(customer_name)
         if not osm_host:
@@ -1092,6 +1117,10 @@ def main():
         "get_customer_passwords": cmd_entry(
             "get_customer_passwords <name>: Return dictionary of passwords for a specified customer",
             cli_obj.customer_passwords
+        ),
+        "get_wg_info": cmd_entry(
+            "get_wg_info <name> : Get WireGuard key and IP address",
+            cli_obj.wg_info
         ),
         "push_file_or_directory": cmd_entry(
             "push_file_or_directory <customer> <source> <destination>: Push a file or a directory to a specified destination on a customer container",
