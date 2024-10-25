@@ -1143,7 +1143,6 @@ def main():
                     try:
                         cmds = cls.get_commands()
                         commands.update(cmds)
-                        print(f"Updated commands with {cmds}")
                     except Exception as e:
                         print(f"Could not import commands from {cls} \
                             with error: {e}")
