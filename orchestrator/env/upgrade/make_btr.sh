@@ -1,30 +1,48 @@
-#! /bin/bash
+#!/usr/bin/env bash
 
 set -e
 
-[ -n "$(which btrfs)" ] || { echo "Install btrfs-progs"; exit -1; }
-[ -n "$(which kexec)" ] || { echo "Install kexec-tools"; exit -1; }
-[ -n "$(which busybox)" ] || { echo "Install busybox"; exit -1; }
-[ -n "$(which fsck.vfat)" ] || { echo "Install dosfstools"; exit -1; }
+readonly PROGS=(
+    btrfs
+    kexec
+    busybox
+    fsck.vfat
+)
 
-set -- $(df / -T | awk '/dev/ { print $1,$2 }')
-root_dev=$1
-root_fs=$2
-srv_dev=$(df /srv -T | awk '/dev/ { print $1 }')
+for p in "${PROGS[@]}"; do
+    if ! command -v "$p" >/dev/null 2>&1; then
+        echo "Install '$p'"
+        exit 1
+    fi
+done
 
-[ -z "$srv_dev" -o "$root_dev" == "$srv_dev" ] || { echo "/srv on own device"; exit -1; }
+set -- "$(df --output=source,fstype / | sed '/^F/d')"
+root_dev="$1"
+root_fs="$2"
+srv_dev="$(df --output=source /srv | sed '/^F/d')"
 
-boot_dev=$(df /boot -T | awk '/dev/ { print $1 }')
-efi_dev=$(df /boot/efi -T | awk '/dev/ { print $1 }')
+if [[ -z "$srv_dev" || "$root_dev" == "$srv_dev" ]]; then
+    echo "/srv on own device"
+    exit 1
+fi
 
-[ "${root_fs#btrfs}" == "${root_fs}" ] || { echo "Already btrfs."; exit 0; }
-[ "${root_fs#ext}" != "${root_fs}" ] || { echo "Unsupported rootfs to start with."; exit -1; }
+boot_dev="$(df --output=source /boot | sed '/^F/d')"
+efi_dev="$(df --output=source /boot/efi | sed '/^F/d')"
+
+[[ "${root_fs#btrfs}" == "${root_fs}" ]] || {
+    echo "Already btrfs."
+    exit 0
+}
+[[ "${root_fs#ext}" != "${root_fs}" ]] || {
+    echo "Unsupported rootfs to start with."
+    exit 1
+}
 
 mkdir -p base/etc
 
 echo "Warning, going to make ${root_dev} btrfs"
-echo "root_dev=$root_dev" > base/etc/disks
-[ "$root_dev" == "$boot_dev" ] || echo "boot_dev=$boot_dev" >> base/etc/disks 
-[ -z "$efi_dev" ] || echo "efi_dev=$efi_dev" >> base/etc/disks
+echo "root_dev=${root_dev}" > base/etc/disks
+[[ "$root_dev" == "$boot_dev" ]] || echo "boot_dev=$boot_dev" >> base/etc/disks
+[[ -z "$efi_dev" ]] || echo "efi_dev=$efi_dev" >> base/etc/disks
 ./mk_initrc/make_ram_disk.sh make_btrfs
 echo "If you are really sure you want to do this, now do: ./mk_initrc/kexec.sh make_btrfs.cpio.gz"

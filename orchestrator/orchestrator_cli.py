@@ -550,6 +550,13 @@ class osm_host_t:
         )
         return False
 
+    def upd_osm_customer(self, customer_name: str) -> bool:
+        print(f"Upgrade customer container '{customer_name}-svr'")
+        return self.ssh_command(
+            'sudo /srv/osm-lxc/ansible/do-upgrade-container.bash '
+            f'{customer_name}'
+        )
+
     def get_osm_customer_passwords(self, customer_name) -> dict:
         def walk_encrypted_dict(d: dict, crypt: Fernet, key: str) -> None:
             if isinstance(d, dict):
@@ -715,7 +722,7 @@ class osm_orchestrator_t:
 
     def list_hosts(self):
         rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
-        return [ osm_host_t(self, row[0]) for row in rows ]
+        return [osm_host_t(self, row[0]) for row in rows]
 
     def add_osm_customer(self, customer_name: str) -> int:
         osm_host = self.find_osm_host_of(customer_name)
@@ -734,15 +741,19 @@ class osm_orchestrator_t:
 
         return False
 
-    def del_osm_customer(self, customer_name: str) -> int:
+    def del_osm_customer(self, customer_name: str) -> bool:
         osm_host = self.find_osm_host_of(customer_name)
         if not osm_host:
             self.logger.warning(f'No customer "{customer_name}"')
             return False
-        if osm_host.del_osm_customer(customer_name):
-            return True
-        else:
+        return osm_host.del_osm_customer(customer_name)
+
+    def upd_osm_customer(self, customer_name: str) -> bool:
+        osm_host = self.find_osm_host_of(customer_name)
+        if not osm_host:
+            self.logger.warning(f'No customer "{customer_name}"')
             return False
+        return osm_host.upd_osm_customer(customer_name)
 
     def generate_wg_keys(self) -> tuple:
         """generate wireguard private and public key pairs"""
@@ -957,6 +968,12 @@ class cli_osm_orchestrator_t:
         else:
             return os.EX_UNAVAILABLE
 
+    def upd_osm_customer(self, customer_name: str) -> int:
+        if self._osm_orch.upd_osm_customer(customer_name):
+            return os.EX_OK
+        else:
+            return os.EX_UNAVAILABLE
+
     def add_osm_host(self, host_name: str, ip_addr: str, capcaity: str) -> int:
         if self._osm_orch.add_osm_host(host_name, ip_addr, capcaity):
             return os.EX_OK
@@ -1062,18 +1079,25 @@ class cli_osm_orchestrator_t:
             return os.EX_CONFIG
         return os.EX_OK
 
+
 def main():
     self_path = os.path.abspath(__file__)
     os.chdir(os.path.dirname(self_path))
 
     config = Path("config.yaml")
-    try:
+    if config.exists():
         config = config.resolve(strict=True)
-    except FileNotFoundError:
+    else:
         logging.error("No config.yaml found.")
         sys.exit(os.EX_UNAVAILABLE)
-    else:
+
+    try:
         config = yaml.safe_load(open("config.yaml"))
+    except yaml.YAMLError as err:
+        logging.error(err)
+        if hasattr(err, "problem_mark"):
+            mark = err.problem_mark
+            logging.error("Error position: %s:%s", mark.line+1, mark.column+1)
 
     osm_orch = osm_orchestrator_t(config)
     cli_obj = cli_osm_orchestrator_t(osm_orch)
@@ -1105,6 +1129,11 @@ def main():
             "del_customer <name> : Remove customer from OSM system",
             cli_obj.del_osm_customer
         ),
+        "upd_customer_osbase": cmd_entry(
+            "upd_customer_osbase <name>: "
+            "Upgrade customer to the latest OS base",
+            cli_obj.upd_osm_customer
+        ),
         "list_hosts": cmd_entry(
             "list_hosts : Lists OSM Hosts in system",
             cli_obj.list_hosts
@@ -1118,7 +1147,8 @@ def main():
             cli_obj.list_customers
         ),
         "get_customer_passwords": cmd_entry(
-            "get_customer_passwords <name>: Return dictionary of passwords for a specified customer",
+            "get_customer_passwords <name>: "
+            "Return dictionary of passwords for a specified customer",
             cli_obj.customer_passwords
         ),
         "get_wg_info": cmd_entry(
@@ -1126,11 +1156,15 @@ def main():
             cli_obj.wg_info
         ),
         "push_file_or_directory": cmd_entry(
-            "push_file_or_directory <customer> <source> <destination>: Push a file or a directory to a specified destination on a customer container",
+            "push_file_or_directory <customer> <source> <destination>: "
+            "Push a file or a directory to a specified destination on a "
+            "customer container",
             cli_obj.push_file_or_directory
         ),
         "pull_file_or_directory": cmd_entry(
-            "pull_file_or_directory <customer> <source> <destination>: Pull a file or a directory to a specified destination from a customer container",
+            "pull_file_or_directory <customer> <source> <destination>: "
+            "Pull a file or a directory to a specified destination from a "
+            "customer container",
             cli_obj.pull_file_or_directory
         )
     }
