@@ -1,4 +1,6 @@
 osm_orchestrator  ALL=NOPASSWD: /srv/osm-lxc/ansible/do-create-container.sh
 osm_orchestrator  ALL=NOPASSWD: /srv/osm-lxc/ansible/do-delete-container.sh
-osm_orchestrator  ALL=NOPASSWD: /srv/osm-lxc/ansible/do-upgrade-container.bash
+osm_orchestrator  ALL=NOPASSWD: /srv/osm-lxc/ansible/do-move-container.bash
 osm_orchestrator  ALL=NOPASSWD: /srv/osm-lxc/ansible/do-shell.sh
+osm_orchestrator  ALL=NOPASSWD: /srv/osm-lxc/ansible/do-start-new-container.bash
+osm_orchestrator  ALL=NOPASSWD: /srv/osm-lxc/ansible/do-upgrade-container.bash

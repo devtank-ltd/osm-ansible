@@ -84,14 +84,14 @@ main() {
     mapfile bases_lst -t < <(find "$BASETREE_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -n)
     latest_base="${bases_lst[-1]}"
     local ver="${latest_base%%-*}"
-    printf -v ver '%03d' $(( ver + 1 ))
+    printf -v ver '%03d' $(( 10#$ver + 1 ))
     new_base="${ver}-bookworm-$(date +%d-%m-%Y)"
     new_base="${BASETREE_DIR}/${new_base}"
     cp -r /var/lib/lxc/base-os/rootfs "$new_base"
 
     container "stop" "$container"
     sed -ri \
-        's#(overlayfs.*:).*(:/srv/osm-lxc/lxc/*)#\1'"${new_base}"'\2#p' \
+        's#(overlayfs.*:).*(:/srv/osm-lxc/lxc/*)#\1'"${new_base}"'\2#' \
         "${LXC_PATH}/${container}/lxc.container.conf"
     container "start" "$container"
 

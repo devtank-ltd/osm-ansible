@@ -550,6 +550,25 @@ class osm_host_t:
         )
         return False
 
+    def move_osm_customer(
+            self, customer_name: str, src: "osm_host_t", dst: "osm_host_t"
+    ) -> bool:
+        # if src.upd_osm_customer(customer_name):
+        #     self.logger.info("Customer '%s' updated", customer_name)
+        if not src.ssh_command(
+                'sudo /srv/osm-lxc/ansible/do-move-container.bash '
+                f"{customer_name} {dst.ip_addr}"
+        ):
+            self.logger.error("Container moving failed")
+            return False
+        if not dst.ssh_command(
+                'sudo /srv/osm-lxc/ansible/do-start-new-container.bash '
+                f"{customer_name}"
+        ):
+            self.logger.error("Failed to start new container")
+            return False
+        return True
+
     def upd_osm_customer(self, customer_name: str) -> bool:
         print(f"Upgrade customer container '{customer_name}-svr'")
         return self.ssh_command(
@@ -697,12 +716,11 @@ class osm_orchestrator_t:
                 if used < osm_host.capacity:
                     return osm_host
 
-    def find_osm_host_of(self, customer_name):
+    def find_osm_host_of(self, customer_name: str) -> Union[osm_host_t, None]:
         row = do_db_single_query(
             self.db, SQL_GET_HOST_BY_CUSTOMER, (customer_name,)
         )
-        if row:
-            return osm_host_t(self, row[0])
+        return osm_host_t(self, row[0]) if row else None
 
     def _restart_systemd_service(self, service_name: str) -> bool:
         proc = subprocess.run(
@@ -710,10 +728,9 @@ class osm_orchestrator_t:
         )
         return proc.returncode == 0
 
-    def find_osm_host(self, name):
+    def find_osm_host(self, name: str) -> Union[osm_host_t, None]:
         row = do_db_single_query(self.db, SQL_GET_HOST, (name,))
-        if row:
-            return osm_host_t(self, row[0])
+        return osm_host_t(self, row[0]) if row else None
 
     def find_osm_host_by_addr(self, ip_addr):
         row = do_db_single_query(self.db, SQL_GET_HOST_BY_ADDR, (ip_addr,))
@@ -747,6 +764,50 @@ class osm_orchestrator_t:
             self.logger.warning(f'No customer "{customer_name}"')
             return False
         return osm_host.del_osm_customer(customer_name)
+
+    def move_osm_customer(self, customer_name: str, host_name: str) -> bool:
+        current_osm_host = self.find_osm_host_of(customer_name)
+
+        if not current_osm_host:
+            self.logger.warning(f"No customer '{customer_name}'")
+            return False
+
+        if current_osm_host == host_name:
+            self.logger.info(
+                "The host '%s' alraedy has customer '%s'",
+                host_name, customer_name
+            )
+            return True
+
+        new_osm_host = self.find_osm_host(host_name)
+        if not new_osm_host:
+            self.logger.warning("No host '%s' found", host_name)
+            return False
+
+        cust_num = do_db_single_query(
+            self.db,
+            "SELECT count(*) osm_hosts_id FROM osm_customers WHERE osm_hosts_id=%s AND active_before is null",
+            new_osm_host.id
+            )[0]
+
+        if new_osm_host.capacity == cust_num:
+            self.logger.error(
+                "No space left for customer on host '%s': %d/%d", host_name,
+                cust_num, new_osm_host.capacity
+            )
+            return False
+
+        if new_osm_host.move_osm_customer(
+            customer_name, current_osm_host, new_osm_host
+        ):
+            do_db_update(
+                self.db,
+                "UPDATE osm_customers SET osm_hosts_id=%s WHERE name=%s",
+                (new_osm_host.id, customer_name)
+            )
+            return True
+
+        return False
 
     def upd_osm_customer(self, customer_name: str) -> bool:
         osm_host = self.find_osm_host_of(customer_name)
@@ -968,6 +1029,12 @@ class cli_osm_orchestrator_t:
         else:
             return os.EX_UNAVAILABLE
 
+    def move_osm_customer(self, customer_name: str, host_name: str) -> int:
+        if self._osm_orch.move_osm_customer(customer_name, host_name):
+            return os.EX_OK
+        else:
+            return os.EX_UNAVAILABLE
+
     def upd_osm_customer(self, customer_name: str) -> int:
         if self._osm_orch.upd_osm_customer(customer_name):
             return os.EX_OK
@@ -1128,6 +1195,11 @@ def main():
         "del_customer": cmd_entry(
             "del_customer <name> : Remove customer from OSM system",
             cli_obj.del_osm_customer
+        ),
+        "mv_customer": cmd_entry(
+            "mv_customer <customer name> <host name>: "
+            "Move customer to OSM host",
+            cli_obj.move_osm_customer
         ),
         "upd_customer_osbase": cmd_entry(
             "upd_customer_osbase <name>: "
