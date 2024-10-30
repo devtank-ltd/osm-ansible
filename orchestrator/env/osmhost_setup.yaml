@@ -1,22 +1,21 @@
 - name: Check for btrfs /srv
   shell: |
-    if [ -e /srv ]
-    then
-      srv_fs=$(df /srv -T | awk '/dev/ { print $2 }')
-      if [ "$srv_fs" != 'btrfs' ]
-      then
-        echo "Requires btrfs /srv"
-        exit -1
-      fi
+    if [[ -e /srv ]]; then
+        srv_fs="$(df --output=fstype /srv | sed '/Type/d')"
+        if [[ "$srv_fs" != 'btrfs' ]]; then
+            echo "Requires btrfs /srv"
+            exit 1
+        fi
     else
-      root_fs=$(df / -T | awk '/dev/ { print $2 }')
-      if [ "$root_fs" != 'btrfs' ]
-      then
-        echo "Requires btrfs root or /srv"
-        exit -1
-      fi
-      mkdir  -v -p -m 0755 -p /srv
+        root_fs="$(df --output=fstype / | sed '/Type/d')"
+        if [[ "$root_fs" != 'btrfs' ]]; then
+            echo "Requires btrfs root or /srv"
+            exit 1
+        fi
+        mkdir -v -p -m 0755 /srv
     fi
+  args:
+    executable: /bin/bash
 
 - name: Install required packages
   apt:
@@ -25,8 +24,13 @@
       - btrfs-progs
       - certbot
       - git
+      - libbsd-dev
+      - libglib2.0-dev
+      - libsqlite3-dev
+      - libxxhash-dev
       - lxc
       - netdata
+      - pandoc
       - prometheus-node-exporter
       - python3-lxc
       - rsync
@@ -57,6 +61,20 @@
       - libnginx-mod-stream
       - python3-certbot-nginx
     update_cache: yes
+
+- name: Fetch, build and install duperemove
+  block:
+    - name: Fetch duperemove
+      ansible.builtin.git:
+        repo: https://github.com/markfasheh/duperemove.git
+        dest: /srv/osm-lxc/orchestrator/env/dist/duperemove
+        version: "v0.14.1"
+
+    - name: Build and install duperemove
+      shell: |
+        make && make install
+      args:
+        chdir: /srv/osm-lxc/orchestrator/env/dist/duperemove
 
 - name: Add netdata main config
   copy:
@@ -155,5 +173,5 @@
 - name: Use OSM Host Base OS container to create OSM Host OS Base
   shell: |
     mkdir -p /srv/osm-lxc/lxc/os-bases
-    mv /var/lib/lxc/base-os/rootfs /srv/osm-lxc/lxc/os-bases/001-bookworm-$(date "+%d-%m-%Y")
-    rm -rf /var/lib/lxc/base-os/config
+    rsync -rlpgo /var/lib/lxc/base-os/rootfs/ /srv/osm-lxc/lxc/os-bases/001-bookworm-$(date "+%d-%m-%Y")
+    cp /var/lib/lxc/base-os/config /srv/osm-lxc/lxc/os-bases/base-os-lxc.conf
