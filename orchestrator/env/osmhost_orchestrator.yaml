@@ -31,6 +31,9 @@
           - python3-yaml
           - wireguard
           - curl
+          - "apt-transport-https"
+          - "software-properties-common"
+          - "wget"
         update_cache: yes
 
     - name: Clone OSM Ansible git repo.
@@ -248,3 +251,52 @@
       ansible.builtin.service:
         name: prometheus-alertmanager
         state: restarted
+
+    - name: "Download Grafana GPG key"
+      shell: "wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/grafana.gpg > /dev/null"
+
+    - name: "Make sure Grafana apt source exists"
+      lineinfile:
+        path: "/etc/apt/sources.list.d/grafana.list"
+        line: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://packages.grafana.com/oss/deb stable main"
+        create: yes
+
+    - name: "Install Grafana"
+      apt:
+        name: "grafana-nightly"
+        update_cache: yes
+
+    - name: "Create Orch Grafana Admin Password"
+      ansible.builtin.set_fact:
+        orch_grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
+
+    - name: "Set Grafana Admin Password"
+      command: "grafana-cli admin reset-admin-password {{ orch_grafana_admin_password }}; chown grafana: /var/lib/grafana/grafana.db;"
+
+    - name: "Start and enable Grafana"
+      systemd:
+        name: "grafana-server"
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
+
+    - name: "Add Prometheus data source to Grafana"
+      community.grafana.grafana_datasource:
+        name: "prometheus_ds"
+        grafana_url: "http://localhost:3000"
+        grafana_user: "admin"
+        grafana_password: "{{ orch_grafana_admin_password }}"
+        org_id: "1"
+        ds_type: "prometheus"
+        ds_url: "http://localhost:9090"
+
+    - name: Write passwords to JSON file
+      vars:
+        json_pwds: |
+          {
+            "Grafana Orch Admin": {"admin": {{ orch_grafana_admin_password | to_json }}},
+          }
+      ansible.builtin.copy:
+        content: "{{ json_pwds | to_nice_json }}"
+        dest: "/root/passwords.json"
+
