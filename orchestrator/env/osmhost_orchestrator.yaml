@@ -266,14 +266,6 @@
         name: "grafana-nightly"
         update_cache: yes
 
-    - name: "Configure Grafana"
-      template:
-        src: grafana.ini.j2
-        dest: /etc/grafana/grafana.ini
-        owner: root
-        group: grafana
-        mode: "640"
-
     - name: "Create Orch Grafana Admin Password"
       ansible.builtin.set_fact:
         orch_grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
