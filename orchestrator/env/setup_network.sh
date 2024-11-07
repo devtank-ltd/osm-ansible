@@ -80,6 +80,19 @@ for n in $(seq 0 ${#host_name[@]}); do
 done
 
 echo "========================================="
+info "Exchanging SSH keys between OSM hosts"
+declare ssh_key
+for i in "${!host_name[@]}"; do
+    [[ "${host_name[i]}" == "orchestrator" ]] && continue
+    for j in "${!host_ip[@]}"; do
+        [[ "${host_name[j]}" == "orchestrator" ]] && continue
+        [[ "${host_ip[i]}" == "${host_ip[j]}" ]] && continue
+        ssh_key="$(ssh root@"${host_ip[$i]}" 'cat ~/.ssh/id_rsa.pub')"
+        ssh root@"${host_ip[j]}" "echo $ssh_key >> ~/.ssh/authorized_keys"
+    done
+done
+
+echo "========================================="
 info "Network started, adding OSM customers to Orchestrator"
 
 for n in $(seq 1 "$OSMCUSTOMER_COUNT"); do

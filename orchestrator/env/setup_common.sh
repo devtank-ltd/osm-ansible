@@ -61,7 +61,8 @@ isoinfo -J -i "$DEBISO" -x /install.amd/vmlinuz > "$HOST_DIR"/boot/vmlinuz
 isoinfo -J -i "$DEBISO" -x /install.amd/initrd.gz > "$HOST_DIR"/boot/initrd.gz
 
 rm -rf "$DEBDISK"
-qemu-img create -f qcow2 "$DEBDISK" 16G
+# qemu-img create -f qcow2 "$DEBDISK" 16G
+qemu-img create -f qcow2 "$DEBDISK" 30G
 
 python3 -m http.server -d "$HOST_DIR" -b "${OSM_SUBNET}.1"&
 websvr=$!
