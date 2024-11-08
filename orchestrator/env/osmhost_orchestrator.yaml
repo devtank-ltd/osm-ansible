@@ -14,28 +14,29 @@
       apt:
         name:
           - ansible
+          - apt-transport-https
+          - curl
           - default-mysql-client
           - default-mysql-server
           - git
+          - golang-go
           - iproute2
           - iptables
           - pdns-backend-mysql
+          - pebble
           - prometheus
           - prometheus-alertmanager
           - prometheus-pushgateway
-          - pebble
-          - golang-go
           - python3
           - python3-crcmod
+          - python3-fastapi
           - python3-paramiko
           - python3-pymysql
           - python3-yaml
-          - wireguard
-          - curl
+          - software-properties-common
           - vim
-          - "apt-transport-https"
-          - "software-properties-common"
-          - "wget"
+          - wget
+          - wireguard
         update_cache: yes
 
     - name: Clone OSM Ansible git repo.
@@ -229,6 +230,19 @@
         state: restarted
         enabled: true
 
+    - name: "Install orchestrator fastAPI systemd service"
+      copy:
+        src: /srv/osm-lxc/orchestrator/env/dist/systemd/devtank-fastapi.service
+        dest: /etc/systemd/system/
+        remote_src: yes
+
+    - name: "Start orchestrator fastAPI service"
+      systemd_service:
+        name: devtank-fastapi
+        state: started
+        daemon_reload: true
+        enabled: true
+
     - name: "Apply prometheus configuration file"
       template:
         src: "templates/prometheus/prometheus.yml.j2"
@@ -301,4 +315,3 @@
       ansible.builtin.copy:
         content: "{{ json_pwds | to_nice_json }}"
         dest: "/root/passwords.json"
-

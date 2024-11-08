@@ -1174,8 +1174,10 @@ class cli_osm_orchestrator_t:
             f"{len(customers)}/{osm_host.capacity}"
         )
         for customer in customers:
-            port = self._osm_orch.get_osm_customer_mqtt_port(customer)
-            print(f"\tCustomer: {customer} (MQTT:{port})")
+            row = do_db_single_query(
+                self._osm_orch.db, SQL_GET_CUSTOMER_PORT, (customer,)
+            )
+            print(f"\tCustomer: {customer} (MQTT:{row[0]})")
         return os.EX_OK
 
     def list_customers(self):
