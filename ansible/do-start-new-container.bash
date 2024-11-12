@@ -10,12 +10,65 @@ readonly BASE_PATH="${LXC_PATH}/os-bases"
 readonly CONTAINERS_PATH="${LXC_PATH}/containers"
 
 die() {
-    echo "$*" >&2
+    echo "ERROR: $*" >&2
     exit 1
+}
+
+ip2i() {
+    local a b c d old_ifs
+    local -i n
+    old_ifs="$IFS"
+    IFS='.' read -r a b c d <<< "$1"
+    IFS="$old_ifs"
+    echo $(( (a << 24 ) + (b << 16) + ( c << 8) + d ))
+}
+
+i2ip() {
+    local -i n=$1
+    local -i disp=24
+    local ip=""
+
+    for (( ; disp >= 0; disp -= 8 )); do
+        ip="${ip}$(( n >> disp & 255))."
+    done
+    echo "${ip::-1}"
+}
+
+setup_pdns() {
+    :
+}
+
+setup_network() {
+    local name="$1"
+    local ipaddr macaddr
+    local -i a b c d
+
+    macaddr="$(sed -En 's/^lxc.net.0.hwaddr[[:space:]]=[[:space:]](.*)$/\1/p' "${CONTAINERS_PATH}/${name}/lxc.container.conf")"
+    ipaddr="$(cut -d, -f2 /etc/lxc/dnsmasq.conf | sort -t . -k 3,3n -k 4,4n | tail -n1)"
+    ipaddr="$(i2ip $(( $(ip2i "$ipaddr") + 1)) )"
+    sed -i -e $'$a\\\ndhcp-host='"${macaddr},${ipaddr}"'' /etc/lxc/dnsmasq.conf
+    sed -i -e $'$a\\\n'"${ipaddr} ${name}"'' /etc/hosts
+    systemctl restart lxc-net.service || die "LXC network service was not restarted"
+}
+
+ansible_finalize() {
+    customer="$1"
+    mqtt_port="$2"
+
+    domain="$(find /etc/letsencrypt/live/ -mindepth 1 -type d -printf '%f' -quit)"
+    domain="${domain#*.}"
+
+    ansible-playbook \
+        "${DEVTANK_DIR}/ansible/create-container.yaml" \
+        -e customer_name="$customer" \
+        -e mqtt_port="$mqtt_port" \
+        -e le_domain="$domain" \
+        --tags=finalize
 }
 
 main() {
     local name="$1"
+    local port="$2"
     local lower latest_base base
     local -a bases_lst
     local -i ver
@@ -31,19 +84,23 @@ main() {
     base="${BASE_PATH}/${ver}-bookworm-$(date +%d-%m-%Y)"
     mkdir -p "$base"
     tar -xpf "$lower" -C "$base" || die "Failed to unpack '$lower'"
-    unlink "$lower"
+    # unlink "$lower"
     popd >/dev/null 2>&1
 
     pushd "$CONTAINERS_PATH" > /dev/null 2>&1
     [[ -f "${name}.tar.xz" ]] || die "There is no tarball for '$name'"
-    mkdir -p "${CONTAINERS_PATH}/${name}"
+    btrfs subvolume create "${name}" || die "Unable to create btrfs subvolume"
     tar -xpf "${name}.tar.xz" -C "${CONTAINERS_PATH}/${name}" || \
         die "Failed to unpack '$name'"
     sed -Ei 's,(:)/.*(:.*),\1'"$base"'\2,' "${CONTAINERS_PATH}/${name}/lxc.container.conf"
+    setup_network "${name}"
+    snapper -c "$name" create-config "${CONTAINERS_PATH}/${name}"
     lxc-start -n "${name}" -f "${CONTAINERS_PATH}/${name}/lxc.container.conf" || \
         die "Unable to start '$name' container"
-    unlink "${name}.tar.xz"
+    # unlink "${name}.tar.xz"
     popd >/dev/null 2>&1
+
+    ansible_finalize "${name%-svr}" "$port"
 }
 
 main "$@"
