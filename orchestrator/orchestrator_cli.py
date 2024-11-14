@@ -553,19 +553,37 @@ class osm_host_t:
     def move_osm_customer(
             self, customer_name: str, src: "osm_host_t", dst: "osm_host_t"
     ) -> bool:
-        # if src.upd_osm_customer(customer_name):
-        #     self.logger.info("Customer '%s' updated", customer_name)
+        if not src.upd_osm_customer(customer_name):
+            self.logger.info("Customer '%s' was not updated", customer_name)
+            return False
+
         if not src.ssh_command(
                 'sudo /srv/osm-lxc/ansible/do-move-container.bash '
                 f"{customer_name} {dst.ip_addr}"
         ):
             self.logger.error("Container moving failed")
             return False
+        mqtt_port = do_db_single_query(
+            self.db,
+            "SELECT host_mqtt_port FROM osm_customers WHERE name=%s AND "
+            "active_before IS NULL",
+            customer_name
+        )[0]
+
         if not dst.ssh_command(
                 'sudo /srv/osm-lxc/ansible/do-start-new-container.bash '
-                f"{customer_name}"
+                f"{customer_name} {mqtt_port}"
         ):
             self.logger.error("Failed to start new container")
+            return False
+        if not src.ssh_command(
+                'sudo /srv/osm-lxc/ansible/do-delete-container.sh '
+                f'"{customer_name}"'
+        ):
+            self.logger.error(
+                "Unable to delete container '%s' on the host '%s",
+                customer_name, src.name
+            )
             return False
         return True
 
