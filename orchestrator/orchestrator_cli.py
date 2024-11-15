@@ -563,8 +563,7 @@ class osm_host_t:
     def move_osm_customer(
             self, customer_name: str, src: "osm_host_t", dst: "osm_host_t"
     ) -> bool:
-        if not src.upd_osm_customer(customer_name):
-            self.logger.info("Customer '%s' was not updated", customer_name)
+        if not src.upgrade_osm_customers():
             return False
 
         if not src.ssh_command(

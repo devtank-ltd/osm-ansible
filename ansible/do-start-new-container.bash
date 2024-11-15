@@ -34,10 +34,6 @@ i2ip() {
     echo "${ip::-1}"
 }
 
-setup_pdns() {
-    :
-}
-
 setup_network() {
     local name="$1"
     local ipaddr macaddr
@@ -69,9 +65,8 @@ ansible_finalize() {
 main() {
     local name="$1"
     local port="$2"
-    local lower latest_base base
+    local lower latest_base base ver
     local -a bases_lst
-    local -i ver
 
     name="${name}-svr"
 
@@ -80,11 +75,16 @@ main() {
     [[ -z "$lower" ]] && die "Unable to find base tarball"
     mapfile bases_lst -t  < <(find . -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -n)
     latest_base="${bases_lst[-1]}"
-    printf -v ver '%03d' $(( 10#${latest_base%%-*} + 1 ))
+    latest_base="${latest_base/$'\n'}"
+    base_ver="${latest_base%%-*}"
+    # remove leading zeros from version
+    shopt -s extglob
+    base_ver="${base_ver##+(0)}"
+    shopt -u extglob
+    printf -v ver '%03d' $(( 10#$base_ver + 1 ))
     base="${BASE_PATH}/${ver}-bookworm-$(date +%d-%m-%Y)"
     mkdir -p "$base"
     tar -xpf "$lower" -C "$base" || die "Failed to unpack '$lower'"
-    # unlink "$lower"
     popd >/dev/null 2>&1
 
     pushd "$CONTAINERS_PATH" > /dev/null 2>&1
@@ -97,10 +97,12 @@ main() {
     snapper -c "$name" create-config "${CONTAINERS_PATH}/${name}"
     lxc-start -n "${name}" -f "${CONTAINERS_PATH}/${name}/lxc.container.conf" || \
         die "Unable to start '$name' container"
-    # unlink "${name}.tar.xz"
     popd >/dev/null 2>&1
 
-    ansible_finalize "${name%-svr}" "$port"
+    if ansible_finalize "${name%-svr}" "$port"; then
+        unlink "${BASE_PATH}/${lower}"
+        unlink "${CONTAINERS_PATH}/${name}.tar.xz"
+    fi
 }
 
 main "$@"
