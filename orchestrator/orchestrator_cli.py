@@ -11,6 +11,7 @@ import logging
 import os
 import paramiko
 import pymysql
+import select
 import socket
 import struct
 import subprocess
@@ -331,14 +332,23 @@ class osm_host_t:
         self._ssh_ref = weakref.ref(ssh)
         return ssh
 
-    def ssh_command(self, cmd: str) -> bool:
+    def ssh_command(self, cmd: str, pty: bool = False) -> bool:
         ssh = self.get_ssh()
         if not ssh:
             return False
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+        try:
+            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(
+                cmd, get_pty=pty
+            )
+        except SSHException as err:
+            self.logger.error(err)
+            return False
+
         for line in ssh_stdout:
             self.logger.debug(line.rstrip())
+
         error_code = ssh_stdout.channel.recv_exit_status()
+
         if error_code:
             self.logger.error(
                 f"Command '{cmd}' failed : "
@@ -347,6 +357,7 @@ class osm_host_t:
             for line in ssh_stderr:
                 self.logger.error(line.rstrip())
             return False
+        ssh.close()
         return True
 
     def ssh_pull_file_or_directory(
@@ -587,12 +598,30 @@ class osm_host_t:
             return False
         return True
 
-    def upd_osm_customer(self, customer_name: str) -> bool:
-        print(f"Upgrade customer container '{customer_name}-svr'")
-        return self.ssh_command(
-            'sudo /srv/osm-lxc/ansible/do-upgrade-container.bash '
-            f'{customer_name}'
+    def upgrade_osm_customers(self) -> bool:
+        upgrade_cmd = "sudo /srv/osm-lxc/ansible/do-upgrade-container.bash"
+        lxc_dir = "/srv/osm-lxc/lxc/containers"
+        os_base_dir = "/srv/osm-lxc/lxc/os-bases"
+        duphash = "/root/dedup.hash"
+        dedup_cmd = (
+            "sudo /usr/local/bin/duperemove -rhd --hashfile="
+            f"{duphash} {lxc_dir} {os_base_dir}"
         )
+        # upgrade base container
+        if self.ssh_command(f"{upgrade_cmd} 'base-os'", True):
+            # upgrade customers containers
+            for customer in self.customers:
+                self.logger.info("Upgrade '%s' customer container", customer)
+                if not self.ssh_command(f"{upgrade_cmd} {customer}", True):
+                    self.logger.error(
+                        "The customer '%s' was not upgraded", customer
+                    )
+                    return False
+            return self.ssh_command(dedup_cmd)
+            return True
+
+        self.logger.error("The base container was not upgraded")
+        return False
 
     def get_osm_customer_passwords(self, customer_name) -> dict:
         def walk_encrypted_dict(d: dict, crypt: Fernet, key: str) -> None:
@@ -827,12 +856,11 @@ class osm_orchestrator_t:
 
         return False
 
-    def upd_osm_customer(self, customer_name: str) -> bool:
-        osm_host = self.find_osm_host_of(customer_name)
-        if not osm_host:
-            self.logger.warning(f'No customer "{customer_name}"')
-            return False
-        return osm_host.upd_osm_customer(customer_name)
+    def upgrade_osm_customers(self, host_name: str) -> bool:
+        if (osm_host := self.find_osm_host(host_name)):
+            return osm_host.upgrade_osm_customers()
+        self.logger.error(f"The OSM host '{host_name}' is not found")
+        return False
 
     def generate_wg_keys(self) -> tuple:
         """generate wireguard private and public key pairs"""
@@ -1053,11 +1081,10 @@ class cli_osm_orchestrator_t:
         else:
             return os.EX_UNAVAILABLE
 
-    def upd_osm_customer(self, customer_name: str) -> int:
-        if self._osm_orch.upd_osm_customer(customer_name):
+    def upgrade_osm_customers(self, host_name: str) -> int:
+        if self._osm_orch.upgrade_osm_customers(host_name):
             return os.EX_OK
-        else:
-            return os.EX_UNAVAILABLE
+        return os.EX_UNAVAILABLE
 
     def add_osm_host(self, host_name: str, ip_addr: str, capcaity: str) -> int:
         if self._osm_orch.add_osm_host(host_name, ip_addr, capcaity):
@@ -1219,10 +1246,10 @@ def main():
             "Move customer to OSM host",
             cli_obj.move_osm_customer
         ),
-        "upd_customer_osbase": cmd_entry(
-            "upd_customer_osbase <name>: "
-            "Upgrade customer to the latest OS base",
-            cli_obj.upd_osm_customer
+        "upgrade_customers": cmd_entry(
+            "upgrade_customers <host name>: Upgrade existing customers on the "
+            "OSM host",
+            cli_obj.upgrade_osm_customers
         ),
         "list_hosts": cmd_entry(
             "list_hosts : Lists OSM Hosts in system",
