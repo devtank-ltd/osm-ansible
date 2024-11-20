@@ -31,6 +31,7 @@
           - python3-yaml
           - wireguard
           - curl
+          - vim
           - "apt-transport-https"
           - "software-properties-common"
           - "wget"
