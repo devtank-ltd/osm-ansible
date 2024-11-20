@@ -47,6 +47,10 @@ PROMETHEUS_HOST_TMPL = """
     static_configs:
       - targets: ["{wg_ipaddr}:19999"]
 
+  - job_name: "{osm-{host_name}"
+    metrics_path: "/osm_data"
+    static_configs:
+      - targets: ["{wg_ipaddr}:9099"]
 """
 
 SQL_ADD_HOST = """
