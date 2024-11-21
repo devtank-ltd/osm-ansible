@@ -80,18 +80,3 @@
   with_items:
     - "nginx -t"
     - "nginx -s reload"
-
-- name: Get the IP of the LXC container
-  ansible.builtin.command:
-    cmd: lxc-info -n "{{ customer_name }}"-svr -iH
-  register: container_ip
-
-- name: Forward port on container to OSM host
-  ansible.builtin.iptables:
-    table: nat
-    chain: PREROUTING
-    protocol: tcp
-    destination_port: 9099
-    jump: DNAT
-    to_destination: "{{ container_ip.stdout }}:9099"
-
