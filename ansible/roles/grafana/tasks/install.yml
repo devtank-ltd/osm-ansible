@@ -19,5 +19,5 @@
 
 - name: "Install Grafana"
   apt:
-    name: "grafana-nightly"
+    name: "grafana"
     update_cache: yes
