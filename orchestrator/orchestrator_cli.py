@@ -47,7 +47,6 @@ PROMETHEUS_HOST_TMPL = """
     honor_labels: true
     static_configs:
       - targets: ["{wg_ipaddr}:19999"]
-
 """
 
 SQL_ADD_HOST = """

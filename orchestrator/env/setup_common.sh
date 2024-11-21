@@ -1,7 +1,7 @@
 # -*- mode: sh; sh-shell: bash; -*-
 
 readonly DEB_ISO_ARCH="amd64"
-readonly DEB_ISO_VER="12.7.0"
+readonly DEB_ISO_VER="12.8.0"
 readonly DEB_URL="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd"
 readonly ISO_NAME="debian-${DEB_ISO_VER}-${DEB_ISO_ARCH}-netinst.iso"
 readonly DEB_ISO_URL="${DEB_URL}/${ISO_NAME}"

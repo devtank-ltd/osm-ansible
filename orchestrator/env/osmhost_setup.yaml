@@ -38,6 +38,7 @@
       - sudo
       - ufw
       - wireguard
+      - vim
     update_cache: yes
 
 - name: Clone OSM Ansible git repo.

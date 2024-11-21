@@ -17,3 +17,5 @@
           - python3-paho-mqtt
           - python3-urllib3
           - wireguard
+          - python3-prometheus-client
+          - vim

@@ -22,6 +22,7 @@
           - pdns-backend-mysql
           - prometheus
           - prometheus-alertmanager
+          - prometheus-pushgateway
           - pebble
           - golang-go
           - python3
@@ -31,6 +32,7 @@
           - python3-yaml
           - wireguard
           - curl
+          - vim
           - "apt-transport-https"
           - "software-properties-common"
           - "wget"
