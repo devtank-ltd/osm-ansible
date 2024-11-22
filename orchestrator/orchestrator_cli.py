@@ -1187,9 +1187,14 @@ class cli_osm_orchestrator_t:
             return os.EX_CONFIG
         return os.EX_OK
 
-    def add_dashboards(self, customer_name: str, config: str, cert: str | None=None) -> int:
+    def add_dashboards(self, customer_name: str, config: str, cert: Union[str, None]=None) -> int:
         if self._validate_grafana_config(customer_name, config) == os.EX_OK:
-            grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'add', config]
+            grafana_cmd = [
+                'python3',
+                '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py',
+                'add',
+                config
+            ]
             if cert:
                 grafana_cmd += ['-c', cert]
             grafana_proc = subprocess.Popen(
@@ -1209,9 +1214,14 @@ class cli_osm_orchestrator_t:
         print("Validate grafana config failed.")
         return os.EX_CONFIG
 
-    def del_dashboards(self, customer_name: str, config: str, cert: str | None=None) -> int:
+    def del_dashboards(self, customer_name: str, config: str, cert: Union[str, None]=None) -> int:
         if self._validate_grafana_config(customer_name, config) == os.EX_OK:
-            grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'delete', config]
+            grafana_cmd = [
+                'python3',
+                '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py',
+                'delete',
+                config
+            ]
             if cert:
                 grafana_cmd += ['-c', cert]
             grafana_proc = subprocess.Popen(
@@ -1345,11 +1355,13 @@ def main():
             cli_obj.pull_file_or_directory
         ),
         "add_dashboards" : cmd_entry(
-            "add_dashboards <customer_name> <config> <cert>: Creates Grafana dashboard solution for customer with optional cert",
+            "add_dashboards <customer_name> <config> <cert>: Creates "
+            "Grafana dashboard solution for customer with optional cert",
             cli_obj.add_dashboards
         ),
         "del_dashboards" : cmd_entry(
-            "del_dashboards <customer_name> <config> <cert>: Deletes Grafana dashboard solution for customer with optional cert",
+            "del_dashboards <customer_name> <config> <cert>: Deletes "
+            "Grafana dashboard solution for customer with optional cert",
             cli_obj.del_dashboards
         ),
     }
