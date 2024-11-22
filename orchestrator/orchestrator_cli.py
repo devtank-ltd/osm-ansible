@@ -1170,7 +1170,7 @@ class cli_osm_orchestrator_t:
         self.logger.warning(f'Unable to get WG info for host {host_name}')
         return os.EX_CONFIG
 
-    def _validate_grafana_config(self, customer_name, config):
+    def _validate_grafana_config(self, customer_name: str, config: str) -> int:
         try:
             with open(config) as f:
                 db_config = json.load(f)
@@ -1187,7 +1187,7 @@ class cli_osm_orchestrator_t:
             return os.EX_CONFIG
         return os.EX_OK
 
-    def add_dashboards(self, customer_name, config, cert=None):
+    def add_dashboards(self, customer_name: str, config: str, cert: str | None=None) -> int:
         if self._validate_grafana_config(customer_name, config) == os.EX_OK:
             grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'add', config]
             if cert:
@@ -1210,7 +1210,7 @@ class cli_osm_orchestrator_t:
         print("Validate grafana config failed.")
         return os.EX_CONFIG
 
-    def del_dashboards(self, customer_name, config, cert=None):
+    def del_dashboards(self, customer_name: str, config: str, cert: str | None=None) -> int:
         if self._validate_grafana_config(customer_name, config) == os.EX_OK:
             grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'delete', config]
             if cert:
@@ -1233,7 +1233,7 @@ class cli_osm_orchestrator_t:
         print("Validate grafana config failed.")
         return os.EX_CONFIG
 
-    def push_file_or_directory(self, customer_name, src, dest):
+    def push_file_or_directory(self, customer_name: str, src: str, dest: str) -> int:
         osm_host = self._osm_orch.find_osm_host_of(customer_name)
         if not osm_host:
             self.logger.warning(f'No osm host for customer "{customer_name}"')
@@ -1243,7 +1243,7 @@ class cli_osm_orchestrator_t:
             return os.EX_CONFIG
         return os.EX_OK
 
-    def pull_file_or_directory(self, customer_name, src, dest):
+    def pull_file_or_directory(self, customer_name: str, src: str, dest: str) -> int:
         osm_host = self._osm_orch.find_osm_host_of(customer_name)
         if not osm_host:
             self.logger.warning(f'No osm host for customer "{customer_name}"')
