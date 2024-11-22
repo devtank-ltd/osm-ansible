@@ -1199,7 +1199,6 @@ class cli_osm_orchestrator_t:
             )
             try:
                 out, err = grafana_proc.communicate()
-                self.logger.info(out.decode().split('\n'))
             except subprocess.SubprocessError as errs:
                 grafana_proc.kill()
                 self.logger.error(errs)
@@ -1222,7 +1221,6 @@ class cli_osm_orchestrator_t:
             )
             try:
                 out, err = grafana_proc.communicate()
-                self.logger.info(out.decode().split('\n'))
             except subprocess.SubprocessError as errs:
                 grafana_proc.kill()
                 self.logger.error(errs)
