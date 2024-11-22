@@ -1170,7 +1170,68 @@ class cli_osm_orchestrator_t:
         self.logger.warning(f'Unable to get WG info for host {host_name}')
         return os.EX_CONFIG
 
-    def push_file_or_directory(self, customer_name, src, dest):
+    def _validate_grafana_config(self, customer_name: str, config: str) -> int:
+        try:
+            with open(config) as f:
+                db_config = json.load(f)
+        except Exception as e:
+            print(f"Invalid config file. Exiting")
+            return os.EX_CONFIG
+        osm_host = self._osm_orch.find_osm_host_of(customer_name)
+        if not osm_host:
+            print(f"Could not find host with customer: {customer_name}")
+            return os.EX_CONFIG
+        grafana_exists = osm_host.ssh_command(f"ping -c1 {db_config['grafana_url']}")
+        if not grafana_exists:
+            print("Cannot ping domain. Exiting")
+            return os.EX_CONFIG
+        return os.EX_OK
+
+    def add_dashboards(self, customer_name: str, config: str, cert: str | None=None) -> int:
+        if self._validate_grafana_config(customer_name, config) == os.EX_OK:
+            grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'add', config]
+            if cert:
+                grafana_cmd += ['-c', cert]
+            grafana_proc = subprocess.Popen(
+                grafana_cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE
+            )
+            try:
+                out, err = grafana_proc.communicate()
+            except subprocess.SubprocessError as errs:
+                grafana_proc.kill()
+                self.logger.error(errs)
+                return os.EX_CONFIG
+            if grafana_proc.returncode:
+                return os.EX_CONFIG
+            return os.EX_OK
+        print("Validate grafana config failed.")
+        return os.EX_CONFIG
+
+    def del_dashboards(self, customer_name: str, config: str, cert: str | None=None) -> int:
+        if self._validate_grafana_config(customer_name, config) == os.EX_OK:
+            grafana_cmd = ['python3', '/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py', 'delete', config]
+            if cert:
+                grafana_cmd += ['-c', cert]
+            grafana_proc = subprocess.Popen(
+                grafana_cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE
+            )
+            try:
+                out, err = grafana_proc.communicate()
+            except subprocess.SubprocessError as errs:
+                grafana_proc.kill()
+                self.logger.error(errs)
+                return os.EX_CONFIG
+            if grafana_proc.returncode:
+                return os.EX_CONFIG
+            return os.EX_OK
+        print("Validate grafana config failed.")
+        return os.EX_CONFIG
+
+    def push_file_or_directory(self, customer_name: str, src: str, dest: str) -> int:
         osm_host = self._osm_orch.find_osm_host_of(customer_name)
         if not osm_host:
             self.logger.warning(f'No osm host for customer "{customer_name}"')
@@ -1180,7 +1241,7 @@ class cli_osm_orchestrator_t:
             return os.EX_CONFIG
         return os.EX_OK
 
-    def pull_file_or_directory(self, customer_name, src, dest):
+    def pull_file_or_directory(self, customer_name: str, src: str, dest: str) -> int:
         osm_host = self._osm_orch.find_osm_host_of(customer_name)
         if not osm_host:
             self.logger.warning(f'No osm host for customer "{customer_name}"')
@@ -1282,7 +1343,15 @@ def main():
             "Pull a file or a directory to a specified destination from a "
             "customer container",
             cli_obj.pull_file_or_directory
-        )
+        ),
+        "add_dashboards" : cmd_entry(
+            "add_dashboards <customer_name> <config> <cert>: Creates Grafana dashboard solution for customer with optional cert",
+            cli_obj.add_dashboards
+        ),
+        "del_dashboards" : cmd_entry(
+            "del_dashboards <customer_name> <config> <cert>: Deletes Grafana dashboard solution for customer with optional cert",
+            cli_obj.del_dashboards
+        ),
     }
 
     directory = config["plugin_dir"]
