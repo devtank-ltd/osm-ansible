@@ -659,6 +659,20 @@ class osm_host_t:
 
         return passwords
 
+    def upgrade_influx_inserter(self) -> bool:
+        cmd = "sudo /srv/osm-lxc/ansible/do-influx-inserter-upgrade.bash"
+        for customer in self.customers:
+            self.logger.info("Upgrade '%s' influx inserter service",
+                customer)
+            if not self.ssh_command(f"{cmd} {customer}", True):
+                self.logger.error(
+                    "Service for '%s' was not upgraded", customer
+                )
+                return False
+        return True
+        self.logger.error("Influx inserter was not upgraded")
+        return False
+
 
 class osm_orchestrator_t:
     MASTER_FILE = "master.key"
@@ -858,6 +872,12 @@ class osm_orchestrator_t:
     def upgrade_osm_customers(self, host_name: str) -> bool:
         if (osm_host := self.find_osm_host(host_name)):
             return osm_host.upgrade_osm_customers()
+        self.logger.error(f"The OSM host '{host_name}' is not found")
+        return False
+
+    def upgrade_influx_inserter(self, host_name: str) -> bool:
+        if (osm_host := self.find_osm_host(host_name)):
+            return osm_host.upgrade_influx_inserter()
         self.logger.error(f"The OSM host '{host_name}' is not found")
         return False
 
@@ -1363,6 +1383,11 @@ def main():
             "del_dashboards <customer_name> <config> <cert>: Deletes "
             "Grafana dashboard solution for customer with optional cert",
             cli_obj.del_dashboards
+        ),
+        "upgrade_influx_inserter" : cmd_entry(
+            "upgrade_influx_inserter <host_name>: Upgrades mqtt influx "
+            "inserter for all customers on host",
+            cli_obj.upgrade_influx_inserter
         ),
     }
 
