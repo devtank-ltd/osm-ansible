@@ -1281,6 +1281,11 @@ class cli_osm_orchestrator_t:
             return os.EX_CONFIG
         return os.EX_OK
 
+    def upgrade_influx_inserter(self, host_name: str) -> int:
+        if self._osm_orch.upgrade_influx_inserter(host_name):
+            return os.EX_OK
+        return os.EX_UNAVAILABLE
+
 
 def main():
     self_path = os.path.abspath(__file__)
