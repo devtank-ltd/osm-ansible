@@ -626,7 +626,8 @@ class osm_host_t:
             if isinstance(d, dict):
                 for k, v in d.items():
                     if isinstance(v, str):
-                        d[k] = crypt.decrypt(v).decode(self.encoding)
+                        msg = v.encode(self.encoding)
+                        d[k] = crypt.decrypt(msg).decode(self.encoding)
                     else:
                         walk_encrypted_dict(v, crypt, key)
 
