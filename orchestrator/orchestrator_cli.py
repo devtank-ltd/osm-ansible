@@ -99,7 +99,7 @@ SQL_GET_CUSTOMER_SECRETS = "SELECT secrets FROM osm_secrets WHERE osm_customer_i
 SQL_ADD_CUSTOMER_KEY = "INSERT INTO osm_keys (osm_customer_id, customer_key) VALUES (%s, %s)"
 SQL_DEL_CUSTOMER_KEY = "DELETE FROM osm_keys WHERE osm_customer_id=%s"
 SQL_GET_CUSTOMER_KEY = "SELECT customer_key FROM osm_keys WHERE osm_customer_id=%s"
-SQL_GET_CUSTOMER_ID = "SELECT id FROM osm_customers WHERE name=%s"
+SQL_GET_CUSTOMER_ID = "SELECT id FROM osm_customers WHERE name=%s AND active_before is NULL"
 SQL_GET_FREEST_HOST = """
 SELECT id, (
 (SELECT COUNT(osm_customers.id) FROM osm_customers WHERE active_before IS NULL AND osm_hosts_id = osm_hosts.id) / capacity
