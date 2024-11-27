@@ -88,10 +88,7 @@ main() {
     popd >/dev/null 2>&1
 
     pushd "$CONTAINERS_PATH" > /dev/null 2>&1
-    [[ -f "${name}.tar.xz" ]] || die "There is no tarball for '$name'"
-    btrfs subvolume create "${name}" || die "Unable to create btrfs subvolume"
-    tar -xpf "${name}.tar.xz" -C "${CONTAINERS_PATH}/${name}" || \
-        die "Failed to unpack '$name'"
+    btrfs property set -f -ts "$name" ro false
     sed -Ei 's,(:)/.*(:.*),\1'"$base"'\2,' "${CONTAINERS_PATH}/${name}/lxc.container.conf"
     setup_network "${name}"
     snapper -c "$name" create-config "${CONTAINERS_PATH}/${name}"
@@ -101,7 +98,6 @@ main() {
 
     if ansible_finalize "${name%-svr}" "$port"; then
         unlink "${BASE_PATH}/${lower}"
-        unlink "${CONTAINERS_PATH}/${name}.tar.xz"
     fi
 }
 
