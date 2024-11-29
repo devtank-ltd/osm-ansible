@@ -670,8 +670,6 @@ class osm_host_t:
                 )
                 return False
         return True
-        self.logger.error("Influx inserter was not upgraded")
-        return False
 
 
 class osm_orchestrator_t:
@@ -872,13 +870,13 @@ class osm_orchestrator_t:
     def upgrade_osm_customers(self, host_name: str) -> bool:
         if (osm_host := self.find_osm_host(host_name)):
             return osm_host.upgrade_osm_customers()
-        self.logger.error(f"The OSM host '{host_name}' is not found")
+        self.logger.error("The OSM host '%s' is not found", host_name)
         return False
 
     def upgrade_influx_inserter(self, host_name: str) -> bool:
         if (osm_host := self.find_osm_host(host_name)):
             return osm_host.upgrade_influx_inserter()
-        self.logger.error(f"The OSM host '{host_name}' is not found")
+        self.logger.error("The OSM host '%s' is not found", host_name)
         return False
 
     def generate_wg_keys(self) -> tuple:
