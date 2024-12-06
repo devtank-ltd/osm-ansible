@@ -187,6 +187,7 @@ run_qemu_vm() {
         -drive "file=${vm_disk},format=qcow2,if=virtio"
         -drive "if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE_4M.fd,readonly=on"
         -drive "if=pflash,format=raw,unit=1,file=${bios_mem}"
+        -device "virtio-balloon-pci,id=balloon0"
         "${extra_args[@]}"
     )
     info "Run QEMU Virtual machine"
