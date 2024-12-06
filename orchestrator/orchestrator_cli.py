@@ -1153,7 +1153,7 @@ class cli_osm_orchestrator_t:
         )
         for customer in customers:
             row = do_db_single_query(
-                self.db, SQL_GET_CUSTOMER_PORT, (customer,)
+                self._osm_orch.db, SQL_GET_CUSTOMER_PORT, (customer,)
             )
             print(f"\tCustomer: {customer} (MQTT:{row[0]})")
         return os.EX_OK
