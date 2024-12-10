@@ -299,7 +299,7 @@ class osm_host_t:
     def get_ssh(self) -> Union[paramiko.SSHClient, None]:
         if self._ssh_ref:
             current = self._ssh_ref()
-            if current:
+            if current and current.get_transport():
                 return current
         ssh = paramiko.SSHClient()
         known_hosts = os.environ["HOME"] + '/.ssh/known_hosts'
