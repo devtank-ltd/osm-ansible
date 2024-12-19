@@ -1311,7 +1311,7 @@ class cli_osm_orchestrator_t:
             return os.EX_CONFIG
         mqtt_port = osm_host.get_osm_customer_mqtt_port(customer_name)
         domains = osm_host.get_osm_customer_domains(customer_name)
-        pws = osm_host.get_customer_passwords(customer_name)
+        pws = osm_host.get_osm_customer_passwords(customer_name)
         mqtt_domain = None
         for domain in domains:
             if domain.find("-mqtt.") != -1:
