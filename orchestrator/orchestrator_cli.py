@@ -1309,9 +1309,9 @@ class cli_osm_orchestrator_t:
         if not osm_host:
             self.logger.warning(f'No osm host for customer "{customer_name}"')
             return os.EX_CONFIG
-        mqtt_port = self._osm_orch.get_osm_customer_mqtt_port(customer_name)
-        domains = self._osm_orch.get_osm_customer_domains(customer_name)
-        pws = self._osm_orch.get_customer_passwords(customer_name)
+        mqtt_port = osm_host.get_osm_customer_mqtt_port(customer_name)
+        domains = osm_host.get_osm_customer_domains(customer_name)
+        pws = osm_host.get_customer_passwords(customer_name)
         mqtt_domain = None
         for domain in domains:
             if domain.find("-mqtt.") != -1:
