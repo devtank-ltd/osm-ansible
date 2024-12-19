@@ -128,7 +128,7 @@ DELETE FROM records WHERE domain_id=%s AND name=%s AND content=%s
 """
 
 SQL_PDNS_GET_CUSTOMER_RECORD = """
-SELECT name FROM records WHERE name REGEXP '%s'
+SELECT name FROM records WHERE name REGEXP %s
 """
 
 DOMAIN_PARTS = ("", "-chirpstack", "-influx", "-mqtt")
