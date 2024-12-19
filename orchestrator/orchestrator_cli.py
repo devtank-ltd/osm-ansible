@@ -153,32 +153,32 @@ crc8_func = crcmod.predefined.mkCrcFun('crc-8')
 def do_db_query(db, cmd, args):
     with db.cursor() as c:
         full_cmd = c.mogrify(cmd, args)
-        c.execute(full_cmd)
         logging.debug(full_cmd)
+        c.execute(full_cmd)
         return c.fetchall()
 
 
 def do_db_single_query(db, cmd, args):
     with db.cursor() as c:
         full_cmd = c.mogrify(cmd, args)
-        c.execute(full_cmd)
         logging.debug(full_cmd)
+        c.execute(full_cmd)
         return c.fetchone()
 
 
 def do_db_update(db, cmd, args):
     with db.cursor() as c:
         full_cmd = c.mogrify(cmd, args)
-        c.execute(full_cmd)
         logging.debug(full_cmd)
+        c.execute(full_cmd)
     db.commit()
 
 
 def do_db_insert(db, cmd, args):
     with db.cursor() as c:
         full_cmd = c.mogrify(cmd, args)
-        c.execute(full_cmd)
         logging.debug(full_cmd)
+        c.execute(full_cmd)
         row_id = c.lastrowid
     db.commit()
     return row_id
