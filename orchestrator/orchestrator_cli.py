@@ -621,6 +621,12 @@ class osm_host_t:
         self.logger.error("The base container was not upgraded")
         return False
 
+    def get_osm_customer_mqtt_port(self, customer_name: str):
+        row = do_db_single_query(
+                self.db, SQL_GET_CUSTOMER_PORT, (customer_name,)
+        if row
+            return row[0]
+
     def get_osm_customer_passwords(self, customer_name) -> dict:
         def walk_encrypted_dict(d: dict, crypt: Fernet, key: str) -> None:
             if isinstance(d, dict):
@@ -1152,10 +1158,8 @@ class cli_osm_orchestrator_t:
             f"{len(customers)}/{osm_host.capacity}"
         )
         for customer in customers:
-            row = do_db_single_query(
-                self._osm_orch.db, SQL_GET_CUSTOMER_PORT, (customer,)
-            )
-            print(f"\tCustomer: {customer} (MQTT:{row[0]})")
+            port = self._osm_orch.get_osm_customer_mqtt_port(customer)
+            print(f"\tCustomer: {customer} (MQTT:{port})")
         return os.EX_OK
 
     def list_customers(self):
