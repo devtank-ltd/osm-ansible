@@ -66,8 +66,8 @@ main() {
     lxc_do "$container_name" apt purge mqtt-influx-inserter -y
     lxc_do "$container_name" deluser --system influx-inserter
     lxc_do "$container_name" mkdir -p /tmp/debs/upgr
-    lxc_do "$container_name" wget https://cloud.devtank.co.uk/debs/mqtt-influx-inserter_0.1.1-1_all.deb -P /tmp/debs/upgr
-    lxc_do "$container_name" apt install /tmp/debs/upgr/mqtt-influx-inserter_0.1.1-1_all.deb
+    lxc_do "$container_name" wget https://cloud.devtank.co.uk/debs/mqtt-influx-inserter_1.0.0-1_all.deb -P /tmp/debs/upgr
+    lxc_do "$container_name" apt install /tmp/debs/upgr/mqtt-influx-inserter_1.0.0-1_all.deb
     append_prometheus_config "$container_name" "$backup"
     lxc_do "$container_name" ls "$backup"
     lxc_do "$container_name" mv "$backup" "$target"
