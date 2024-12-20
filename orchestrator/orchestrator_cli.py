@@ -1325,7 +1325,7 @@ class cli_osm_orchestrator_t:
             self.logger.warning(f'No mqtt login found for customer "{customer_name}"')
             return os.EX_CONFIG
         user, pw = list(mqtt_login.items())[0]
-        print(f"mosquitto_sub --cafile /etc/ssl/certs/ca-certificates.crt -h {mqtt_domain} -p {mqtt_port} -t 'osm/#' -u {user} -P {pw}")
+        print(f"mosquitto_sub --cafile /etc/ssl/certs/ca-certificates.crt -h {mqtt_domain} -p {mqtt_port} -t 'osm/#' -u {user} -P '{pw}'")
         return os.EX_OK
 
 def main():
