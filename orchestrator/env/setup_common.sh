@@ -10,7 +10,7 @@ readonly CHECKSUM_FILE="SHA512SUMS"
 source functions.sh
 source common.sh
 
-git_branch=$(git branch --show-current)
+git_branch="$(git rev-parse --abbrev-ref HEAD | sed -n 's/HEAD/main/p;t;p')"
 
 readonly DEBISO="${HOSTS_DIR}/${ISO_NAME}"
 

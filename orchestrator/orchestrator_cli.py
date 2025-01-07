@@ -127,6 +127,12 @@ SQL_PDNS_DEL_CUSTOMER = """
 DELETE FROM records WHERE domain_id=%s AND name=%s AND content=%s
 """
 
+SQL_PDNS_GET_CUSTOMER_RECORD = """
+SELECT name FROM records WHERE name REGEXP %s
+"""
+
+DOMAIN_PARTS = ("", "-chirpstack", "-influx", "-mqtt")
+
 
 parser = argparse.ArgumentParser(description='OSM Servers Orchestrator')
 parser.add_argument(
@@ -147,32 +153,32 @@ crc8_func = crcmod.predefined.mkCrcFun('crc-8')
 def do_db_query(db, cmd, args):
     with db.cursor() as c:
         full_cmd = c.mogrify(cmd, args)
-        c.execute(full_cmd)
         logging.debug(full_cmd)
+        c.execute(full_cmd)
         return c.fetchall()
 
 
 def do_db_single_query(db, cmd, args):
     with db.cursor() as c:
         full_cmd = c.mogrify(cmd, args)
-        c.execute(full_cmd)
         logging.debug(full_cmd)
+        c.execute(full_cmd)
         return c.fetchone()
 
 
 def do_db_update(db, cmd, args):
     with db.cursor() as c:
         full_cmd = c.mogrify(cmd, args)
-        c.execute(full_cmd)
         logging.debug(full_cmd)
+        c.execute(full_cmd)
     db.commit()
 
 
 def do_db_insert(db, cmd, args):
     with db.cursor() as c:
         full_cmd = c.mogrify(cmd, args)
-        c.execute(full_cmd)
         logging.debug(full_cmd)
+        c.execute(full_cmd)
         row_id = c.lastrowid
     db.commit()
     return row_id
@@ -261,9 +267,8 @@ class osm_host_t:
         )
         domain_id = self.config["pdns_domain_id"]
         domain = self.config["pdns_domain"]
-        parts = ("", "-chirpstack", "-influx", "-mqtt")
 
-        for d in parts:
+        for d in DOMAIN_PARTS:
             do_db_insert(
                 self.pdns_db,
                 SQL_PDNS_ADD_CUSTOMER,
@@ -620,6 +625,23 @@ class osm_host_t:
 
         self.logger.error("The base container was not upgraded")
         return False
+
+    def get_osm_customer_mqtt_port(self, customer_name: str):
+        row = do_db_single_query(
+                self.db, SQL_GET_CUSTOMER_PORT, (customer_name,))
+        if row:
+            return row[0]
+
+    def get_osm_customer_domains(self, customer_name: str):
+        rx = "("
+        for d in DOMAIN_PARTS:
+            rx += customer_name + d + "|"
+        rx = rx[:-1] + ")\\..*"
+        rows = do_db_query(self.pdns_db,
+                          SQL_PDNS_GET_CUSTOMER_RECORD,
+                          rx)
+        if rows:
+            return [ row[0] for row in rows ]
 
     def get_osm_customer_passwords(self, customer_name) -> dict:
         def walk_encrypted_dict(d: dict, crypt: Fernet, key: str) -> None:
@@ -1152,10 +1174,8 @@ class cli_osm_orchestrator_t:
             f"{len(customers)}/{osm_host.capacity}"
         )
         for customer in customers:
-            row = do_db_single_query(
-                self._osm_orch.db, SQL_GET_CUSTOMER_PORT, (customer,)
-            )
-            print(f"\tCustomer: {customer} (MQTT:{row[0]})")
+            port = self._osm_orch.get_osm_customer_mqtt_port(customer)
+            print(f"\tCustomer: {customer} (MQTT:{port})")
         return os.EX_OK
 
     def list_customers(self):
@@ -1284,6 +1304,29 @@ class cli_osm_orchestrator_t:
             return os.EX_OK
         return os.EX_UNAVAILABLE
 
+    def get_mosquitto_sub_cmd(self, customer_name: str):
+        osm_host = self._osm_orch.find_osm_host_of(customer_name)
+        if not osm_host:
+            self.logger.warning(f'No osm host for customer "{customer_name}"')
+            return os.EX_CONFIG
+        mqtt_port = osm_host.get_osm_customer_mqtt_port(customer_name)
+        domains = osm_host.get_osm_customer_domains(customer_name)
+        pws = osm_host.get_osm_customer_passwords(customer_name)
+        mqtt_domain = None
+        for domain in domains:
+            if domain.find("-mqtt.") != -1:
+                mqtt_domain = domain
+                break
+        if not mqtt_domain:
+            self.logger.warning(f'No mqtt domain found for customer "{customer_name}"')
+            return os.EX_CONFIG
+        mqtt_login = pws.get("Mosquitto")
+        if not mqtt_login:
+            self.logger.warning(f'No mqtt login found for customer "{customer_name}"')
+            return os.EX_CONFIG
+        user, pw = list(mqtt_login.items())[0]
+        print(f"mosquitto_sub --cafile /etc/ssl/certs/ca-certificates.crt -h {mqtt_domain} -p {mqtt_port} -t 'osm/#' -u {user} -P '{pw}'")
+        return os.EX_OK
 
 def main():
     self_path = os.path.abspath(__file__)
@@ -1391,6 +1434,11 @@ def main():
             "upgrade_influx_inserter <host_name>: Upgrades mqtt influx "
             "inserter for all customers on host",
             cli_obj.upgrade_influx_inserter
+        ),
+        "mqtt_listener" : cmd_entry(
+            "mqtt_listener <customer_name>: Get MQTT listener cmd "
+            "Returns bash line of mosquitto_sub to listen to customer",
+            cli_obj.get_mosquitto_sub_cmd
         ),
     }
 
