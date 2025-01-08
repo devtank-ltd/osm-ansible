@@ -1,20 +1,16 @@
-- name: Add Python ReactiveX package
-  shell: "mkdir -p /tmp/debs && wget https://cloud.devtank.co.uk/debs/python3-rx_4.0.4-3_all.deb -P /tmp/debs"
+- name: Download Devtank debian packages
+  get_url:
+    url: "{{ item.url }}"
+    dest: "{{ item.dest }}"
+  loop:
+    - { url: "https://cloud.devtank.co.uk/debs/python3-rx_4.0.4-3_all.deb",               dest: "/tmp/debs" }
+    - { url: "https://cloud.devtank.co.uk/debs/python3-influxdb-client_1.40.0-3_all.deb", dest: "/tmp/debs" }
+    - { url: "https://cloud.devtank.co.uk/debs/mqtt-influx-inserter_1.0.0-1_all.deb",     dest: "/tmp/debs" }
 
-- name: Install Python ReactiveX
+- name: Install Devtank debian packages
   apt:
-    deb: "/tmp/debs/python3-rx_4.0.4-3_all.deb"
-
-- name: Add Influxdb client package
-  shell: "mkdir -p /tmp/debs && wget https://cloud.devtank.co.uk/debs/python3-influxdb-client_1.40.0-3_all.deb -P /tmp/debs"
-
-- name: Install Influxdb client
-  apt:
-    deb: "/tmp/debs/python3-influxdb-client_1.40.0-3_all.deb"
-
-- name: Add MQTT Influx inserter package
-  shell: "mkdir -p /tmp/debs && wget https://cloud.devtank.co.uk/debs/mqtt-influx-inserter_1.0.0-1_all.deb -P /tmp/debs"
-
-- name: Install MQTT Influx inserter
-  apt:
-    deb: "/tmp/debs/mqtt-influx-inserter_1.0.0-1_all.deb"
+    deb: "{{ item }}"
+    loop:
+      - /tmp/debs/python3-rx_4.0.4-3_all.deb
+      - /tmp/debs/python3-influxdb-client_1.40.0-3_all.deb
+      - /tmp/debs/mqtt-influx-inserter_1.0.0-1_all.deb

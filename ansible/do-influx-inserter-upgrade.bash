@@ -6,6 +6,8 @@ set -o pipefail                 # do not hide error(s) in pipes
 
 readonly DEVTANK_DIR="/srv/osm-lxc"
 readonly CONTAINERS_PATH="${DEVTANK_DIR}/lxc/containers"
+readonly MQTT_PKG="mqtt-influx-inserter"
+readonly MQTT_VER="1.0.0-1_all"
 
 die() {
     echo "$*" >&2
@@ -66,8 +68,8 @@ main() {
     lxc_do "$container_name" apt purge mqtt-influx-inserter -y
     lxc_do "$container_name" deluser --system influx-inserter
     lxc_do "$container_name" mkdir -p /tmp/debs/upgr
-    lxc_do "$container_name" wget https://cloud.devtank.co.uk/debs/mqtt-influx-inserter_1.0.0-1_all.deb -P /tmp/debs/upgr
-    lxc_do "$container_name" apt install /tmp/debs/upgr/mqtt-influx-inserter_1.0.0-1_all.deb
+    lxc_do "$container_name" wget https://cloud.devtank.co.uk/debs/${MQTT_PKG}_${MQTT_VER}.deb -P /tmp/debs/upgr
+    lxc_do "$container_name" apt install /tmp/debs/upgr/${MQTT_PKG}_${MQTT_VER}.deb
     append_prometheus_config "$container_name" "$backup"
     lxc_do "$container_name" ls "$backup"
     lxc_do "$container_name" mv "$backup" "$target"
