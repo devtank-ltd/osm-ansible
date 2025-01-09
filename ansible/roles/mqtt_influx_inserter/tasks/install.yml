@@ -10,7 +10,7 @@
 - name: Install Devtank debian packages
   apt:
     deb: "{{ item }}"
-    loop:
-      - /tmp/debs/python3-rx_4.0.4-3_all.deb
-      - /tmp/debs/python3-influxdb-client_1.40.0-3_all.deb
-      - /tmp/debs/mqtt-influx-inserter_1.0.0-1_all.deb
+  loop:
+    - /tmp/debs/python3-rx_4.0.4-3_all.deb
+    - /tmp/debs/python3-influxdb-client_1.40.0-3_all.deb
+    - /tmp/debs/mqtt-influx-inserter_1.0.0-1_all.deb
