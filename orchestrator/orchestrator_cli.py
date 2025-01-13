@@ -104,6 +104,7 @@ SQL_GET_FREEST_HOST = """
 SELECT id, (
 (SELECT COUNT(osm_customers.id) FROM osm_customers WHERE active_before IS NULL AND osm_hosts_id = osm_hosts.id) / capacity
 ) AS utilization FROM osm_hosts
+WHERE osm_hosts.active_before IS NULL
 ORDER BY utilization ASC LIMIT 1
 """
 
