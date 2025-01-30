@@ -585,11 +585,28 @@ class osm_host_t:
             customer_name
         )[0]
 
+        # get current CNAME to restore it in case of failure
+        domain = self.config["pdns_domain"]
+        parts = ("", "-chirpstack", "-influx", "-mqtt")
+        for d in parts:
+            do_db_update(
+                self.pdns_db,
+                "UPDATE records SET content=%s WHERE name=%s",
+                (dst.dns_entry, f"{customer_name}{d}.{domain}")
+            )
+
         if not dst.ssh_command(
                 'sudo /srv/osm-lxc/ansible/do-start-new-container.bash '
                 f"{customer_name} {mqtt_port}"
         ):
             self.logger.error("Failed to start new container")
+            # restore records
+            for d in parts:
+                do_db_update(
+                    self.db,
+                    "UPDATE records SET content='%s' WHERE name='%s",
+                    (src.dns_entry, f"{customer_name}{d}.{domain}")
+                )
             return False
         if not src.ssh_command(
                 'sudo /srv/osm-lxc/ansible/do-delete-container.sh '
@@ -600,6 +617,16 @@ class osm_host_t:
                 customer_name, src.name
             )
             return False
+        dst_id = do_db_single_query(
+            self.db,
+            "SELECT id FROM osm_hosts WHERE name=%s",
+            (dst.name)
+        )
+        do_db_update(
+            self.db,
+            "UPDATE osm_customers SET osm_hosts_id=%s WHERE name=%s",
+            (dst_id, customer_name)
+        )
         return True
 
     def upgrade_osm_customers(self) -> bool:

@@ -14,7 +14,8 @@ die() {
 
 container_state() {
     local name="$1"
-    lxc-info -s -n "$name" | sed -rn 's/.*:[[:blank:]]*([[:alpha:]])/\1/p' || :
+    lxc-info -s -n "$name" | \
+        sed -rn 's/.*:[[:blank:]]*([[:alpha:]])/\1/p' || :
 }
 
 container_name() {
@@ -48,7 +49,7 @@ container() {
     esac
 }
 
-send() {
+send_osbase() {
     local out="$1"
     local dst_host="$2"
     local dst_path="$3"
@@ -56,11 +57,24 @@ send() {
     out="${out}.tar.xz"
 
     tar --numeric-owner -cJf "$out" --exclude="$out" ./*
-    if ! rsync -azP -e "ssh -o StrictHostKeyChecking=no" "$out" "${dst_host}:${dst_path}/"; then
+    if ! rsync -azP "$out" "root@${dst_host}:${dst_path}/"; then
         die "rsync failed for ${out}.tar.xz"
     fi
     echo "The '$out' has been successfully transfered to '${dst_host}:${dst_path}'"
     unlink "$out"
+}
+
+send_container() {
+    local name="$1"
+    local dst_ip="$2"
+    local lxc_path="${LXC_PATH}/${name}"
+    local snap_path="${lxc_path}/.snapshots/${name}"
+
+    btrfs subvolume snapshot -r "$lxc_path" "$snap_path" || \
+        die "Unable to create snapshot for container '$name'"
+    btrfs send "$snap_path" | ssh "root@${dst_ip}" "btrfs receive ${LXC_PATH}" || \
+        die "Unable to send snapshot '$snap_path' to '${dst_ip}:${lxc_path}'"
+    btrfs subvolume delete "$snap_path"
 }
 
 main() {
@@ -80,12 +94,12 @@ main() {
     echo "$base"
 
     echo "Move container '$name'"
-    send "$name" "$dst" "$LXC_PATH"
+    send_container "$name" "$dst"
     popd >/dev/null 2>&1
 
     pushd "$base" >/dev/null 2>&1
     echo "Move lower directory structure '${base##*/}'"
-    send "${base##*/}" "$dst" "${LXC_PATH%/*}/os-bases"
+    send_osbase "${base##*/}" "$dst" "${LXC_PATH%/*}/os-bases"
     popd >/dev/null 2>&1
 }
 
