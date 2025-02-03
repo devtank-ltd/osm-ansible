@@ -566,6 +566,10 @@ class osm_host_t:
         )
         return False
 
+    def clone_container(self, customer_name: str) -> bool:
+        cmd = "sudo /srv/osm-lxc/ansible/do-clone-container.bash"
+        return self.ssh_command(f"{cmd} {customer_name}")
+
     def move_osm_customer(
             self, customer_name: str, src: "osm_host_t", dst: "osm_host_t"
     ) -> bool:
@@ -873,6 +877,19 @@ class osm_orchestrator_t:
             return False
         return osm_host.del_osm_customer(customer_name)
 
+    def clone_container(self, customer_name: str) -> bool:
+        osm_host = self.find_osm_host_of(customer_name)
+        if not osm_host:
+            self.logger.warning(f'No customer "{customer_name}"')
+            return False
+        if osm_host.clone_container(customer_name):
+            print(
+                f"Clone {customer_name} container is created on "
+                f"{osm_host.name}"
+            )
+            return True
+        return False
+
     def move_osm_customer(self, customer_name: str, host_name: str) -> bool:
         current_osm_host = self.find_osm_host_of(customer_name)
 
@@ -1142,6 +1159,12 @@ class cli_osm_orchestrator_t:
         else:
             return os.EX_UNAVAILABLE
 
+    def clone_osm_container(self, src: str) -> int:
+        if self._osm_orch.clone_container(src):
+            return os.EX_OK
+        else:
+            return os.EX_UNAVAILABLE
+
     def move_osm_customer(self, customer_name: str, host_name: str) -> int:
         if self._osm_orch.move_osm_customer(customer_name, host_name):
             return os.EX_OK
@@ -1406,6 +1429,11 @@ def main():
         "del_customer": cmd_entry(
             "del_customer <name> : Remove customer from OSM system",
             cli_obj.del_osm_customer
+        ),
+        "clone_container": cmd_entry(
+            "clone_container <name>: "
+            "Create container <name> copy <name>-clone",
+            cli_obj.clone_osm_container
         ),
         "mv_customer": cmd_entry(
             "mv_customer <customer name> <host name>: "
