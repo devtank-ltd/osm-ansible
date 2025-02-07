@@ -24,6 +24,11 @@
     daemon_reload: yes
 
 
+- name: Wait for 3000 to become open
+  wait_for:
+    port: 3000
+    connect_timeout: 10
+
 - name: "Add InfluxDB 2.0 data source to Grafana"
   community.grafana.grafana_datasource:
     name: "influxdb"
