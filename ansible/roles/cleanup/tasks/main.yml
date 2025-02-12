@@ -7,8 +7,8 @@
 
 - name: Print Influx token
   debug:
-    msg: "InfluxDB Token: {{ influx_new_token }}"
-  when: influx_new_token is defined
+    msg: "InfluxDB Token: {{ influx_token }}"
+  when: influx_token is defined
 
 - name: Print postgres passwords
   debug:
@@ -48,14 +48,14 @@
 
 - name: Encrypt influx token
   shell: |
-    /usr/bin/python3 crypt.py -k={{ priv_key }} -e -s="{{ influx_new_token }}"
+    /usr/bin/python3 crypt.py -k={{ priv_key }} -e -s="{{ influx_token }}"
   args:
     chdir: /tmp
-  register: encrypted_influx_new_token
+  register: encrypted_influx_token
 
 - name: Set encrypted influx token
   set_fact:
-    enc_influx_new_token: "{{ encrypted_influx_new_token.stdout }}"
+    enc_influx_token: "{{ encrypted_influx_token.stdout }}"
 
 - name: Encrypt postgres_passwords
   shell: |
@@ -110,7 +110,7 @@
     json_pwds: |
       {
         "Influx": {{ influx_passwords | to_json }},
-        "Influx Token": {{ influx_new_token | to_json }},
+        "Influx Token": {{ influx_token | to_json }},
         "Postgres": {{ postgres_passwords | to_json }},
         "Mosquitto": {"{{ customer_name }}": {{ mosquitto_passwd | to_json }}},
         "Grafana Admin": {"admin": {{ grafana_admin_password | to_json }}},
@@ -126,7 +126,7 @@
     json_pwds: |
       {
         "Influx": {{ enc_influx_passwords | to_json }},
-        "Influx Token": {{ enc_influx_new_token | to_json }},
+        "Influx Token": {{ enc_influx_token | to_json }},
         "Postgres": {{ enc_postgres_passwords | to_json }},
         "Mosquitto": {"{{ customer_name }}": {{ enc_mosquitto_passwd | to_json }}},
         "Grafana Admin": {"admin": {{ enc_grafana_admin_password | to_json }}},

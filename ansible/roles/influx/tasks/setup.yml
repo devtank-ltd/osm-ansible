@@ -29,7 +29,7 @@
   when: influx_config_list.stdout_lines | length == 0 or overwrite_passwords
 
 
-- name: Generate a new authentication token
+- name: Generate authentication token
   block:
 
     - name: "Get current token"
@@ -38,93 +38,63 @@
 
     - name: "Save current token"
       set_fact:
-        influx_old_token: "{{ influx_auths.stdout | from_json | first | json_query('token') }}"
-        influx_old_token_id: "{{ influx_auths.stdout | from_json | first | json_query('id') }}"
+        influx_token: "{{ influx_auths.stdout | from_json | first | json_query('token') }}"
+        influx_token_id: "{{ influx_auths.stdout | from_json | first | json_query('id') }}"
 
-    # The command to create and all-access token is broken due to an Influx2 bug.
-    # TODO fix this when the bug is fixed and/or revise permissions.
-    - name: "Generate new token"
-      command: |
-        influx auth create               \
-        --json                           \
-        --org=devtank                    \
-        --description=devtank-all-access \
-        --read-authorizations            \
-        --write-authorizations           \
-        --read-buckets                   \
-        --write-buckets                  \
-        --read-dashboards                \
-        --write-dashboards               \
-        --read-tasks                     \
-        --write-tasks                    \
-        --read-telegrafs                 \
-        --write-telegrafs                \
-        --read-users                     \
-        --write-users                    \
-        --read-variables                 \
-        --write-variables                \
-        --read-secrets                   \
-        --write-secrets                  \
-        --read-labels                    \
-        --write-labels                   \
-        --read-views                     \
-        --write-views                    \
-        --read-documents                 \
-        --write-documents                \
-        --read-notificationRules         \
-        --write-notificationRules        \
-        --read-notificationEndpoints     \
-        --write-notificationEndpoints    \
-        --read-checks                    \
-        --write-checks                   \
-        --read-dbrp                      \
-        --write-dbrp                     \
-        --read-annotations               \
-        --write-annotations              \
-        --read-sources                   \
-        --write-sources                  \
-        --read-scrapers                  \
-        --write-scrapers                 \
-        --read-notebooks                 \
-        --write-notebooks                \
-        --read-remotes                   \
-        --write-remotes                  \
-        --read-replications              \
-        --write-replications             \
-        --read-orgs                      \
-        --write-orgs
-      register: create_auth_output
+- name: Create InfluxDB buckets, retention policies, and auth
+  vars:
+    influx_buckets:
+      - sf
+      - cc_kwh_transform
+  block:
+    - name: Create buckets
+      shell: "influx bucket create -n {{ item }}"
+      loop: "{{ influx_buckets }}"
+      ignore_errors: True
 
-    - name: "Parse JSON output"
-      set_fact:
-        influx_new_token: "{{ create_auth_output.stdout | from_json | json_query('token') }}"
+    - name: Create v1 retention policies
+      shell: >
+        influx v1 dbrp create --default --db {{ item }} --rp autogen
+        --bucket-id "$(influx bucket list | awk '/{{ item }}/ { print $1 }')"
+      loop: "{{ influx_buckets }}"
+      ignore_errors: True
 
-    - name: "Change default token"
-      replace:
-        path: "/root/.influxdbv2/configs"
-        regexp: "{{ influx_old_token }}"
-        replace: "{{ influx_new_token }}"
+    - name: Create v1 auth for devtank on each bucket
+      shell: >
+        influx v1 auth create
+        --read-bucket "$(influx bucket list | awk '/{{ item }}/ { print $1 }')"
+        --write-bucket "$(influx bucket list | awk '/{{ item }}/ { print $1 }')"
+        --username devtank
+        --password '{{ influx_passwords["devtank"] }}'
+      loop: "{{ influx_buckets }}"
+      ignore_errors: True
 
-    - name: "Deactivate old token"
-      command: "influx auth inactive --id={{ influx_old_token_id }}"
-
-    - name: "Delete old token"
-      command: "influx auth delete --id={{ influx_old_token_id }}"
-
-  tags: influx_gen_new_token
-
-- name: Create other influx users
-  shell: "influx user create -n '{{ item.key }}' -p '{{ item.value }}' || influx user password --name='{{ item.key }}' --password='{{ item.value }}'"
-  loop: "{{ influx_passwords | dict2items }}"
-
-- name: Create sf bucket
-  shell: "influx bucket create -n sf"
-  ignore_errors: True
-
-- name: Create v1 retention policy on sf
-  shell: influx v1 dbrp create --default  --db sf --rp autogen --bucket-id "$(influx bucket list | awk '/sf/ { print $1 }')"
-  ignore_errors: True
-
-- name: Create v1 auth on sf bucket for devtank
-  shell: influx v1 auth create  --read-bucket "$(influx bucket list | awk '/sf/ { print $1 }')" --write-bucket "$(influx bucket list | awk '/sf/ { print $1 }')" --username devtank --password '{{ influx_passwords['devtank'] }}'
-  ignore_errors: True
+- name: Create tasks for downsampling kWh data
+  ansible.builtin.uri:
+    url: http://localhost:8086/api/v2/tasks
+    method: POST
+    headers:
+      Authorization: "Token {{ influx_token }}"
+      Content-Type: "application/json"
+    body: >-
+      {
+        "flux": "option task = {name: \"downsample_{{ item.aggr }}_precision\", every: {{ item.every }}, offset: 0m}
+        cc = from(bucket: \"sf\")
+          |> range(start: {{ item.start }}, stop: {{ item.stop }})
+          |> filter(fn: (r) => r[\"_measurement\"] == \"mqtt_consumer\")
+          |> filter(fn: (r) => r[\"_field\"] =~ /CC[1-3]/)
+          |> map(fn: (r) => ({r with _value: float(v: r._value) / (1000. * 1000.) * 240.}))
+        cc
+          |> aggregateWindow(every: {{ item.aggr }}, fn: mean)
+          |> to(bucket: \"cc_kwh_transform\")",
+        "orgID": "1",
+        "status": "active",
+        "description": "This task downsamples kWh data every {{ item.aggr }}"
+      }
+    body_format: json
+    status_code: 201
+  loop:
+    - { every: "1y", start: "-1y", stop: "-39w", aggr: "1h" }
+    - { every: "1y", start: "-39w", stop: "-26w", aggr: "45m" }
+    - { every: "1y", start: "-26w", stop: "-13w", aggr: "30m" }
+    - { every: "1y", start: "-13w", stop: "-7d", aggr: "5m" }
