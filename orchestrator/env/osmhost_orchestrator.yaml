@@ -355,6 +355,23 @@
         unredirected_headers: [ Authorization ]
         src: templates/grafana/orchestrator_dashboard_stats.json
 
+    - name: "Add Grafana Contact Point"
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/v1/provisioning/contact-points"
+        method: POST
+        body_format: json
+        headers:
+          Authorization: "Bearer {{ orch_grafana_service_token.json.key }}"
+          Content-Type: application/json
+        unredirected_headers: [ Authorization ]
+        body:
+          name: "Default Contact Point"
+          type: "email"
+          settings:
+            addresses: "{{ mail_recipients }}"
+        status_code: 202
+      register: orch_grafana_contact_point
+
     - name: Write passwords to JSON file
       vars:
         json_pwds:
