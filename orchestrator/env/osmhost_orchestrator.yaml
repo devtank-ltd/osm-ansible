@@ -296,6 +296,37 @@
         enabled: yes
         daemon_reload: yes
 
+    - name: "Create Grafana Service Account"
+      ansible.builtin.uri:
+        url: http://localhost:3000/api/serviceaccounts
+        url_username: admin
+        url_password: "{{ orch_grafana_admin_password }}"
+        force_basic_auth: true
+        method: POST
+        body_format: json
+        headers:
+          Content-Type: application/json
+        body:
+          name: service
+          role: Admin
+        status_code: 201
+      register: orch_grafana_service_account
+      retries: 3
+
+    - name: "Create Grafana Service Account Token"
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/serviceaccounts/{{ orch_grafana_service_account.json.id }}/tokens"
+        url_username: admin
+        url_password: "{{ orch_grafana_admin_password }}"
+        force_basic_auth: true
+        method: POST
+        body_format: json
+        headers:
+          Content-Type: application/json
+        body:
+          name: initialisation-token
+      register: orch_grafana_service_token
+
     - name: "Add Prometheus data source to Grafana"
       community.grafana.grafana_datasource:
         name: "prometheus_ds"
@@ -310,7 +341,10 @@
       vars:
         json_pwds: |
           {
-            "Grafana Orch Admin": {"admin": {{ orch_grafana_admin_password | to_json }}},
+            "Grafana Orch Admin": {
+              "admin": "{{ orch_grafana_admin_password | to_json }}",
+              "service": "{{ orch_grafana_service_token.json.key | to_json }}"
+            }
           }
       ansible.builtin.copy:
         content: "{{ json_pwds | to_nice_json }}"
