@@ -336,16 +336,26 @@
         org_id: "1"
         ds_type: "prometheus"
         ds_url: "http://localhost:9090"
+      register: orch_grafana_datasource_prometheus
+
+    - name: "Add Grafana Stats Dashboard"
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/dashboards/db"
+        method: POST
+        body_format: json
+        headers:
+          Authorization: "Bearer {{ orch_grafana_service_token.json.key }}"
+          Content-Type: application/json
+          DS_PROMETHEUS_ID: "{{ orch_grafana_datasource_prometheus.datasource.uid }}"
+        unredirected_headers: [ Authorization ]
+        src: templates/grafana/orchestrator_dashboard_stats.json
 
     - name: Write passwords to JSON file
       vars:
-        json_pwds: |
-          {
-            "Grafana Orch Admin": {
-              "admin": "{{ orch_grafana_admin_password | to_json }}",
-              "service": "{{ orch_grafana_service_token.json.key | to_json }}"
-            }
-          }
+        json_pwds:
+          "Grafana Orch Admin":
+            "admin": "{{ orch_grafana_admin_password }}"
+            "service": "{{ orch_grafana_service_token.json.key }}"
       ansible.builtin.copy:
         content: "{{ json_pwds | to_nice_json }}"
         dest: "/root/passwords.json"
