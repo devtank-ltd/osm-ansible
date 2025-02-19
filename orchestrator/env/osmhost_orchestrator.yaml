@@ -301,6 +301,12 @@
         enabled: yes
         daemon_reload: yes
 
+    - name: "Wait for Grafana API"
+      ansible.builtin.uri:
+        url: http://localhost:3000/api/health
+        method: GET
+      retries: 3
+
     - name: "Create Grafana Service Account"
       ansible.builtin.uri:
         url: http://localhost:3000/api/serviceaccounts
@@ -316,7 +322,6 @@
           role: Admin
         status_code: 201
       register: orch_grafana_service_account
-      retries: 3
 
     - name: "Create Grafana Service Account Token"
       ansible.builtin.uri:
@@ -331,6 +336,16 @@
         body:
           name: initialisation-token
       register: orch_grafana_service_token
+
+    - name: Write passwords to JSON file
+      vars:
+        json_pwds:
+          "Grafana Orch Admin":
+            "admin": "{{ orch_grafana_admin_password }}"
+            "service": "{{ orch_grafana_service_token.json.key }}"
+      ansible.builtin.copy:
+        content: "{{ json_pwds | to_nice_json }}"
+        dest: "/root/passwords.json"
 
     - name: "Add Prometheus data source to Grafana"
       community.grafana.grafana_datasource:
@@ -372,12 +387,29 @@
         status_code: 202
       register: orch_grafana_contact_point
 
-    - name: Write passwords to JSON file
+    - name: "Add Grafana Folder"
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/folders"
+        method: POST
+        body_format: json
+        headers:
+          Authorization: "Bearer {{ orch_grafana_service_token.json.key }}"
+          Content-Type: application/json
+        unredirected_headers: [ Authorization ]
+        body:
+          description: "Alerts"
+          title: "Alerts"
+      register: orch_grafana_folder
+
+    - name: "Add Grafana Alert Group"
       vars:
-        json_pwds:
-          "Grafana Orch Admin":
-            "admin": "{{ orch_grafana_admin_password }}"
-            "service": "{{ orch_grafana_service_token.json.key }}"
-      ansible.builtin.copy:
-        content: "{{ json_pwds | to_nice_json }}"
-        dest: "/root/passwords.json"
+        rules: "{{ lookup('file', 'templates/grafana/orchestrator_alert_rules.json') }}"
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/v1/provisioning/folder/{{ orch_grafana_folder.json.uid }}/rule-groups/Alerts"
+        method: PUT
+        body_format: json
+        headers:
+          Authorization: "Bearer {{ orch_grafana_service_token.json.key }}"
+          Content-Type: application/json
+        unredirected_headers: [ Authorization ]
+        body: "{{ rules|replace('DATABASE_UID', orch_grafana_datasource_prometheus.datasource.uid) }}"
