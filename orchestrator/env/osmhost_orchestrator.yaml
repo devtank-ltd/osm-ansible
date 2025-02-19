@@ -25,7 +25,6 @@
           - pdns-backend-mysql
           - pebble
           - prometheus
-          - prometheus-alertmanager
           - prometheus-pushgateway
           - python3
           - python3-crcmod
@@ -253,19 +252,9 @@
         src: "templates/prometheus/prometheus.rules"
         dest: "/etc/prometheus/prometheus.rules"
 
-    - name: "Apply alertmanager configuration file"
-      template:
-        src: "templates/alertmanager/alertmanager.yml.j2"
-        dest: "/etc/prometheus/alertmanager.yml"
-
     - name: "Restart prometheus"
       ansible.builtin.service:
         name: prometheus
-        state: restarted
-
-    - name: "Restart alertmanager"
-      ansible.builtin.service:
-        name: prometheus-alertmanager
         state: restarted
 
     - name: "Download Grafana GPG key"
