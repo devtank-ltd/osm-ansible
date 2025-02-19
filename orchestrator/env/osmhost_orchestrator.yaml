@@ -348,6 +348,8 @@
       register: orch_grafana_datasource_prometheus
 
     - name: "Add Grafana Stats Dashboard"
+      vars:
+        dashboard: "{{ lookup('file', 'templates/grafana/orchestrator_dashboard_stats.json') }}"
       ansible.builtin.uri:
         url: "http://localhost:3000/api/dashboards/db"
         method: POST
@@ -355,9 +357,8 @@
         headers:
           Authorization: "Bearer {{ orch_grafana_service_token.json.key }}"
           Content-Type: application/json
-          DS_PROMETHEUS_ID: "{{ orch_grafana_datasource_prometheus.datasource.uid }}"
         unredirected_headers: [ Authorization ]
-        src: templates/grafana/orchestrator_dashboard_stats.json
+        body: "{{ dashboard|replace('DATABASE_UID', orch_grafana_datasource_prometheus.datasource.uid) }}"
 
     - name: "Add Grafana Contact Point"
       ansible.builtin.uri:
