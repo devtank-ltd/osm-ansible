@@ -49,6 +49,12 @@
     regexp: 'OSMDOMAIN'
     replace: "{{ le_domain }}"
 
+- name: "Setup NGINX HTTP config WG IP address"
+  ansible.builtin.replace:
+    path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+    regexp: 'WG_IP'
+    replace: "{{ wg_ip }}"
+
 - name: "Create NGINX MQTT configs"
   ansible.builtin.copy:
     src: /etc/nginx/devtank/customers.stream.d/TEMPLATE

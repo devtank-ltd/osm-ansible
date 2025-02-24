@@ -501,10 +501,13 @@ class osm_host_t:
             self._orchestrator.master_key
         ).encrypt(customer_key)
 
+        _, wg_ip = do_db_single_query(self.db, SQL_GET_WG_INFO, self.id)
+
         if self.ssh_command(
                 'sudo /srv/osm-lxc/ansible/do-create-container.sh '
                 f'"{customer_name}" {mqtt_port} "" '
-                f'"{customer_key.decode(self.encoding)}"'
+                f'"{customer_key.decode(self.encoding)}" '
+                f'"{wg_ip}"'
         ):
             start_end = time.monotonic() + timeout
             while time.monotonic() < start_end:

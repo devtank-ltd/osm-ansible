@@ -10,9 +10,11 @@ customer_name="$1"
 mqtt_port="$2"
 domain="$3"
 priv_key="$4"
+wg_ip="$5"
 
 [[ -n "$customer_name" ]] || { echo "No customer name given."; exit 1; }
 [[ -n "$mqtt_port" ]] || { echo "No MQTT port given."; exit 1; }
+[[ -n "$wg_ip" ]] || { echo "No WireGuard IP address given."; exit 1; }
 
 cd "$owndir"
 
@@ -33,7 +35,7 @@ fi
 
 ansible-playbook \
     -v -i hosts \
-    -e "customer_name=${customer_name} mqtt_port=${mqtt_port} le_domain=${domain}" \
+    -e "customer_name=${customer_name} mqtt_port=${mqtt_port} le_domain=${domain} wg_ip=${wg_ip}" \
     create-container.yaml
 
 echo "${customer_name}-svr" >> hosts
