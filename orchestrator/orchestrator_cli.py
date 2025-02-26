@@ -501,10 +501,13 @@ class osm_host_t:
             self._orchestrator.master_key
         ).encrypt(customer_key)
 
+        _, wg_ip = do_db_single_query(self.db, SQL_GET_WG_INFO, self.id)
+
         if self.ssh_command(
                 'sudo /srv/osm-lxc/ansible/do-create-container.sh '
                 f'"{customer_name}" {mqtt_port} "" '
-                f'"{customer_key.decode(self.encoding)}"'
+                f'"{customer_key.decode(self.encoding)}" '
+                f'"{wg_ip}"'
         ):
             start_end = time.monotonic() + timeout
             while time.monotonic() < start_end:
@@ -849,7 +852,7 @@ class osm_orchestrator_t:
         rows = do_db_query(self.db, SQL_LIST_HOSTS, ())
         return [osm_host_t(self, row[0]) for row in rows]
 
-    def add_osm_customer(self, customer_name: str) -> int:
+    def add_osm_customer(self, customer_name: str) -> bool:
         osm_host = self.find_osm_host_of(customer_name)
         if osm_host:
             self.logger.warning(f'Already customer "{customer_name}"')
@@ -862,8 +865,20 @@ class osm_orchestrator_t:
             return False
 
         if osm_host.add_osm_customer(customer_name):
-            return True
-
+            # apply prometheus configuration for customer exporter
+            playbook_path = "/srv/osm-lxc/ansible/configure-prometheus.yaml"
+            p = subprocess.run(
+                [
+                    "ansible-playbook", "-e",
+                    (
+                        f"customer={customer_name} "
+                        f"domain={self.config['pdns_domain']}"
+                    ),
+                    playbook_path
+                ],
+                stdout=subprocess.DEVNULL
+            )
+            return p.returncode == 0
         return False
 
     def del_osm_customer(self, customer_name: str) -> bool:

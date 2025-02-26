@@ -76,3 +76,12 @@ server {
 		proxy_pass "http://CUSTOMERNAME-svr:8086";
 	}
 }
+
+# Prometheus Node Exporter
+server {
+	server_name CUSTOMERNAME.OSMDOMAIN;
+	listen WG_IP:9110;
+	location / {
+		proxy_pass "http://CUSTOMERNAME-svr:9100";
+	}
+}

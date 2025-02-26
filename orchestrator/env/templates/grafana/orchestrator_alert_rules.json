@@ -880,7 +880,86 @@
       "notification_settings": {
         "receiver": "Default Contact Point"
       }
-    }
+    },
+      {
+          "title": "Systemd services health",
+          "condition": "C",
+          "data": [
+              {
+                  "refId": "A",
+                  "relativeTimeRange": {
+                      "from": 600,
+                      "to": 0
+                  },
+                  "datasourceUid": "DATABASE_UID",
+                  "model": {
+                      "disableTextWrap": false,
+                      "editorMode": "code",
+                      "expr": "node_systemd_unit_state{state=\"active\", name=~\"(influxdb|chirpstack|grafana-server|postgresql|redis|mqtt-influx-inserter|mosquitto).*\"}",
+                      "fullMetaSearch": false,
+                      "includeNullMetadata": true,
+                      "instant": true,
+                      "intervalMs": 1000,
+                      "legendFormat": "__auto",
+                      "maxDataPoints": 43200,
+                      "range": false,
+                      "refId": "A",
+                      "useBackend": false
+                  }
+              },
+              {
+                  "refId": "C",
+                  "relativeTimeRange": {
+                      "from": 0,
+                      "to": 0
+                  },
+                  "datasourceUid": "__expr__",
+                  "model": {
+                      "conditions": [
+                          {
+                              "evaluator": {
+                                  "params": [
+                                      1
+                                  ],
+                                  "type": "lt"
+                              },
+                              "operator": {
+                                  "type": "and"
+                              },
+                              "query": {
+                                  "params": [
+                                      "C"
+                                  ]
+                              },
+                              "reducer": {
+                                  "params": [],
+                                  "type": "last"
+                              },
+                              "type": "query"
+                          }
+                      ],
+                      "datasource": {
+                          "type": "__expr__",
+                          "uid": "__expr__"
+                      },
+                      "expression": "A",
+                      "intervalMs": 1000,
+                      "maxDataPoints": 43200,
+                      "refId": "C",
+                      "type": "threshold"
+                  }
+              }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "for": "1m",
+          "labels": {
+              "observer": "systemd"
+          },
+          "isPaused": false,
+          "notification_settings": {
+              "receiver": "Default Contact Point"
+          }
+      }
   ]
 }
-

@@ -8,4 +8,5 @@
     - { role: chirpstack, tags: chirpstack }
     - { role: grafana, tags: grafana }
     - { role: mqtt_influx_inserter, tags: mqtt_influx_inserter}
+    - { role: prometheus_node_exporter, tags: prometheus_node_exporter }
     - { role: cleanup, tags: cleanup }
