@@ -105,6 +105,17 @@
   set_fact:
     enc_grafana_viewer_password: "{{ encrypted_grafana_viewer_password.stdout }}"
 
+- name: Encrypt chirpstack_admin_password
+  shell: |
+    /usr/bin/python3 crypt.py -k={{ priv_key }} -e -s="{{ chirpstack_admin_password }}"
+  args:
+    chdir: /tmp
+  register: encrypted_chirpstack_admin_password
+
+- name: Set encrypted chirpstack admin encrypted password
+  set_fact:
+    enc_chirpstack_admin_password: "{{ encrypted_chirpstack_admin_password.stdout }}"
+
 - name: Write passwords to JSON file
   vars:
     json_pwds: |
@@ -130,7 +141,8 @@
         "Postgres": {{ enc_postgres_passwords | to_json }},
         "Mosquitto": {"{{ customer_name }}": {{ enc_mosquitto_passwd | to_json }}},
         "Grafana Admin": {"admin": {{ enc_grafana_admin_password | to_json }}},
-        "Grafana Viewer": {"viewer": {{ enc_grafana_viewer_password | to_json }}}
+        "Grafana Viewer": {"viewer": {{ enc_grafana_viewer_password | to_json }}},
+        "Chirpstack Admin": {"admin": {{ enc_chirpstack_admin_password | to_json}}}
       }
   ansible.builtin.copy:
     content: "{{ json_pwds | to_nice_json }}"
