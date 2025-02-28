@@ -77,6 +77,10 @@
     --password '{{ influx_passwords["devtank"] }}'
   ignore_errors: True
 
+- name: Create other influx users
+  shell: "influx user create -n '{{ item.key }}' -p '{{ item.value }}' || influx user password --name='{{ item.key }}' --password='{{ item.value }}'"
+  loop: "{{ influx_passwords | dict2items }}"
+
 - name: Create tasks for downsampling kWh data
   ansible.builtin.uri:
     url: http://localhost:8086/api/v2/tasks
