@@ -105,6 +105,6 @@
     - { every: "16w", start: "-20w", stop: "-16w", aggr: "30m" }
     - { every: "12w", start: "-16w", stop: "-12w", aggr: "30m" }
     - { every: "8w",  start: "-12w", stop: "-8w",  aggr: "30m" }
-    - { every: "28d", start: "-12w", stop: "-28d", aggr: "15m" }
+    - { every: "28d", start: "-8w",  stop: "-28d", aggr: "15m" }
     - { every: "14d", start: "-28d", stop: "-14d", aggr: "5m" }
     - { every: "7d",  start: "-14d", stop: "-7d",  aggr: "5m" }
