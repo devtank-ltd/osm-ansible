@@ -37,3 +37,7 @@ scrape_configs:
   - job_name: 'pushgateway'
     static_configs:
       - targets: ['localhost:9091']
+
+  - job_name: 'osm customers'
+    static_configs:
+      - targets: ['localhost:9560']
