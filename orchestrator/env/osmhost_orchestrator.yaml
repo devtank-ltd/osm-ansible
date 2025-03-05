@@ -3,6 +3,7 @@
     wg_ipaddr: "{{ wg_ipaddr }}"
     wg_port: "{{ wg_port }}"
     orchestrator_private_key: "{{ orchestrator_private_key }}"
+    devtank_debs_url: "https://cloud.devtank.co.uk/debs"
 
   tasks:
 
@@ -29,9 +30,11 @@
           - python3
           - python3-crcmod
           - python3-fastapi
+          - python3-paho-mqtt
           - python3-paramiko
           - python3-pip
           - python3-pymysql
+          - python3-sqlalchemy
           - python3-venv
           - python3-yaml
           - software-properties-common
@@ -39,6 +42,42 @@
           - wget
           - wireguard
         update_cache: yes
+
+    - name: Install pyosmorch package
+      block:
+        - name: Set pyosmorch variables
+          ansible.builtin.set_fact:
+            pkg_name: python3-pyosmorch
+            pkg_ver: "0.0.1-1"
+            devtank_debs: "https://cloud.devtank.co.uk/debs"
+
+        - name: Download pyosmorch package
+          ansible.builtin.get_url:
+            # url: "{{ devtank_debs }}/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
+            url: "{{ devtank_debs }}/{{ pkg_name }}_dev.deb"
+            dest: "/tmp"
+
+        - name: Install pyosmorch
+          ansible.builtin.apt:
+            # deb: "/tmp/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
+            deb: "/tmp/{{ pkg_name }}_dev.deb"
+
+    - name: Install osm_alert_mqtt
+      block:
+        - name: Set osm_alert_mqtt variables
+          ansible.builtin.set_fact:
+            pkg_name: osm_alert_mqtt
+            pkg_ver: "0.0.1-1"
+            devtank_debs: "https://cloud.devtank.co.uk/debs"
+
+        - name: Download osm_alert_mqtt package
+          ansible.builtin.get_url:
+            url: "{{ devtank_debs }}/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
+            dest: "/tmp"
+
+        - name: Install osm_alert_mqtt
+          ansible.builtin.apt:
+            deb: "/tmp/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
 
     - name: Clone OSM Ansible git repo.
       ansible.builtin.git:
@@ -171,6 +210,15 @@
     - name: "Create OSM Orchestrator DB Password"
       ansible.builtin.set_fact:
         osm_orchestrator_db_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
+        osm_alert_db_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16) }}"
+
+    - name: Create readonly DB user
+      community.mysql.mysql_user:
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: alert
+        password: "{{ osm_alert_db_password }}"
+        state: present
+        priv: 'osm_orchestrator.*:SELECT'
 
     - name: "Create OSM Orchestrator DB"
       shell: |
@@ -189,6 +237,9 @@
                 password: '{{ osm_orchestrator_db_password }}'
                 host: 'localhost'
                 database: 'pdns'
+            customer_alerts:
+                user: "alert"
+                password: '{{ osm_alert_db_password }}'
             pdns_domain: '{{ osm_domain }}'
             pdns_domain_id: 1
             plugin_dir: /srv/osm-lxc/orchestrator/plugins
