@@ -43,7 +43,7 @@
       defaultBucket: "sf"
       version: "Flux"
     additional_secure_json_data:
-      token: "{{ influx_new_token }}"
+      token: "{{ influx_token }}"
 
 - name: "Create Grafana Viewer Password"
   ansible.builtin.set_fact:
