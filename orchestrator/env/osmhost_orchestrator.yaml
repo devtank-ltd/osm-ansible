@@ -53,14 +53,12 @@
 
         - name: Download pyosmorch package
           ansible.builtin.get_url:
-            # url: "{{ devtank_debs }}/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
-            url: "{{ devtank_debs }}/{{ pkg_name }}_dev.deb"
+            url: "{{ devtank_debs }}/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
             dest: "/tmp"
 
         - name: Install pyosmorch
           ansible.builtin.apt:
-            # deb: "/tmp/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
-            deb: "/tmp/{{ pkg_name }}_dev.deb"
+            deb: "/tmp/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
 
     - name: Install osm_alert_mqtt
       block:
