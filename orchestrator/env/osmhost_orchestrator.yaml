@@ -11,6 +11,18 @@
       set_fact:
         wg_interface: "{{ ansible_default_ipv4.interface }}"
 
+    - name: Add Devtank repository
+      block:
+        - name: Download Devtank gpg key
+          ansible.builtin.get_url:
+            url: https://dak.devtank.co.uk/devtank.gpg
+            dest: /etc/apt/keyrings/devtank.gpg
+
+        - name: somerepo | apt source
+          ansible.builtin.apt_repository:
+            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/devtank.gpg] https://dak.devtank.co.uk/debian testing main"
+            state: present
+
     - name: Install required packages
       apt:
         name:
@@ -34,6 +46,7 @@
           - python3-paramiko
           - python3-pip
           - python3-pymysql
+          - python3-pyosmorch
           - python3-sqlalchemy
           - python3-venv
           - python3-yaml
@@ -42,40 +55,6 @@
           - wget
           - wireguard
         update_cache: yes
-
-    - name: Install pyosmorch package
-      block:
-        - name: Set pyosmorch variables
-          ansible.builtin.set_fact:
-            pkg_name: python3-pyosmorch
-            pkg_ver: "0.0.1-1"
-            devtank_debs: "https://cloud.devtank.co.uk/debs"
-
-        - name: Download pyosmorch package
-          ansible.builtin.get_url:
-            url: "{{ devtank_debs }}/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
-            dest: "/tmp"
-
-        - name: Install pyosmorch
-          ansible.builtin.apt:
-            deb: "/tmp/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
-
-    - name: Install osm_alert_mqtt
-      block:
-        - name: Set osm_alert_mqtt variables
-          ansible.builtin.set_fact:
-            pkg_name: osm_alert_mqtt
-            pkg_ver: "0.0.1-1"
-            devtank_debs: "https://cloud.devtank.co.uk/debs"
-
-        - name: Download osm_alert_mqtt package
-          ansible.builtin.get_url:
-            url: "{{ devtank_debs }}/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
-            dest: "/tmp"
-
-        - name: Install osm_alert_mqtt
-          ansible.builtin.apt:
-            deb: "/tmp/{{ pkg_name }}_{{ pkg_ver }}_all.deb"
 
     - name: Clone OSM Ansible git repo.
       ansible.builtin.git:
