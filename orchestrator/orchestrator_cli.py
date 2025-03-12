@@ -1121,7 +1121,11 @@ class cli_osm_orchestrator_t:
 
     def wg_info(self, host_name: str) -> int:
         if wg_info := self._osm_orch.get_wg_info(host_name):
-            print(f"pubkey: {wg_info['wg_key']} IP: {wg_info['wg_ipaddr']}")
+            key_len = len(wg_info['wg_key'])
+            addr_len = len(wg_info['wg_ipaddr'])
+            print(f"{'Public Key': <{key_len}} | {'IP address': <{addr_len}}")
+            print(f"{'-' * key_len}-+-{'-' * addr_len}")
+            print(f"{wg_info['wg_key']} | {wg_info['wg_ipaddr']}")
             return os.EX_OK
         self.logger.warning(f"Unable to get WG info for host {host_name}")
         return os.EX_CONFIG
