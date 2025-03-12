@@ -18,7 +18,7 @@
             url: https://dak.devtank.co.uk/devtank.gpg
             dest: /etc/apt/keyrings/devtank.gpg
 
-        - name: somerepo | apt source
+        - name: Add Devtank repository to apt source
           ansible.builtin.apt_repository:
             repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/devtank.gpg] https://dak.devtank.co.uk/debian testing main"
             state: present

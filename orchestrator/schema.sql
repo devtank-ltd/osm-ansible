@@ -12,7 +12,6 @@ CREATE TABLE osm_hosts (
 
 CREATE TABLE osm_customers (
     id             INT PRIMARY KEY AUTO_INCREMENT,
-    osm_hosts_id   INT NOT NULL,
     name           TEXT NOT NULL,
     host_mqtt_port INT NOT NULL,
     active_since   BIGINT NOT NULL,

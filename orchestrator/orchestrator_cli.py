@@ -129,8 +129,7 @@ class osm_host_t:
         return [row[0] for row in rows]
 
     def _find_free_mqtt_port(self, customer_name: str) -> int:
-        rows = self.db.get_free_mqtt_port(self.id)
-        ports = [row[0] for row in rows]
+        ports = self.db.get_free_mqtt_port(self.id)
         port = 8883 + crc8_func(customer_name.encode())
         while port in ports:
             port += 1
@@ -692,7 +691,7 @@ class osm_orchestrator_t:
 
     def find_osm_host_of(self, customer_name: str) -> Union[osm_host_t, None]:
         row = self.db.get_host_by_customer(customer_name)
-        return osm_host_t(self, row[0]) if row else None
+        return osm_host_t(self, row) if row else None
 
     def _restart_systemd_service(self, service_name: str) -> bool:
         proc = subprocess.run(
@@ -743,6 +742,9 @@ class osm_orchestrator_t:
 
     def add_osm_alerts_contact(self, customer_name: str, email: str) -> bool:
         return self._db.add_contact_point(customer_name, email) is not None
+
+    def list_osm_alerts_contacts(self):
+        return self._db.query_contact_points()
 
     def del_osm_customer(self, customer_name: str) -> bool:
         osm_host = self.find_osm_host_of(customer_name)
@@ -1015,6 +1017,16 @@ class cli_osm_orchestrator_t:
             if self._osm_orch.add_osm_alerts_contact(customer_name, email)
             else os.EX_UNAVAILABLE
         )
+
+    def list_osm_alerts_contacts(self):
+        contacts = self._osm_orch.list_osm_alerts_contacts()
+        # header
+        print(f"{'Customer':<20} | {'E-mail':<40} | {'UUID':<36}")
+        print(f"{'-'*20}-+-{'-'*40}-+-{'-'*36}")
+        for contact in contacts:
+            name, uuid, email = contact
+            print(f"{name:<20} | {email:<40} | {uuid:<36}")
+
 
     def clone_osm_container(self, src: str) -> int:
         if self._osm_orch.clone_container(src):
@@ -1304,6 +1316,10 @@ def main():
             "add_alerts_contact <custome name> <email>: "
             "Add customer contact for alerts",
             cli_obj.add_osm_alerts_contact,
+        ),
+        "list_alerts_contacts": cmd_entry(
+            "list_alerts_contacts: Print existing customer contacts",
+            cli_obj.list_osm_alerts_contacts
         ),
         "clone_container": cmd_entry(
             "clone_container <name>: "
