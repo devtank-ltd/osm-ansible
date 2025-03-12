@@ -3,12 +3,25 @@
     wg_ipaddr: "{{ wg_ipaddr }}"
     wg_port: "{{ wg_port }}"
     orchestrator_private_key: "{{ orchestrator_private_key }}"
+    devtank_debs_url: "https://cloud.devtank.co.uk/debs"
 
   tasks:
 
     - name: "Setting host's network interface fact"
       set_fact:
         wg_interface: "{{ ansible_default_ipv4.interface }}"
+
+    - name: Add Devtank repository
+      block:
+        - name: Download Devtank gpg key
+          ansible.builtin.get_url:
+            url: https://dak.devtank.co.uk/devtank.gpg
+            dest: /etc/apt/keyrings/devtank.gpg
+
+        - name: Add Devtank repository to apt source
+          ansible.builtin.apt_repository:
+            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/devtank.gpg] https://dak.devtank.co.uk/debian testing main"
+            state: present
 
     - name: Install required packages
       apt:
@@ -29,9 +42,12 @@
           - python3
           - python3-crcmod
           - python3-fastapi
+          - python3-paho-mqtt
           - python3-paramiko
           - python3-pip
           - python3-pymysql
+          - python3-pyosmorch
+          - python3-sqlalchemy
           - python3-venv
           - python3-yaml
           - software-properties-common
@@ -171,6 +187,15 @@
     - name: "Create OSM Orchestrator DB Password"
       ansible.builtin.set_fact:
         osm_orchestrator_db_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
+        osm_alert_db_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16) }}"
+
+    - name: Create readonly DB user
+      community.mysql.mysql_user:
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: alert
+        password: "{{ osm_alert_db_password }}"
+        state: present
+        priv: 'osm_orchestrator.*:SELECT'
 
     - name: "Create OSM Orchestrator DB"
       shell: |
@@ -189,6 +214,9 @@
                 password: '{{ osm_orchestrator_db_password }}'
                 host: 'localhost'
                 database: 'pdns'
+            customer_alerts:
+                user: "alert"
+                password: '{{ osm_alert_db_password }}'
             pdns_domain: '{{ osm_domain }}'
             pdns_domain_id: 1
             plugin_dir: /srv/osm-lxc/orchestrator/plugins
