@@ -40,6 +40,7 @@ save_env () {
 	HOSTS_DIR="$HOSTS_DIR"
 	OSM_SUBNET="$OSM_SUBNET"
 	OSM_DOMAIN="$OSM_DOMAIN"
+	HTTP_PORT="$HTTP_PORT"
 EOF
 }
 
@@ -59,8 +60,12 @@ export OSM_SUBNET
 [[ -n "$OSM_DOMAIN" ]] || OSM_DOMAIN="osmm.fake.co.uk"
 export OSM_DOMAIN
 
+[[ -n "$HTTP_PORT" ]] || HTTP_PORT=8000
+export HTTP_PORT
+
 ANSIBLE_HOSTS="${HOSTS_DIR}/hosts"
 export ANSIBLE_HOSTS
 
 info "OSM DOMAIN: $OSM_DOMAIN"
 info "OSM SUBNET: $OSM_SUBNET"
+info "HTTP PORT: $HTTP_PORT"

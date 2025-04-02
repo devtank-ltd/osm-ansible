@@ -1,7 +1,7 @@
 # -*- mode: sh; sh-shell: bash; -*-
 
 readonly DEB_ISO_ARCH="amd64"
-readonly DEB_ISO_VER="12.9.0"
+readonly DEB_ISO_VER="12.10.0"
 readonly DEB_URL="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd"
 readonly ISO_NAME="debian-${DEB_ISO_VER}-${DEB_ISO_ARCH}-netinst.iso"
 readonly DEB_ISO_URL="${DEB_URL}/${ISO_NAME}"
@@ -64,13 +64,13 @@ rm -rf "$DEBDISK"
 # qemu-img create -f qcow2 "$DEBDISK" 16G
 qemu-img create -f qcow2 "$DEBDISK" 30G
 
-python3 -m http.server -d "$HOST_DIR" -b "${OSM_SUBNET}.1"&
+python3 -m http.server $HTTP_PORT -d "$HOST_DIR" -b "${OSM_SUBNET}.1"&
 websvr=$!
 
 nc -u -l "${OSM_SUBNET}.1" 10514 > "$HOST_DIR"/install_log&
 logsvr=$!
 
-[ -e "$HOST_DIR/preseed.cfg" ] || sed "s|OSM_SUBNET|$OSM_SUBNET|g" "$PRESEED" > "$HOST_DIR"/preseed.cfg
+[ -e "$HOST_DIR/preseed.cfg" ] || sed -e "s|OSM_SUBNET|$OSM_SUBNET|g" -e "s|HTTP_PORT|$HTTP_PORT|g" "$PRESEED" > "$HOST_DIR"/preseed.cfg
 
 [ -e "$HOST_DIR/ssh_key_name" ] || echo "$ssh_key_name" > "$HOST_DIR"/ssh_key_name
 [ -e "$HOST_DIR/$ssh_key_name" ] || ln -s "$DEFAULT_KEY_LOCATION" "${HOST_DIR}/${ssh_key_name}"
@@ -80,7 +80,7 @@ qemu_params=(
     -drive "file=${DEBISO},format=raw,if=virtio,media=cdrom"
     -kernel "${HOST_DIR}/boot/vmlinuz"
     -initrd "${HOST_DIR}/boot/initrd.gz"
-    --append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text hostname=$OSM_HOST domain=$OSM_DOMAIN log_host=${OSM_SUBNET}.1 log_port=10514 url=http://${OSM_SUBNET}.1:8000/preseed.cfg"
+    --append "console=ttyS0 priority=critical auto=true DEBIAN_FRONTEND=text hostname=$OSM_HOST domain=$OSM_DOMAIN log_host=${OSM_SUBNET}.1 log_port=10514 url=http://${OSM_SUBNET}.1:$HTTP_PORT/preseed.cfg"
 )
 run_qemu_vm "$HOST_DIR" "$VOSM_HOSTBR" "$OSM_HOSTMAC" "$DEBDISK" "$DEBBIOSMEM" "${qemu_params[@]}"
 

@@ -18,6 +18,7 @@ readonly CONF_VARS=(
     "MAIL_SMTP_USER"
     "MAIL_SMTP_PASSWORD"
     "MAIL_RECIPIENTS"
+    "HTTP_PORT"
 )
 
 die() {
