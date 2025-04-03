@@ -86,26 +86,13 @@
       Content-Type: "application/json"
     body: |
       {
-        "flux": "option task = {name: \"downsample_{{ item.every }}_task\", every: {{ item.every }}, offset: 0m}\n  cc = from(bucket: \"sf\")\n  |> range(start: {{ item.start }}, stop: {{ item.stop }})\n  |> filter(fn: (r) => r[\"_measurement\"] == \"mqtt_consumer\")\n  |> filter(fn: (r) => r[\"_field\"] =~ /CC[1-3]/)\n  |> aggregateWindow(every: {{ item.aggr }}, fn: mean)\n  |> map(fn: (r) => ({r with _value: float(v: r._value) / (1000. * 1000.) * 240.}))\ncc\n  |> to(bucket: \"cc_kwh_transform\")",
+        "flux": "option task = {name: \"downsample_{{ item.comms }}_task\", every: 1h, offset: 0m}\n  cc = from(bucket: \"sf\")\n  |> range(start: -2h, stop: -1h)\n  |> filter(fn: (r) => r[\"{{ item.filter }}\"] =~ /{{ item.meas }}/)\n  |> aggregateWindow(every: 1h, fn: mean)\n  |> map(fn: (r) => ({r with _value: float(v: r._value) / (1000. * 1000.) * 240.}))\ncc\n  |> to(bucket: \"cc_kwh_transform\")",
         "orgID": "{{ influx_org_id }}",
         "status": "active",
-        "description": "This task downsamples kWh data every {{ item.aggr }}"
+        "description": "This task downsamples kWh data every hour"
       }
     body_format: json
     status_code: 201
   loop:
-    - { every: "48w", start: "-52w", stop: "-48w", aggr: "1h" }
-    - { every: "44w", start: "-48w", stop: "-44w", aggr: "1h" }
-    - { every: "40w", start: "-44w", stop: "-40w", aggr: "1h" }
-    - { every: "36w", start: "-40w", stop: "-36w", aggr: "1h" }
-    - { every: "32w", start: "-36w", stop: "-32w", aggr: "1h" }
-    - { every: "28w", start: "-32w", stop: "-28w", aggr: "1h" }
-    - { every: "24w", start: "-28w", stop: "-24w", aggr: "1h" }
-    - { every: "20w", start: "-24w", stop: "-20w", aggr: "1h" }
-    - { every: "16w", start: "-20w", stop: "-16w", aggr: "1h" }
-    - { every: "12w", start: "-16w", stop: "-12w", aggr: "1h" }
-    - { every: "8w",  start: "-12w", stop: "-8w",  aggr: "1h" }
-    - { every: "28d", start: "-8w",  stop: "-28d", aggr: "1h" }
-    - { every: "14d", start: "-28d", stop: "-14d", aggr: "1h" }
-    - { every: "7d",  start: "-14d", stop: "-7d",  aggr: "1h" }
-    - { every: "1h",  start: "-7d",  stop: "-1h",  aggr: "1h" }
+    - { comms: "wifi", filter: "_field", meas: "CC[1-3]" }
+    - { comms: "lora", filter: "_measurement", meas: "device_frmpayload_data_CC[1-3]" }
