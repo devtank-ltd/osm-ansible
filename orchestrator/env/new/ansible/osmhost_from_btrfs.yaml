@@ -1,0 +1,9 @@
+- hosts: "{{ target }}"
+  tasks:
+    - name: Setup OSM HOST
+      import_tasks: ./osmhost_setup.yaml
+
+    - name: Ready for faking customer setup
+      shell: |
+        echo "TEST_LETS_ENCRYPT=1" >> /etc/environment
+        echo "Defaults env_keep += TEST_LETS_ENCRYPT" >> /etc/sudoers.d/osm-anisble

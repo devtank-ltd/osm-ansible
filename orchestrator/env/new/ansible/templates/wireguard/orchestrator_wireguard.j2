@@ -1,0 +1,7 @@
+[Interface]
+Address = {{ wg_ipaddr }}/24
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o {{ wg_interface }} -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ wg_interface }} -j MASQUERADE
+ListenPort = {{ wg_port }}
+PrivateKey = {{ orchestrator_private_key }}
+MTU = 1400

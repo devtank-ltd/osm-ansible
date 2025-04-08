@@ -1,0 +1,16 @@
+ansible_ssh_user: root
+
+devtank:
+  hostname: "{{ ansible_facts['hostname'] }}"
+
+incus_init:
+  release: stable
+
+  network:
+    ipaddr: "{{ ansible_default_ipv4['address'] }}"
+    netmask: 24
+
+  storage:
+    local:
+      driver: btrfs
+      source: "/srv/osm-lxc/incus/storage-pools"
