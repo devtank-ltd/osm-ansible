@@ -5,7 +5,7 @@
     cluster_ip: "{{ ansible_default_ipv4.address }}"
   when: inventory_hostname == "vosmhost0"
   delegate_to: localhost
-  delegates_facts: true
+  delegate_facts: true
 
 - name: Create apt keyring path
   file:
