@@ -2,6 +2,7 @@
 
 # TODO: split to files
 # TODO: fix path
+# shellcheck source=/dev/null
 source inc/vars
 
 print_usage() {
@@ -9,10 +10,12 @@ print_usage() {
 	Usage:
 	setup environment:
 	./${0##*/} -a setup|--action=setup -c <conf_file>|--config=<conf_file>
-	remove environment:
+	shutdown environment:
 	./${0##*/} -a shutdown|--action=shutdown -d <hosts directory>|--hosts-dir=<hosts directory>
 	run exising environment (not implemented yet):
 	./${0##*/} -a run|--action=run -d <hosts directory>|--hosts-dir=<hosts directory>
+	remove environment (not implemented yet):
+	./${0##*/} -a run|--action=remove -d <hosts directory>|--hosts-dir=<hosts directory>
 EOF
     exit 1
 }
@@ -171,6 +174,7 @@ check_pkgs() {
 }
 
 git_branch() {
+    # TODO: debug
     # git rev-parse --abbrev-ref HEAD | sed -n 's/HEAD/main/p;t;p'
     echo "main"
 }
@@ -344,19 +348,22 @@ close_bridge() {
         return
     fi
 
+    warn "Remove iptables rule"
     sudo iptables -t nat -D POSTROUTING ! -d "${OSM_SUBNET}.0/24" -s "${OSM_SUBNET}.0/24" -j SNAT --to-source "$(main_ip)"
+    warn "Kill dnsmasq"
     sudo pkill -15 -F "${HOSTS_DIR}/${VOSM_HOSTBR}.pid"
+    warn "Remove '$VOSM_HOSTBR' interface"
     sudo ip link set down dev "$VOSM_HOSTBR"
     sudo ip addr del "${OSM_SUBNET}.1/24" dev "$VOSM_HOSTBR"
     sudo ip link del "$VOSM_HOSTBR" type bridge
 }
 
+# ---------- VM related functions ----------
+
 get_vm_ip() {
-    # TODO
     local host="$1"
     local dns_srv="$2"
     local ipaddr name
-
 
     ipaddr="$(dig @"$dns_srv" "$host" +short)"
 
@@ -374,7 +381,7 @@ wait_for_ip() {
     local ipaddr=""
 
     while [[ -z "$ipaddr" ]]; do
-        # TODO: add timeout
+        # TODO: add timeout to exit
         sleep .25
         [[ ! -e "${HOSTS_DIR}/${host}/qemu.pid" ]] && die "The '$host' VM is down"
         ipaddr="$(get_vm_ip "$host" "$subnet")"
@@ -392,8 +399,10 @@ setup_ssh() {
 gen_remote_ssh() {
     local ipaddr="$1"
     local pub_key
-    pub_key="$(ssh root@$ipaddr /bin/bash <<-EOF
-	[[ ! -e /root/.ssh/id_rsa ]] && ssh-keygen -q  -t rsa -N '' -f /root/.ssh/id_rsa
+    pub_key="$(ssh root@"$ipaddr" /bin/bash <<-EOF
+	if [[ ! -e /root/.ssh/id_rsa ]]; then
+	     ssh-keygen -q  -t rsa -N '' -f /root/.ssh/id_rsa
+	fi
 	cat /root/.ssh/id_rsa.pub
 EOF
 )"
@@ -629,7 +638,7 @@ clone_host() {
 
     # TODO: use socat instead of ssh?
     # shellcheck disable=SC2087
-    ssh root@"$ipaddr" bash -x <<-EOF || true
+    ssh root@"$ipaddr" bash <<-EOF || true
 	sed -i 's|'"$base_name"'|'"$target_name"'|g' /etc/{hosts,hostname}; hostname  "$target_name"
 	rm /etc/ssh/ssh_host_*
 	dpkg-reconfigure openssh-server
@@ -702,7 +711,7 @@ run_ansible_early() {
     fi
 
     args=(
-        "$ipaddr"
+        "$name"
         osm_host_name="$name"
         osm_domain="$OSM_DOMAIN"
         osm_ansible_branch="$(git_branch)"
@@ -714,6 +723,7 @@ run_ansible_early() {
         -i "$ANSIBLE_HOSTS"
         --skip-tags "pebble"
     )
+
     edo ansible-playbook "${ansible_args[@]}" "$playbook"
     ssh root@"$ipaddr" "poweroff" || true
     pidwait -F "${HOSTS_DIR}/${name}/qemu.pid"
@@ -729,6 +739,7 @@ start_hosts() {
     for host in "${machines[@]}"; do
         host="${host##*/}"
         run_qemu "$host" "${VOSM_HOSTBR}" || true
+        info "Waiting for IP address assigned..."
         # shellcheck disable=SC2034
         hosts["$host"]="$(wait_for_ip "$host" "${OSM_SUBNET}.1")"
     done
@@ -756,4 +767,12 @@ request_pebble_cert() {
 
 ssh_cmd() {
     :
+}
+
+run_ansible() {
+    :
+}
+
+deploy_incus() {
+    ansible-playbook ansible/incus/deploy.yaml -i "${HOSTS_DIR}/hosts"
 }

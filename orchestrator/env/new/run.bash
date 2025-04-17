@@ -23,8 +23,6 @@ main() {
     )
     declare -A osm_hosts
 
-    # set --
-
     if [[ "${ARGS[action]}" == "setup" ]]; then
         build_env "${ARGS[config]}"
         get_debian_iso
@@ -66,8 +64,8 @@ main() {
 
         for host in "${!osm_hosts[@]}"; do
             local ipaddr="${osm_hosts[$host]}"
-
-            deploy_incus "$ipaddr"
+            # update hosts for ansible
+            sed -ri 's/^'"$host"'.*=$/&'"$ipaddr"'/' "${HOSTS_DIR}/hosts"
 
             if [[ "$host" != "orchestrator" ]]; then
                 setup_ssh "$ipaddr"
@@ -80,14 +78,16 @@ EOF
                 # TODO: request certs
                 # request_pebble_cert "$host" "${osm_hosts[orchestrator]}"
                 # shellcheck disable=SC2029
-                ssh root@"$orch_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts"
+                ssh root@"$orch_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts" >/dev/null 2>&1
                 # shellcheck disable=SC2029
-                ssh root@"$orch_ip" "/srv/osm-lxc/orchestrator/orchestrator_cli.py add_host $host $ipaddr 4"
+                # ssh root@"$orch_ip" "/srv/osm-lxc/orchestrator/orchestrator_cli.py add_host $host $ipaddr 4"
                 # TODO: adjust nginx for pebble
                 # TODO: exchenge ssh keys
                 # TODO: add customers
             fi
         done
+
+        deploy_incus
 
     elif [[ "${ARGS[action]}" == "shutdown" ]]; then
         hosts_dir="${ARGS[hosts_dir]}"
@@ -99,6 +99,7 @@ EOF
             source "${hosts_dir}/env"
         fi
         close_bridge
+        warn "Stop all VMs in located in '$hosts_dir'"
         find "$hosts_dir" -name "qemu.pid" -type f -print -exec pkill -15 -F {} \;
         pkill -15 -F "${hosts_dir}/${VOSM_HOSTBR}.pid"
     fi
