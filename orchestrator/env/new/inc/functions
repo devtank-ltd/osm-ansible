@@ -1,9 +1,5 @@
 # shellcheck disable=SC2317
-
 # TODO: split to files
-# TODO: fix path
-# shellcheck source=/dev/null
-source inc/vars
 
 print_usage() {
     cat <<-EOF
@@ -12,10 +8,6 @@ print_usage() {
 	./${0##*/} -a setup|--action=setup -c <conf_file>|--config=<conf_file>
 	shutdown environment:
 	./${0##*/} -a shutdown|--action=shutdown -d <hosts directory>|--hosts-dir=<hosts directory>
-	run exising environment (not implemented yet):
-	./${0##*/} -a run|--action=run -d <hosts directory>|--hosts-dir=<hosts directory>
-	remove environment (not implemented yet):
-	./${0##*/} -a run|--action=remove -d <hosts directory>|--hosts-dir=<hosts directory>
 EOF
     exit 1
 }
@@ -45,6 +37,10 @@ info() {
 
 warn() {
     msg "${YELLOW}WARNING:${RESET} $*"
+}
+
+error() {
+    msg "${RED}ERROR:${RESET} $*" >&2
 }
 
 edo() {
@@ -102,6 +98,7 @@ parse_config() {
 }
 
 process_args() {
+    echo "$@"
     declare -n a=ARGS           # in main
     local action config hosts_dir
 
@@ -248,6 +245,90 @@ get_debian_iso() {
     popd >/dev/null 2>&1 || true
 }
 
+do_setup() {
+    local config="$1"
+
+    build_env "$config"
+    get_debian_iso
+
+    if ! setup_bridge; then
+        die "Bridge setup"
+    fi
+
+    # TODO: parallel?
+    # Install base debian distribution for orchestrator and osm host
+    for host in "${!BASE_HOSTS[@]}"; do
+        prepare_base_host "$host" "$OSM_DOMAIN" "${BASE_HOSTS[$host]}"
+        OSM_HOSTS["$host"]=""
+    done
+
+    for host in "${!OSM_HOSTS[@]}"; do
+        run_qemu "$host" "$VOSM_HOSTBR"
+        OSM_HOSTS["$host"]="$(wait_for_ip "$host" "${OSM_SUBNET}.1")"
+        setup_ssh "${OSM_HOSTS[$host]}"
+
+        if ! grep -q "${OSM_HOSTS[$host]}" "$ANSIBLE_HOSTS"; then
+            # shellcheck disable=SC1003
+            sed -i '1 i\'"${host} ansible_host=${OSM_HOSTS[$host]}"'' "$ANSIBLE_HOSTS"
+        fi
+         run_ansible_early "$host" "${OSM_HOSTS[$host]}"
+    done
+
+    for i in $(seq 1 $(( OSM_HOST_COUNT - 1 ))); do
+        clone_host "${VOSM_HOST}0" "${VOSM_HOST}${i}"
+        sed -i '1 i\'"${VOSM_HOST}${i} ansible_host="'' "$ANSIBLE_HOSTS"
+        OSM_HOSTS["${VOSM_HOST}${i}"]=""
+    done
+}
+
+do_post_setup() {
+    local host ipaddr orch_ip orch_pub orch_ssh_dir
+    orch_pub="$(gen_remote_ssh "${OSM_HOSTS[orchestrator]}")"
+    orch_ip="${OSM_HOSTS[orchestrator]}"
+    orch_ssh_dir="/home/osm_orchestrator/.ssh"
+
+    run_ansible_pebble "orchestrator"
+
+    for host in "${!OSM_HOSTS[@]}"; do
+        ipaddr="${OSM_HOSTS[$host]}"
+        # update hosts file for ansible
+        sed -ri 's/^'"$host"'.*=$/&'"$ipaddr"'/' "${HOSTS_DIR}/hosts"
+
+        if [[ "$host" != "orchestrator" ]]; then
+            setup_ssh "$ipaddr"
+            info "Copy orchestrator's SSH pub key to '${host}'[${ipaddr}]"
+            ssh root@"$ipaddr" /bin/bash <<-EOF
+		mkdir -p "$orch_ssh_dir"
+		echo "$orch_pub" >> "${orch_ssh_dir}/authorized_keys"
+EOF
+            request_pebble_cert "$host" "$orch_ip"
+            # shellcheck disable=SC2029
+            ssh root@"$orch_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts" >/dev/null 2>&1
+            ssh
+            # TODO:
+            # - nginx for pebble
+            # - exchange ssh keys
+            # - add customers
+        fi
+    done
+    deploy_incus
+}
+
+do_shutdown_environment() {
+    hosts_dir="${ARGS[hosts_dir]}"
+    warn "shutting down '$hosts_dir' environment"
+    if [[ ! -e "${hosts_dir}/env" ]]; then
+        die "Unable to get environment settings"
+    else
+        # shellcheck source=/dev/null
+        source "${hosts_dir}/env"
+    fi
+    close_bridge
+    warn "Stop all VMs in located in '$hosts_dir'"
+    find "$hosts_dir" -name "qemu.pid" -type f -print -exec pkill -15 -F {} \;
+    pkill -15 -F "${hosts_dir}/${VOSM_HOSTBR}.pid"
+}
+
 # ---------- network functions ----------
 gen_hwaddr() {
     local hwaddr="52:54:00:%02x:%02x:%02x"
@@ -368,11 +449,18 @@ get_vm_ip() {
     ipaddr="$(dig @"$dns_srv" "$host" +short)"
 
     if [[ -v ipaddr && -n "$ipaddr" ]]; then
+        info "Got '$host' IP address: $ipaddr" >&2
         if ping -c1 -W1 "$ipaddr" >/dev/null 2>&1; then
             name="$(dig @"$dns_srv" -x "$ipaddr" +short)"
-            [[ "$name" != "${host}." ]] || echo "$ipaddr"
+            if [[ "$name" == "${host}." ]]; then
+                echo "$ipaddr"
+                return 0
+            fi
+        else
+            warn "Ping '$ipaddr' failed" >&2
         fi
     fi
+    return 1
 }
 
 wait_for_ip() {
@@ -380,13 +468,13 @@ wait_for_ip() {
     local subnet="$2"
     local ipaddr=""
 
-    while [[ -z "$ipaddr" ]]; do
-        # TODO: add timeout to exit
-        sleep .25
+    ipaddr="$(do_until 60 get_vm_ip "$host" "$subnet")"
+    if [[ -z "$ipaddr" ]]; then
+        error "Unable to get IP address for '$host' host"
         [[ ! -e "${HOSTS_DIR}/${host}/qemu.pid" ]] && die "The '$host' VM is down"
-        ipaddr="$(get_vm_ip "$host" "$subnet")"
-    done
+    fi
     echo "$ipaddr"
+    return 0
 }
 
 setup_ssh() {
@@ -529,7 +617,22 @@ prepare_base_host() {
             fi
         done
         exec 3<&-
+    else
+        # seems the VM is running
+        pushd "$host_dir" &>/dev/null || die "pushd to '${host_dir}'"
+        [[ ! -S "monitor.sock" ]] && die "There is no monitor socket. Unable to proceed"
+        local status
+        status="$(echo "info status" | socat - unix-connect:monitor.sock)"
+        status="$(sed -r 's|\r$||' <<<"$status")"
+        status="$(sed -rn 's|^VM status: (.*)|\1|p' <<<"$status")"
+        if [[ "$status" == "running" ]]; then
+            warn "The VM '$name' is $status"
+            yesno "Do you want to shutdown VM and proceed? "
+            echo "system_powerdown"| socat - unix-connect:monitor.sock >/dev/null 2>&1
+        fi
+        popd &>/dev/null || die "popd from '${host_dir}'"
     fi
+
     # wait for qemu shuts down
     pidwait -F "${host_dir}/qemu.pid"
     info "The '$name' is powered off"
@@ -593,7 +696,7 @@ run_qemu() {
     )
     info "Run '${workdir##*/}' QEMU Virtual machine"
     if [[ -e "${workdir}/qemu.pid" ]]; then
-        warn "'${workdir##*/}' is already running?"
+        warn "The PID file exists. Is the '${workdir##*/}' already running?"
         return 1
     fi
     qemu-system-x86_64 "${qemu_args[@]}" &
@@ -631,15 +734,12 @@ clone_host() {
     info "${HOSTS_DIR}/${base_name} -> ${HOSTS_DIR}/${target_name}"
     cp "${HOSTS_DIR}/${base_name}/"{disk.qcow,ovmf_vars.fd,mac} "${HOSTS_DIR}/${target_name}/"
     run_qemu "${target_name}" "$VOSM_HOSTBR"
-    until [[ ! -v ipaddr || -n "$ipaddr" ]]; do
-        ipaddr="$(get_vm_ip "$base_name" "${OSM_SUBNET}.1")"
-        sleep .25
-    done
-
+    ipaddr="$(do_until 120 get_vm_ip "$base_name" "${OSM_SUBNET}.1")"
     # TODO: use socat instead of ssh?
     # shellcheck disable=SC2087
     ssh root@"$ipaddr" bash <<-EOF || true
-	sed -i 's|'"$base_name"'|'"$target_name"'|g' /etc/{hosts,hostname}; hostname  "$target_name"
+	sed -i 's|'"$base_name"'|'"$target_name"'|g' /etc/{hosts,hostname}
+	hostname  "$target_name"
 	rm /etc/ssh/ssh_host_*
 	dpkg-reconfigure openssh-server
 	poweroff
@@ -691,7 +791,7 @@ run_ansible_early() {
     if [[ "$name" == "orchestrator" ]]; then
         setup_wg "$name"
         [[ ! -v WG_PRIV || -z "$WG_PRIV" ]] && die "orchestrator private key missing"
-        [[ ! -v WG_PUB || -z "$WG_PUB" ]] && die "orchestrator public key missing"
+        [[ ! -v WG_PUB  || -z "$WG_PUB"  ]] && die "orchestrator public key missing"
         extra_args=(
             osm_dns="${ipaddr}"
             orchestrator_public_key="${WG_PUB}"
@@ -705,9 +805,7 @@ run_ansible_early() {
         )
         playbook="ansible/osmhost_orchestrator.yaml"
     else
-        extra_args=(
-            fake_osm_host=True
-        )
+        extra_args=(fake_osm_host=True)
     fi
 
     args=(
@@ -717,16 +815,19 @@ run_ansible_early() {
         osm_ansible_branch="$(git_branch)"
         "${extra_args[*]}"
     )
-
-    ansible_args=(
-        -e target="${args[*]}"
-        -i "$ANSIBLE_HOSTS"
-        --skip-tags "pebble"
-    )
+    ansible_args=(-e target="${args[*]}" -i "$ANSIBLE_HOSTS" --skip-tags "pebble")
 
     edo ansible-playbook "${ansible_args[@]}" "$playbook"
     ssh root@"$ipaddr" "poweroff" || true
     pidwait -F "${HOSTS_DIR}/${name}/qemu.pid"
+}
+
+run_ansible_pebble() {
+    local host="$1"
+    local playbook="ansible/osmhost_orchestrator.yaml"
+    local args=(-v --tags "pebble" -u root -i "$ANSIBLE_HOSTS" -e target="$host")
+
+    edo ansible-playbook "${args[@]}" "$playbook"
 }
 
 start_hosts() {
@@ -738,7 +839,7 @@ start_hosts() {
 
     for host in "${machines[@]}"; do
         host="${host##*/}"
-        run_qemu "$host" "${VOSM_HOSTBR}" || true
+        run_qemu "$host" "${VOSM_HOSTBR}"
         info "Waiting for IP address assigned..."
         # shellcheck disable=SC2034
         hosts["$host"]="$(wait_for_ip "$host" "${OSM_SUBNET}.1")"
@@ -748,7 +849,6 @@ start_hosts() {
 request_pebble_cert() {
     local name="$1"
     local srvip="$2"
-
     local args=(
         certonly
         --standalone
@@ -762,15 +862,39 @@ request_pebble_cert() {
     )
     info "Request certificate from '$srvip' for ${name}.${OSM_DOMAIN} domain."
     # shellcheck disable=SC2029
-    ssh root@"$ipaddr" "REQUESTS_CA_BUNDLE=devtank.minica.pem certbot ${args[*]}"
+    ssh root@"$ipaddr" "REQUESTS_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} 2>/dev/null; 2>&1"
 }
 
-ssh_cmd() {
-    :
+has() {
+    local want="$1"
+    local x
+    shift
+
+    for x in "$@"; do
+        [[ "$x" == "$want" ]] && return 0
+    done
+    return 1
 }
 
-run_ansible() {
-    :
+do_until() {
+    local -i timeout="$1"
+    local callback="$2"
+    shift 2
+    local args=("$@")
+    local ret=""
+
+    SECONDS=0
+
+    while (( SECONDS < timeout )); do
+        if ret="$("$callback" "${args[@]}")"; then
+            echo "$ret"
+            return 0
+        else
+            sleep .25
+        fi
+    done
+    error "TIME IS UP for '$callback'"
+    return 1
 }
 
 deploy_incus() {

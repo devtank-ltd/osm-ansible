@@ -37,8 +37,8 @@
       - snapper
       - sudo
       - ufw
-      - wireguard
       - vim
+      - wireguard
     update_cache: yes
 
 - name: Clone OSM Ansible git repo.
@@ -92,8 +92,8 @@
     name: netdata
     state: restarted
 
-- name: Apply OSM Host overlay.
-  shell: rsync -a /srv/osm-lxc/root_overlay/ /
+# - name: Apply OSM Host overlay.
+#   shell: rsync -a /srv/osm-lxc/root_overlay/ /
 
 - name: Update OSM Host overlay NGINX with hostname
   ansible.builtin.replace:
@@ -109,13 +109,13 @@
     replace: "{{ osm_domain }}"
   tags: pebble
 
-- name: Create a OSM Host Base OS container
-  community.general.lxc_container:
-    name: base-os
-    container_log: true
-    template: debian
-    state: stopped
-    template_options: bookworm
+# - name: Create a OSM Host Base OS container
+#   community.general.lxc_container:
+#     name: base-os
+#     container_log: true
+#     template: debian
+#     state: stopped
+#     template_options: bookworm
 
 # - name: Patch lxc-net script to support MTU setting
 #   ansible.posix.patch:
@@ -123,56 +123,56 @@
 #     basedir: /usr/libexec/lxc
 #     strip: 1
 
-- name: OSM Host Base OS container prep
-  shell: |
-    [ -d /root/.ssh/id_rsa.pub ] | ssh-keygen -q  -t rsa -N '' -f /root/.ssh/id_rsa
-    mkdir -p /var/lib/lxc/base-os/rootfs/root/.ssh
-    cat /root/.ssh/id_rsa.pub >> /var/lib/lxc/base-os/rootfs/root/.ssh/authorized_keys
-    echo '
-    LXC_BRIDGE="lxcbr0"
-    LXC_ADDR="10.0.3.1"
-    LXC_NETMASK="255.255.255.0"
-    LXC_NETWORK="10.0.3.0/24"
-    LXC_DHCP_RANGE="10.0.3.2,10.0.3.254"
-    LXC_DHCP_MAX="253"
-    LXC_DHCP_CONFILE=/etc/lxc/dnsmasq.conf
-    LXC_DOMAIN="lxc"' >> /etc/default/lxc-net
-    mac_addr=$(awk -F ' = ' '/lxc.net.0.hwaddr/ {print $2}' /var/lib/lxc/base-os/config)
-    echo "dhcp-host=$mac_addr,10.0.3.2" > /etc/lxc/dnsmasq.conf
-    systemctl restart lxc-net
+# - name: OSM Host Base OS container prep
+#   shell: |
+#     [ -d /root/.ssh/id_rsa.pub ] | ssh-keygen -q  -t rsa -N '' -f /root/.ssh/id_rsa
+#     mkdir -p /var/lib/lxc/base-os/rootfs/root/.ssh
+#     cat /root/.ssh/id_rsa.pub >> /var/lib/lxc/base-os/rootfs/root/.ssh/authorized_keys
+#     echo '
+#     LXC_BRIDGE="lxcbr0"
+#     LXC_ADDR="10.0.3.1"
+#     LXC_NETMASK="255.255.255.0"
+#     LXC_NETWORK="10.0.3.0/24"
+#     LXC_DHCP_RANGE="10.0.3.2,10.0.3.254"
+#     LXC_DHCP_MAX="253"
+#     LXC_DHCP_CONFILE=/etc/lxc/dnsmasq.conf
+#     LXC_DOMAIN="lxc"' >> /etc/default/lxc-net
+#     mac_addr=$(awk -F ' = ' '/lxc.net.0.hwaddr/ {print $2}' /var/lib/lxc/base-os/config)
+#     echo "dhcp-host=$mac_addr,10.0.3.2" > /etc/lxc/dnsmasq.conf
+#     systemctl restart lxc-net
 
-- name: Start OSM Host Base OS container
-  community.general.lxc_container:
-    name: base-os
-    state: started
+# - name: Start OSM Host Base OS container
+#   community.general.lxc_container:
+#     name: base-os
+#     state: started
 
-- name: Make OSM Host Base OS Ansible ready
-  community.general.lxc_container:
-    name: base-os
-    container_command: apt install -y python3 wget python3-apt
+# - name: Make OSM Host Base OS Ansible ready
+#   community.general.lxc_container:
+#     name: base-os
+#     container_command: apt install -y python3 wget python3-apt
 
-- name: Ready host to use Ansible on OSM Host Base OS
-  shell: |
-    ssh-keyscan -H 10.0.3.2 > /root/.ssh/known_hosts
-    echo 10.0.3.2 > /tmp/hosts
+# - name: Ready host to use Ansible on OSM Host Base OS
+#   shell: |
+#     ssh-keyscan -H 10.0.3.2 > /root/.ssh/known_hosts
+#     echo 10.0.3.2 > /tmp/hosts
 
-- name: Run setup Ansible on OSM Host Base OS
-  shell: |
-    cd /srv/osm-lxc/ansible/
-    ansible-playbook -e "target=10.0.3.2" -i /tmp/hosts setup-base-os.yaml
+# - name: Run setup Ansible on OSM Host Base OS
+#   shell: |
+#     cd /srv/osm-lxc/ansible/
+#     ansible-playbook -e "target=10.0.3.2" -i /tmp/hosts setup-base-os.yaml
 
-- name: Add Go GC work rounds
-  shell: |
-    printf "GOMEMLIMIT=300MiB\nGOGC=50" >> /var/lib/lxc/base-os/rootfs/etc/default/influxdb2
-    printf "GOMEMLIMIT=300MiB\nGOGC=50" >> /var/lib/lxc/base-os/rootfs/etc/default/grafana-server
+# - name: Add Go GC work rounds
+#   shell: |
+#     printf "GOMEMLIMIT=300MiB\nGOGC=50" >> /var/lib/lxc/base-os/rootfs/etc/default/influxdb2
+#     printf "GOMEMLIMIT=300MiB\nGOGC=50" >> /var/lib/lxc/base-os/rootfs/etc/default/grafana-server
 
-- name: Stop OSM Host Base OS container
-  community.general.lxc_container:
-    name: base-os
-    state: stopped
+# - name: Stop OSM Host Base OS container
+#   community.general.lxc_container:
+#     name: base-os
+#     state: stopped
 
-- name: Use OSM Host Base OS container to create OSM Host OS Base
-  shell: |
-    mkdir -p /srv/osm-lxc/lxc/os-bases
-    rsync -rlpgo /var/lib/lxc/base-os/rootfs/ /srv/osm-lxc/lxc/os-bases/001-bookworm-$(date "+%d-%m-%Y")
-    cp /var/lib/lxc/base-os/config /srv/osm-lxc/lxc/os-bases/base-os-lxc.conf
+# - name: Use OSM Host Base OS container to create OSM Host OS Base
+#   shell: |
+#     mkdir -p /srv/osm-lxc/lxc/os-bases
+#     rsync -rlpgo /var/lib/lxc/base-os/rootfs/ /srv/osm-lxc/lxc/os-bases/001-bookworm-$(date "+%d-%m-%Y")
+#     cp /var/lib/lxc/base-os/config /srv/osm-lxc/lxc/os-bases/base-os-lxc.conf
