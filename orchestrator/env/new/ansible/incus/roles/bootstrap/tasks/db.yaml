@@ -1,0 +1,81 @@
+- name: Stop PDNS
+  service:
+    name: pdns.service
+    state: stopped
+
+- name: Create PDNS DB Password
+  set_fact:
+    pdns_db_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
+
+- name: Setup PDNS MySQL
+  shell: |
+    echo "CREATE DATABASE pdns;\
+    GRANT ALL ON pdns.* to pdns@localhost IDENTIFIED BY '{{ pdns_db_password }}';\
+    FLUSH PRIVILEGES;" | mysql -uroot
+    cat /usr/share/doc/pdns-backend-mysql/schema.mysql.sql | mysql -uroot pdns
+
+- name: Add MySQL setup to PDNS
+  template:
+    src: pdns.tpl
+    dest: /etc/powerdns/pdns.d/mysql.conf
+
+- name: Remove PDNS bind file
+  file:
+    state: absent
+    path: "/etc/powerdns/pdns.d/bind.conf"
+
+- name: Populate PDNS MySQL
+  shell: |
+    echo "INSERT INTO domains (id,name,type) values (1,'{{ osm_domain }}','MASTER');
+    INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES \
+    (1,'{{ osm_domain }}','SOA',0,'{{ inventory_hostname }}.{{ osm_domain }} hostmaster.{{ osm_domain }} 20230717 10800 10800 108000 1800',1800);
+    INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES \
+    (1,'{{ osm_domain }}','NS',0,'{{ inventory_hostname }}.{{ osm_domain }}',10800);
+    INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES \
+    (1,'{{ inventory_hostname }}.{{ osm_domain }}','A',0,'{{ ansible_host }}',10800);" | mysql -uroot pdns
+
+- name: Create OSM Orchestrator DB Password
+  ansible.builtin.set_fact:
+    osm_orchestrator_db_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
+    osm_alert_db_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16) }}"
+
+- name: Create readonly DB user
+  community.mysql.mysql_user:
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: alert
+    password: "{{ osm_alert_db_password }}"
+    state: present
+    priv: 'osm_orchestrator.*:SELECT'
+
+- name: Create OSM Orchestrator DB
+  shell: |
+    db_schema="/srv/osm-lxc/orchestrator/schema.sql"
+    sed 's|change_this_password|{{ osm_orchestrator_db_password }}|g' "$db_schema" | mysql -uroot
+
+- name: Write out OSM Orchestrator Config
+  vars:
+    object:
+        orchestrator:
+            user: '{{ devtank.user }}'
+            password: '{{ osm_orchestrator_db_password }}'
+            host: 'localhost'
+            database: '{{ devtank.db }}'
+        pdns:
+            user: 'osm_orchestrator'
+            password: '{{ osm_orchestrator_db_password }}'
+            host: 'localhost'
+            database: 'pdns'
+        customer_alerts:
+            user: "alert"
+            password: '{{ osm_alert_db_password }}'
+        pdns_domain: '{{ osm_domain }}'
+        pdns_domain_id: 1
+        plugin_dir: /srv/osm-lxc/orchestrator/plugins
+  copy:
+    content: "{{ object | to_nice_yaml(indent=2) }}"
+    dest: /srv/osm-lxc/orchestrator/config.yaml
+
+- name: Restart PDNS
+  service:
+    name: pdns.service
+    state: started

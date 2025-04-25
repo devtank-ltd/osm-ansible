@@ -7,10 +7,14 @@ incus_init:
   release: stable
 
   network:
-    ipaddr: "{{ ansible_default_ipv4['address'] }}"
-    netmask: 24
+    type: bridge
+    ipaddr: "10.0.5.1/24"
+    iface: eth0
 
   storage:
-    local:
-      driver: btrfs
-      source: "/srv/osm-lxc/incus/storage-pools"
+    driver: btrfs
+    source: "/srv/osm-lxc/storage"
+
+  image:
+    url: https://incus-remote.devtank.co.uk
+    protocol: simplestreams

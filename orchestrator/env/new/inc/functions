@@ -275,6 +275,7 @@ do_setup() {
     done
 
     for i in $(seq 1 $(( OSM_HOST_COUNT - 1 ))); do
+        # shellcheck disable=SC2153
         clone_host "${VOSM_HOST}0" "${VOSM_HOST}${i}"
         sed -i '1 i\'"${VOSM_HOST}${i} ansible_host="'' "$ANSIBLE_HOSTS"
         OSM_HOSTS["${VOSM_HOST}${i}"]=""
@@ -304,7 +305,7 @@ EOF
             request_pebble_cert "$host" "$orch_ip"
             # shellcheck disable=SC2029
             ssh root@"$orch_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts" >/dev/null 2>&1
-            ssh
+            # ssh
             # TODO:
             # - nginx for pebble
             # - exchange ssh keys
@@ -467,8 +468,9 @@ wait_for_ip() {
     local host="$1"
     local subnet="$2"
     local ipaddr=""
+    local -i timeout=180
 
-    ipaddr="$(do_until 60 get_vm_ip "$host" "$subnet")"
+    ipaddr="$(do_until $timeout get_vm_ip "$host" "$subnet")"
     if [[ -z "$ipaddr" ]]; then
         error "Unable to get IP address for '$host' host"
         [[ ! -e "${HOSTS_DIR}/${host}/qemu.pid" ]] && die "The '$host' VM is down"
@@ -511,6 +513,7 @@ setup_wg() {
     popd &>/dev/null 2>&1 || die "popd"
 }
 
+# ---------- VM functions ----------
 prepare_base_host() {
     local name="$1"
     local domain="$2"
@@ -840,6 +843,11 @@ start_hosts() {
     for host in "${machines[@]}"; do
         host="${host##*/}"
         run_qemu "$host" "${VOSM_HOSTBR}"
+
+    done
+
+    for host in "${machines[@]}"; do
+        host="${host##*/}"
         info "Waiting for IP address assigned..."
         # shellcheck disable=SC2034
         hosts["$host"]="$(wait_for_ip "$host" "${OSM_SUBNET}.1")"
@@ -862,7 +870,7 @@ request_pebble_cert() {
     )
     info "Request certificate from '$srvip' for ${name}.${OSM_DOMAIN} domain."
     # shellcheck disable=SC2029
-    ssh root@"$ipaddr" "REQUESTS_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} 2>/dev/null; 2>&1"
+    ssh root@"$ipaddr" "REQUESTS_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} &>/dev/null"
 }
 
 has() {
@@ -887,7 +895,7 @@ do_until() {
 
     while (( SECONDS < timeout )); do
         if ret="$("$callback" "${args[@]}")"; then
-            echo "$ret"
+            printf '%s' "$ret"
             return 0
         else
             sleep .25

@@ -1,0 +1,66 @@
+---
+
+- name: Prepare main host
+  when: inventory_hostname == "vosmhost0"
+  block:
+    - name: Set WireGuard interface
+      set_fact:
+        wg_if: "{{ ansible_default_ipv4.interface }}"
+
+    - name: Add devtank repository
+      block:
+        - name: Create apt keyring path
+          file:
+            path: /etc/apt/keyrings/
+            mode: 0755
+            state: directory
+
+        - name: Add Devtank GPG key
+          copy:
+            src: devtank.gpg
+            dest: /etc/apt/keyrings/devtank.gpg
+
+        - name: Add Devtank repository to apt source
+          template:
+            src: devtank.tpl
+            dest: /etc/apt/keyrings/devtank.gpg
+
+    - name: Install packages
+      apt:
+        pkg: "{{ main.packages }}"
+        state: latest
+        update_cache: yes
+
+    - name: Clone OSM Ansible git repository
+      git:
+        repo: "{{ devtank.git_repo }}"
+        dest: "{{ devtank.dir }}"
+        single_branch: yes
+        version: "{{ devtank.git_branch }}"
+
+    - name: Generate master encryption data
+      shell: |
+        /usr/bin/python3 crypt.py
+      args:
+        chdir: "{{ devtank.dir }}/orchestrator"
+        creates: master.json
+
+    - name: "Enable IP forwarding"
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        sysctl_set: true
+        state: present
+        reload: true
+
+    - import_tasks: minica.yaml
+    - import_tasks: pebble.yaml
+    - import_tasks: db.yaml
+    - import_tasks: wireguard.yaml
+    - import_tasks: query_exporter.yaml
+    - import_tasks: prometheus.yaml
+    - import_tasks: grafana.yaml
+
+- name: Prepare osm host
+  debug:
+    msg: prep osm host

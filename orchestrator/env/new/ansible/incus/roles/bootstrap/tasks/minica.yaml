@@ -1,0 +1,21 @@
+---
+- name: Prepare MiniCA
+  block:
+    - name: Fetch MiniCA sources
+      git:
+        repo: https://github.com/jsha/minica.git
+        dest: /srv/osm-lxc/utils/minica
+        single_branch: yes
+        version: master
+
+    - name: Build MiniCA
+      shell: go build
+      args:
+        chdir: "{{ devtank.dir }}/utils/minica"
+
+
+    - name: Generate MiniCA key and certificate
+      shell:
+        cmd: "./minica -ca-cert {{ devtank.minica.cert}} -ca-key {{ devtank.minica.key }} --domains localhost,{{ osm_domain }}"
+      args:
+        chdir: "{{ devtank.dir}}/utils/minica"

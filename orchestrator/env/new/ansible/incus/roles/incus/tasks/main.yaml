@@ -92,7 +92,7 @@
 
 - name: Add storage pool
   shell:
-    cmd: "incus storage create devtank btrfs source=/srv/osm-lxc/storage"
+    cmd: "incus storage create devtank {{ incus_init['storage']['driver'] }} source={{ incus_init['storage']['source'] }}"
   when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
 
 - name: Add storage pool description
@@ -108,7 +108,7 @@
 
 - name: Add network
   shell:
-    cmd: "incus network create devtank --type=bridge ipv4.address=10.0.5.1/24"
+    cmd: "incus network create devtank --type={{ incus_init['network']['type'] }} ipv4.address={{ incus_init['network']['ipaddr'] }}"
   when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
 
 - name: Add network description
@@ -118,7 +118,7 @@
 
 - name: Add network to default profile
   shell:
-    cmd: "incus profile device add default eth0 nic network=devtank name=eth0"
+    cmd: "incus profile device add default {{ incus_init['network']['iface'] }} nic network=devtank name={{ incus_init['network']['iface'] }}"
   when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
 
 - name: Bootstrap the cluster
@@ -156,3 +156,8 @@
           value: /srv/osm-lxc/incus
 
   when: "cluster_add.changed"
+
+- name: Add devtank image server
+  shell:
+    cmd: "incus remote add devtank {{ incus_init['image']['url'] }} --protocol {{ incus_init['image']['protocol'] }}"
+  when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"

@@ -1,0 +1,18 @@
+[Unit]
+Description=pebble ACME test server service
+After=network.target pebble-challtestsrv.service
+Requires=pebble-challtestsrv.service
+
+[Service]
+Environment=PEBBLE_CONFIG=/srv/osm-lxc/configs/pebble/pebble-config.json
+Environment=PEBBLE_VA_ALWAYS_VALID=1
+Environment=PEBBLE_VA_NOSLEEP=1
+
+Type=simple
+Restart=always
+RestartSec=1
+User=root
+ExecStart=/usr/bin/pebble -config ${PEBBLE_CONFIG} -dnsserver :8053
+
+[Install]
+WantedBy=multi-user.target
