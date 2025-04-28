@@ -16,7 +16,7 @@
 
 - name: "Apply grafana configuration file"
   template:
-    src: "templates/grafana/grafana.ini.j2"
+    src: "grafana/grafana.ini.j2"
     dest: "/etc/grafana/grafana.ini"
 
 - name: "Create Orch Grafana Admin Password"

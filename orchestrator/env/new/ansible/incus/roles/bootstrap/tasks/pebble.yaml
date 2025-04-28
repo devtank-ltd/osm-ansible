@@ -27,7 +27,7 @@
     src: pebble-challtestsrv.service
     dest: /etc/systemd/system/
 
-- name: "Start pebble-challtestsrv"
+- name: Start pebble-challtestsrv
   systemd_service:
     name: pebble-challtestsrv
     state: started
@@ -35,7 +35,7 @@
     enabled: true
   tags: pebble
 
-- name: "Start pebble ACME"
+- name: Start pebble ACME
   systemd_service:
     name: pebble
     state: restarted

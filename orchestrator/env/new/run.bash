@@ -24,7 +24,8 @@ init() {
     fi
 
     declare -gA BASE_HOSTS=(
-        [orchestrator]="preseed-ext4.cfg"
+        # skip orchestrator as the vosmhost0 is the main host now
+        # [orchestrator]="preseed-ext4.cfg"
         ["${VOSM_HOST}0"]="preseed-btrfs.cfg"
     )
     declare -gA OSM_HOSTS
@@ -38,7 +39,7 @@ main() {
 
     if [[ "${ARGS[action]}" == "setup" ]]; then
         do_setup "${ARGS[config]}"
-        start_hosts OSM_HOSTS
+        do_start_hosts OSM_HOSTS
         do_post_setup
     elif [[ "${ARGS[action]}" == "shutdown" ]]; then
         do_shutdown_environment
