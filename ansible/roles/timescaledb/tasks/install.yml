@@ -1,0 +1,57 @@
+- name: Root operations
+  block:
+    - name: Install latest PostgreSQL packages
+      apt:
+        pkg:
+          - gnupg
+          - postgresql-common
+          - apt-transport-https
+          - lsb-release
+          - wget
+		  - python3-pexpect
+          - python3-psycopg2
+
+    - name: Generate passwords
+      set_fact:
+        timescaledb_passwords: "{{ timescaledb_passwords | default({}) | combine({ item: lookup('ansible.builtin.password', '/dev/null', length=16) }) }}"
+      loop:
+        - "{{ timescaledb_owner }}"
+        - customer
+
+    - name: Run PostgreSQL package setup script
+      expect:
+        command: "/usr/share/postgresql-common/pgdg/apt.postgresql.org.sh"
+        responses:
+          'Press Enter to continue, or Ctrl-C to abort.': "\n"
+
+    - name: Add TimescaleDB package
+      shell: echo "deb https://packagecloud.io/timescale/timescaledb/debian/ $(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/timescaledb.list
+
+    - name: Add TimescaleDB APT key
+      shell: wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/timescaledb.gpg
+
+    - name: Update APT cache
+      apt:
+        update_cache: yes
+
+    - name: Install TimescaleDB for PostgreSQL {{ postgres_version }}
+      apt:
+        pkg:
+          - "timescaledb-{{ timescaledb_version }}-postgresql-{{ postgres_version }}"
+          - "postgresql-client-{{ postgres_version }}"
+
+    - name: Run timescaledb-tune
+      expect:
+        command: timescaledb-tune
+        responses:
+          #Using postgresql.conf at this path:
+          "Is this correct?": "y"
+          #shared_preload_libraries needs to be updated
+          "Is this okay?": "y"
+          "Tune memory/parallelism/WAL and other settings?": "n"
+    - name: Restart PostgreSQL
+      service:
+        name: "postgresql"
+        state: restarted
+
+  become: yes

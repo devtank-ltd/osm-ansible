@@ -1,0 +1,4 @@
+- name: Install Devtank debian packages
+  apt:
+    name: mqtt-postgres-inserter
+    update_cache: yes
