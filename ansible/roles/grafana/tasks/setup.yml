@@ -37,14 +37,14 @@
     grafana_password: "{{ grafana_admin_password }}"
     org_id: "1"
     ds_type: "postgres"
-    ds_url: "http://localhost:5432"
+    ds_url: "localhost:5432"
     database: "osm"
     user: "{{ timescaledb_owner }}"
     additional_json_data:
-      postgresVersion: 12
+      postgresVersion: 15
       timescaledb: true
     additional_secure_json_data:
-      password: "{{ timescaledb_owner_pwd }}"
+      password: "{{ timescaledb_passwords['devtank'] }}"
 
 - name: "Create Grafana Viewer Password"
   ansible.builtin.set_fact:
