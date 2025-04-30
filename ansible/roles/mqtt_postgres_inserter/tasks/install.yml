@@ -1,3 +1,15 @@
+- name: Add Devtank repository
+  block:
+    - name: Download Devtank gpg key
+      ansible.builtin.get_url:
+        url: https://dak.devtank.co.uk/devtank.gpg
+        dest: /etc/apt/keyrings/devtank.gpg
+
+    - name: Add Devtank repository to apt source
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/devtank.gpg] https://dak.devtank.co.uk/debian testing main"
+        state: present
+
 - name: Install Devtank debian packages
   apt:
     name: mqtt-postgres-inserter
