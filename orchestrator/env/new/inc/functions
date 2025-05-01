@@ -98,7 +98,6 @@ parse_config() {
 }
 
 process_args() {
-    echo "$@"
     declare -n a=ARGS           # in main
     local action config hosts_dir
 
@@ -171,8 +170,8 @@ check_pkgs() {
 }
 
 git_branch() {
-    # TODO: debug
     # git rev-parse --abbrev-ref HEAD | sed -n 's/HEAD/main/p;t;p'
+    # TODO: remove after merge
     echo "main"
 }
 
@@ -246,9 +245,6 @@ get_debian_iso() {
 }
 
 do_setup() {
-    local config="$1"
-
-    build_env "$config"
     get_debian_iso
 
     if ! setup_bridge; then
@@ -275,9 +271,11 @@ do_setup() {
     done
 
     run_ansible_early "${OSM_HOSTS[${VOSM_HOST}0]}"
+    do_stop_hosts
 
     local base_host dest_host
     base_host="${VOSM_HOST}1"
+
     for i in $(seq 2 $(( OSM_HOST_COUNT - 1 ))); do
         dest_host="${VOSM_HOST}${i}"
         clone_host "$base_host" "$dest_host"
@@ -292,7 +290,6 @@ do_post_setup() {
     main_ip="${OSM_HOSTS[${VOSM_HOST}0]}"
     main_ssh_dir="/home/osm_orchestrator/.ssh"
 
-    # run_ansible_pebble "orchestrator"
     run_ansible_pebble "${VOSM_HOST}0"
 
     for host in "${!OSM_HOSTS[@]}"; do
@@ -301,7 +298,8 @@ do_post_setup() {
         sed -ri 's/^'"$host"'.*=$/&'"$ipaddr"'/' "${HOSTS_DIR}/hosts"
 
         if [[ "$host" != "${VOSM_HOST}0" ]]; then
-            setup_ssh "$ipaddr"
+            # TODO: remove me
+            # setup_ssh "$ipaddr"
             info "Copy '${VOSM_HOST}0' SSH pub key to '${host}'[${ipaddr}]"
             ssh root@"$ipaddr" /bin/bash <<-EOF
 		mkdir -p "$main_ssh_dir"
@@ -310,11 +308,6 @@ EOF
             request_pebble_cert "$host" "$main_ip"
             # shellcheck disable=SC2029
             ssh root@"$main_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts" >/dev/null 2>&1
-            # ssh
-            # TODO:
-            # - nginx for pebble
-            # - exchange ssh keys
-            # - add customers
         fi
     done
     deploy_incus
@@ -413,7 +406,6 @@ EOF
     sudo ip link set up dev "$VOSM_HOSTBR"
     sudo iptables "${iptables_args[@]}"
 
-    # if [[ ! -e "${HOSTS_DIR}/orchestrator/mac" ]]; then
     if [[ ! -e "${HOSTS_DIR}/${VOSM_HOST}0/mac" ]]; then
         install -d -m 777 "${hosts_dir}/${VOSM_HOST}0"
         main_hwaddr="$(gen_hwaddr)"
@@ -519,26 +511,13 @@ EOF
     echo "$pub_key"
 }
 
-setup_wg() {
-    local name="$1"
-    local workdir="${HOSTS_DIR}/${name}"
-
-    pushd "$workdir" &>/dev/null 2>&1 || die "Unable to change directory '$workdir'"
-    wg genkey | (umask 0077 && tee "${name}.key") | wg pubkey > "${name}.pub"
-
-    WG_PRIV="$(<"$name".key)"
-    WG_PUB="$(<"$name".pub)"
-    export WG_PRIV
-    export WG_PUB
-    popd &>/dev/null 2>&1 || die "popd"
-}
-
 # ---------- VM functions ----------
 prepare_base_host() {
     local name="$1"
     local domain="$2"
     local preseed_file="$3"
 
+    local ipaddr=""
     local host_dir="${HOSTS_DIR}/${name}"
     local boot_dir="${host_dir}/boot"
     local qdisk="${host_dir}/disk.qcow"
@@ -660,6 +639,21 @@ prepare_base_host() {
     pidwait -F "${host_dir}/qemu.pid"
     info "The '$name' is powered off"
     mrproper "$pids"
+
+    run_qemu "$name" "$VOSM_HOSTBR"
+    ipaddr="$(wait_for_ip "$name" "${OSM_SUBNET}.1")"
+    setup_ssh "$ipaddr"
+
+    if ! ssh root@"$ipaddr" exit; then
+        die "SSH access to '${name}:${ipaddr} failed."
+    fi
+
+    ssh root@"$ipaddr" poweroff || true
+    pidwait -F "${host_dir}/qemu.pid"
+    info "The '$name' is powered off"
+
+    info "Backup '$qdisk'"
+    cp "$qdisk" "${qdisk}_bkp"
 }
 
 mrproper() {
@@ -709,7 +703,8 @@ run_qemu() {
         -monitor "unix:${workdir}/monitor.sock,server,nowait"
         -serial "unix:${workdir}/console.sock,server,nowait"
         -device "virtio-scsi-pci,id=scsi"
-        -nic "bridge,br=${brif},model=virtio-net-pci,mac=${hwaddr}"
+        # -nic "bridge,br=${brif},model=virtio-net-pci,mac=${hwaddr}"
+        -nic "bridge,br=${brif},model=e1000,mac=${hwaddr}"
         -drive "file=${disk},format=qcow2,if=virtio"
         -device "virtio-balloon-pci,id=balloon0"
         -pidfile "${workdir}/qemu.pid"
@@ -758,18 +753,17 @@ clone_host() {
     cp "${HOSTS_DIR}/${base_name}/"{disk.qcow,ovmf_vars.fd,mac} "${HOSTS_DIR}/${target_name}/"
     run_qemu "${target_name}" "$VOSM_HOSTBR"
     ipaddr="$(do_until 120 get_vm_ip "$base_name" "${OSM_SUBNET}.1")"
-    # TODO: use socat instead of ssh?
-    # DEBUG:
-    set -x
+
     # shellcheck disable=SC2087
-    ssh root@"$ipaddr" bash -x <<-EOF || true
+    ssh root@"$ipaddr" bash <<-EOF || true
 	sed -i 's|'"$base_name"'|'"$target_name"'|g' /etc/{hosts,hostname}
 	hostname  "$target_name"
 	rm /etc/ssh/ssh_host_*
-	dpkg-reconfigure openssh-server
-	poweroff
+	dpkg-reconfigure openssh-server &> /dev/null
+	# systemctl --force poweroff
+	exit
 EOF
-    pidwait -F "${HOSTS_DIR}/${target_name}/qemu.pid"
+    shutdown_vm "${HOSTS_DIR}/${target_name}"
     gen_hwaddr > "${HOSTS_DIR}/${target_name}/mac"
 }
 
@@ -785,7 +779,7 @@ set_ssh_key() {
 
         if (( ${#ssh_keys[@]} > 1 )); then
             warn "Several SSH public keys are found."
-            PS3="Which key should be used?"
+            PS3="Which key should be used? "
             select key in "${ssh_keys[@]}"; do
                 [[ $key ]] || continue
                 info "Set the '$key' key"
@@ -807,7 +801,7 @@ set_ssh_key() {
 
 run_ansible_early() {
     local ipaddr="$1"
-    local name
+    local -A hosts
 
     local playbook="ansible/incus/deploy.yaml"
     local extra_vars=(
@@ -827,9 +821,6 @@ run_ansible_early() {
         "$playbook"
     )
     edo ansible-playbook "${ansible_args[@]}"
-    ssh root@"$ipaddr" "poweroff" || true
-    name="$(sed -rn 's|(^.*) ansible_host='"$ipaddr"'|\1|p' "${HOSTS_DIR}/hosts")"
-    pidwait -F "${HOSTS_DIR}/${name}/qemu.pid"
 }
 
 run_ansible_pebble() {
@@ -863,7 +854,35 @@ do_start_hosts() {
         info "Waiting for IP address assigned..."
         # shellcheck disable=SC2034
         hosts["$host"]="$(wait_for_ip "$host" "${OSM_SUBNET}.1")"
+        setup_ssh "${hosts[$host]}"
+        add_ansible_host "$host" "${hosts[$host]}"
     done
+}
+
+do_stop_hosts() {
+    info "Stop OSM hosts"
+
+    declare -a hosts
+    mapfile -t hosts < <(find "$HOSTS_DIR" -name "qemu.pid" -exec dirname {} \;)
+
+    for host in "${hosts[@]}"; do
+        shutdown_vm "$host"
+    done
+}
+
+shutdown_vm() {
+    [[ -z "$1" || ! -v 1 || ! -d "$1" ]] && return
+    local hostdir="$1"
+    local mon="monitor.sock"
+
+    if [[ ! -S "${hostdir}/${mon}" ]]; then
+        warn "There is no monitor socket in '$hostdir'"
+        return
+    else
+        echo "system_powerdown" | socat - unix-connect:"${hostdir}/${mon}" &> /dev/null
+        pidwait -f "${hostdir}/qemu.pid"
+        info "The host '${hostdir##*/}' powered off"
+    fi
 }
 
 request_pebble_cert() {
@@ -918,5 +937,33 @@ do_until() {
 }
 
 deploy_incus() {
-    ansible-playbook ansible/incus/deploy.yaml -i "${HOSTS_DIR}/hosts --tags 'incus'"
+    ansible-playbook ansible/incus/deploy.yaml -i "${HOSTS_DIR}/hosts" --tags incus
+}
+
+col() {
+    local -i n=$1
+    printf '%s' "+"
+    printf -- '-%0.s' $(seq 1 $n)
+}
+
+end_col() {
+    printf '+\n'
+}
+
+print_status() {
+    local hosts_file="${HOSTS_DIR}/hosts"
+    local host_title="Host Name"
+    local ip_title="IP address"
+    col 12; col 17; end_col
+    printf '| %-10s | %-15s |\n' "$host_title" "$ip_title"
+    col 12; col 17; end_col
+
+    while read -r line; do
+        [[ "$line" =~ \[all:vars\] ]] && break
+        [[ ! "$line" =~ ansible_host= ]] && continue
+        host="${line%% *}"
+        ipaddr="${line##*=}"
+        printf "| %-10s | %-15s |\n" "$host" "$ipaddr"
+    done < "$hosts_file"
+    col 12; col 17; end_col
 }

@@ -38,9 +38,11 @@ main() {
     init "$@"
 
     if [[ "${ARGS[action]}" == "setup" ]]; then
-        do_setup "${ARGS[config]}"
+        build_env "${ARGS[config]}"
+        do_setup
         do_start_hosts OSM_HOSTS
         do_post_setup
+        print_status
     elif [[ "${ARGS[action]}" == "shutdown" ]]; then
         do_shutdown_environment
     fi

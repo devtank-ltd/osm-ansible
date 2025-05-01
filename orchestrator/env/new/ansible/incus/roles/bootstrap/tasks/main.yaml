@@ -98,12 +98,13 @@
       when: inventory_hostname != "vosmhost0"
 
     # TODO: do we still need it?
-    # - name: Add OSM orchestrator user
-    #   ansible.builtin.user:
-    #     name: osm_orchestrator
-    #     comment: OSM Orchestrator
-    #     create_home: yes
-    #     group: users
+    - name: Add OSM orchestrator user
+      ansible.builtin.user:
+        name: osm_orchestrator
+        comment: OSM Orchestrator
+        create_home: yes
+        group: users
+
     - name: Fetch, build and install duperemove
       block:
         - name: Fetch duperemove
