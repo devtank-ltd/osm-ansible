@@ -5,7 +5,6 @@
   gather_facts: true
   gather_subset:
     - "default_ipv4"
-    # - "default_ipv6"
     - "distribution_release"
 
   roles:
@@ -14,3 +13,6 @@
 
     - role: incus
       tags: incus
+
+    - role: postinst
+      tags: postinst

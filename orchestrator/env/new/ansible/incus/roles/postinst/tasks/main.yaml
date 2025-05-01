@@ -1,0 +1,45 @@
+---
+
+- name: Generate WireGuard keypair
+  shell: |
+    umask 077
+    wg genkey | tee /etc/wireguard/priv.key | wg pubkey | tee /etc/wireguard/pub.key
+  args:
+    creates: /etc/wireguard/priv.key
+
+- name: Register private key
+  shell: cat /etc/wireguard/priv.key
+  register: wireguard_priv_key
+
+- name: Register public key
+  shell: cat /etc/wireguard/pub.key
+  register: wireguard_pub_key
+
+- name: DEBUG
+  debug:
+    msg: |
+      {{ hostvars["vosmhost0"].wireguard_pub_key }}
+      # {{ groups['all'] }}
+
+- name: Generate WireGuard config
+  template:
+    src: wg.conf.tpl
+    dest: /etc/wireguard/wg0.conf
+
+- name: Setup wg0 device
+  template:
+    src: systemd.netdev.tpl
+    dest: /etc/systemd/network/99-wg0.netdev
+    owner: root
+    group: systemd-network
+    mode: 0640
+  notify: systemd network restart
+
+- name: Setup wg0 network
+  template:
+    src: systemd.network.tpl
+    dest: /etc/systemd/network/99-wg0.network
+    owner: root
+    group: systemd-network
+    mode: 0640
+  notify: systemd network restart

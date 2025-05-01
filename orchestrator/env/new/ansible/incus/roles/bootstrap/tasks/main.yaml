@@ -56,7 +56,7 @@
     - import_tasks: minica.yaml
     - import_tasks: pebble.yaml
     - import_tasks: db.yaml
-    - import_tasks: wireguard.yaml
+    # - import_tasks: wireguard.yaml
     - import_tasks: query_exporter.yaml
     - import_tasks: prometheus.yaml
     - import_tasks: grafana.yaml
