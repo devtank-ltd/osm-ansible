@@ -16,3 +16,4 @@
           - wireguard
           - python3-prometheus-client
           - vim
+          - python3-yaml
