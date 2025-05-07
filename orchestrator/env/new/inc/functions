@@ -194,7 +194,6 @@ EOF
 }
 
 build_env() {
-
     parse_config "$1"
     # check_pkgs
     if [[ -d "$HOSTS_DIR" ]]; then
@@ -310,7 +309,8 @@ EOF
             ssh root@"$main_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts" >/dev/null 2>&1
         fi
     done
-    deploy_incus
+    run_ansible_incus
+    run_ansible_postinst
 }
 
 do_shutdown_environment() {
@@ -383,13 +383,13 @@ setup_bridge() {
         return 0
     fi
 
-    c="$(stat /usr/lib/qemu/qemu-bridge-helper -c  %a%G)"
-    if [[ "$c" != "4750netdev" ]]; then
-        sudo -s -- <<-EOF
-	chgrp netdev /usr/lib/qemu/qemu-bridge-helper
-	chmod 4750 /usr/lib/qemu/qemu-bridge-helper
-EOF
-    fi
+#     c="$(stat /usr/lib/qemu/qemu-bridge-helper -c  %a%G)"
+#     if [[ "$c" != "4750netdev" ]]; then
+#         sudo -s -- <<-EOF
+# 	chgrp netdev /usr/lib/qemu/qemu-bridge-helper
+# 	chmod 4750 /usr/lib/qemu/qemu-bridge-helper
+# EOF
+#     fi
 
     if [[ ! -e "$brconf" ]]; then
         sudo -- install -D -m 644 -o root -g netdev <(
@@ -837,6 +837,14 @@ run_ansible_pebble() {
     edo ansible-playbook "${args[@]}" "$playbook"
 }
 
+run_ansible_incus() {
+    ansible-playbook ansible/incus/deploy.yaml -i "${HOSTS_DIR}/hosts" --tags incus
+}
+
+run_ansible_postinst() {
+    ansible-playbook ansible/incus/deploy.yaml -i "${HOSTS_DIR}/hosts" --tags postinst
+}
+
 do_start_hosts() {
     info "Start OSM hosts"
     declare -n hosts=$1
@@ -936,9 +944,7 @@ do_until() {
     return 1
 }
 
-deploy_incus() {
-    ansible-playbook ansible/incus/deploy.yaml -i "${HOSTS_DIR}/hosts" --tags incus
-}
+
 
 col() {
     local -i n=$1

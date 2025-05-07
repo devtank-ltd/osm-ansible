@@ -1,0 +1,125 @@
+---
+
+- name: Provision container
+  hosts: localhost
+  vars:
+    overwrite_passwords: True
+
+  pre_tasks:
+    - command: "incus init devtank:debian/bookworm/default {{ target }}"
+      connection: local
+      tags: init
+
+    # - command: "incus start {{ target }}"
+    #   connection: local
+
+    # FIXME: !!!!!
+    - name: Get free MQTT port
+      connection: local
+      shell:
+        cmd: "echo '9999'"
+      register: mqtt_port
+
+
+    - name: Get container's OSM host ID
+      connection: local
+      command: "incus ls {{ target }} -c L -fcsv"
+      register: customers_host_name
+
+    - name: Get container's OSM host ID
+      connection: local
+      community.mysql.mysql_query:
+        login_db: osm_orchestrator
+        login_password: UHo6FFIddUklSyiu
+        login_user: osm_orchestrator
+        query:
+          SELECT id FROM osm_hosts where name = "{{ customers_host_name.stdout }}"
+      register: sql_host_id
+
+    - name: Set OSM host ID variable
+      set_fact:
+        osm_host_id: "{{ sql_host_id.query_result[0][0].id }}"
+
+    - name: Add customer to osm_orchestrator
+      connection: local
+      community.mysql.mysql_query:
+        login_db: osm_orchestrator
+        login_password: UHo6FFIddUklSyiu
+        login_user: osm_orchestrator
+        query:
+          INSERT INTO osm_customers (name, host_mqtt_port, active_since) VALUES ("{{ target }}", {{ mqtt_port.stdout | int }}, {{ ansible_date_time.epoch }})
+
+    - name: Get customer ID
+      connection: local
+      community.mysql.mysql_query:
+        login_db: osm_orchestrator
+        login_password: UHo6FFIddUklSyiu
+        login_user: osm_orchestrator
+        query:
+          SELECT id FROM osm_customers WHERE name = "{{ target }}" AND active_before is NULL
+      register: sql_customer_id
+
+    - name: Set customer ID variable
+      set_fact:
+        customer_id: "{{ sql_customer_id.query_result[0][0].id }}"
+
+    - name: Add customer to osm_customer_host_link
+      connection: local
+      community.mysql.mysql_query:
+        login_db: osm_orchestrator
+        login_password: UHo6FFIddUklSyiu
+        login_user: osm_orchestrator
+        query:
+          INSERT INTO osm_customer_host_link (osm_hosts_id, osm_customers_id, active_since) VALUES ({{ osm_host_id }}, {{ customer_id }}, {{ ansible_date_time.epoch }})
+
+
+
+    # - name: Get incus cluster members
+    #   connection: local
+    #   shell:
+    #     cmd: "incus cluster list -c nu -f json"
+    #   register: incus_members
+
+    # - name: Create incus members dict
+    #   set_fact:
+    #     osm_hosts: >-
+    #       {{
+    #         incus_members.stdout | from_json | items2dict(
+    #           key_name='server_name',
+    #           value_name='url'
+    #         )
+    #       }}
+
+    # - name: Add cluster members to the DB
+    #   connection: local
+    #   community.mysql.mysql_query:
+    #     login_db: osm_orchestrator
+    #     login_password: UHo6FFIddUklSyiu
+    #     login_user: osm_orchestrator
+    #     query:
+    #       INSERT INTO osm_hosts (name, ip_addr, capacity, active_since) VALUES (%(name)s, %(ipaddr)s, 0, "{{ ansible_date_time.epoch }}")
+    #     named_args:
+    #       name: "{{ item.key }}"
+    #       ipaddr: "{{ item.value }}"
+    #   loop: "{{ osm_hosts | dict2items }}"
+
+
+    # - name: test query
+    #   connection: local
+    #   community.mysql.mysql_query:
+    #     login_db: osm_orchestrator
+    #     login_password: UHo6FFIddUklSyiu
+    #     login_user: osm_orchestrator
+    #     query:
+    #       SELECT * from osm_hosts
+
+
+  # roles:
+  #   - role: mosquitto
+  #   - role: influx
+  #   - role: postgres
+  #   - role: chirpstack
+  #   - role: grafana
+  #   - role: mqtt_influx_inserter
+  #   - role: prometheus_node_exporter
+  #   - role: finalization

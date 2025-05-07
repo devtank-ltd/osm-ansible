@@ -134,6 +134,9 @@
         name: netdata
         state: restarted
 
+    - name: Copy OSM Host files
+      shell: rsync -a /srv/osm-lxc/root_overlay/ /
+
     - name: Update OSM Host overlay NGINX with hostname
       ansible.builtin.replace:
         path: /etc/nginx/nginx.conf
