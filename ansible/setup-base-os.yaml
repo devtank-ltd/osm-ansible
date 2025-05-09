@@ -4,18 +4,16 @@
   roles:
     - { role: redis, tags: redis }
     - { role: mosquitto, tags: mosquitto }
-    - { role: influx, tags: influx }
     - { role: postgres, tags: postgres }
     - { role: chirpstack, tags: chirpstack }
     - { role: grafana, tags: grafana }
-    - { role: mqtt_influx_inserter, tags: mqtt_influx_inserter}
   tasks:
     - name: Extra packages
       apt:
         name:
-          - python3-influxdb
           - python3-paho-mqtt
           - python3-urllib3
           - wireguard
           - python3-prometheus-client
           - vim
+          - python3-yaml

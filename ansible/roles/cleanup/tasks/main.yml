@@ -1,14 +1,9 @@
 ---
-- name: Print influx passwords
+- name: Print timescaledb passwords
   debug:
-    msg: "Influx password for {{ item.key }}: {{ item.value }}"
-  loop: "{{ influx_passwords | dict2items }}"
-  when: influx_passwords is defined and (influx_config_list.stdout_lines | length == 0 or overwrite_passwords)
-
-- name: Print Influx token
-  debug:
-    msg: "InfluxDB Token: {{ influx_token }}"
-  when: influx_token is defined
+    msg: "Timescaledb password for {{ item.key }}: {{ item.value }}"
+  loop: "{{ timescaledb_passwords | dict2items }}"
+  when: timescaledb_passwords is defined or overwrite_passwords
 
 - name: Print postgres passwords
   debug:
@@ -31,31 +26,18 @@
   loop:
     - /srv/osm-lxc/utils/crypt.py
 
-- name: Encrypt influx passwords
+- name: Encrypt timescaledb passwords
   shell: |
-     /usr/bin/python3 /tmp/crypt.py -k '{{ priv_key }}' -e -s="{{ influx_passwords[item] }}"
+     /usr/bin/python3 /tmp/crypt.py -k '{{ priv_key }}' -e -s="{{ timescaledb_passwords[item] }}"
   loop:
-    - "chirpstack"
     - "customer"
     - "devtank"
-    - "grafana"
-  register: encrypted_influx_passwords
+  register: encrypted_timescaledb_passwords
 
-- name: Create new encrypted influx passwords
+- name: Create new encrypted timescaledb passwords
   set_fact:
-    enc_influx_passwords: "{{ enc_influx_passwords | default({}) | combine ({ item.item : item.stdout }) }}"
-  loop: "{{ encrypted_influx_passwords.results }}"
-
-- name: Encrypt influx token
-  shell: |
-    /usr/bin/python3 crypt.py -k={{ priv_key }} -e -s="{{ influx_token }}"
-  args:
-    chdir: /tmp
-  register: encrypted_influx_token
-
-- name: Set encrypted influx token
-  set_fact:
-    enc_influx_token: "{{ encrypted_influx_token.stdout }}"
+    enc_timescaledb_passwords: "{{ enc_timescaledb_passwords | default({}) | combine ({ item.item : item.stdout }) }}"
+  loop: "{{ encrypted_timescaledb_passwords.results }}"
 
 - name: Encrypt postgres_passwords
   shell: |
@@ -120,8 +102,7 @@
   vars:
     json_pwds: |
       {
-        "Influx": {{ influx_passwords | to_json }},
-        "Influx Token": {{ influx_token | to_json }},
+        "Timescaledb": {{ timescaledb_passwords | to_json }},
         "Postgres": {{ postgres_passwords | to_json }},
         "Mosquitto": {"{{ customer_name }}": {{ mosquitto_passwd | to_json }}},
         "Grafana Admin": {"admin": {{ grafana_admin_password | to_json }}},
@@ -136,8 +117,7 @@
   vars:
     json_pwds: |
       {
-        "Influx": {{ enc_influx_passwords | to_json }},
-        "Influx Token": {{ enc_influx_token | to_json }},
+        "Timescaledb": {{ enc_timescaledb_passwords | to_json }},
         "Postgres": {{ enc_postgres_passwords | to_json }},
         "Mosquitto": {"{{ customer_name }}": {{ enc_mosquitto_passwd | to_json }}},
         "Grafana Admin": {"admin": {{ enc_grafana_admin_password | to_json }}},
