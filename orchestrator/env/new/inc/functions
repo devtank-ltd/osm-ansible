@@ -297,17 +297,15 @@ do_post_setup() {
         sed -ri 's/^'"$host"'.*=$/&'"$ipaddr"'/' "${HOSTS_DIR}/hosts"
 
         if [[ "$host" != "${VOSM_HOST}0" ]]; then
-            # TODO: remove me
-            # setup_ssh "$ipaddr"
             info "Copy '${VOSM_HOST}0' SSH pub key to '${host}'[${ipaddr}]"
             ssh root@"$ipaddr" /bin/bash <<-EOF
 		mkdir -p "$main_ssh_dir"
 		echo "$main_pub" >> "${main_ssh_dir}/authorized_keys"
 EOF
-            request_pebble_cert "$host" "$main_ip"
-            # shellcheck disable=SC2029
-            ssh root@"$main_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts" >/dev/null 2>&1
         fi
+        request_pebble_cert "$host" "$main_ip"
+        # shellcheck disable=SC2029
+        ssh root@"$main_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts" >/dev/null 2>&1
     done
     run_ansible_incus
     run_ansible_postinst
@@ -909,7 +907,7 @@ request_pebble_cert() {
     )
     info "Request certificate from '$srvip' for ${name}.${OSM_DOMAIN} domain."
     # shellcheck disable=SC2029
-    ssh root@"$ipaddr" "REQUESTS_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} &>/dev/null"
+    ssh root@"$ipaddr" "REQUESST_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} &>/dev/null"
 }
 
 has() {

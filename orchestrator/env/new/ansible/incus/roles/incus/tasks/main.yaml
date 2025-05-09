@@ -161,30 +161,3 @@
   shell:
     cmd: "incus remote add devtank {{ incus_init['image']['url'] }} --protocol {{ incus_init['image']['protocol'] }}"
   when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
-
-- name: Get incus cluster members
-  shell:
-    cmd: "incus cluster list -c nu -f json"
-  register: incus_members
-
-- name: Create incus members dict
-  set_fact:
-    osm_hosts: >-
-      {{
-      incus_members.stdout | from_json | items2dict(
-      key_name='server_name',
-      value_name='url'
-      )
-      }}
-
-- name: Add cluster members to the DB
-  community.mysql.mysql_query:
-    login_db: osm_orchestrator
-    login_password: UHo6FFIddUklSyiu
-    login_user: osm_orchestrator
-    query:
-      INSERT INTO osm_hosts (name, ip_addr, capacity, active_since) VALUES (%(name)s, %(ipaddr)s, 0, "{{ ansible_date_time.epoch }}")
-    named_args:
-      name: "{{ item.key }}"
-      ipaddr: "{{ item.value }}"
-  loop: "{{ osm_hosts | dict2items }}"

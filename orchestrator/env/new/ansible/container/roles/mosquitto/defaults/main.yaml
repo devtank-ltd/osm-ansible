@@ -1,1 +1,2 @@
+mosquitto_listener_port: 1883
 ansible_connection: community.general.incus

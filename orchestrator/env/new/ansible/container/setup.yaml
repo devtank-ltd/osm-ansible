@@ -1,125 +1,233 @@
 ---
 
-- name: Provision container
+- name: Prepare OSM host
   hosts: localhost
+  connection: local
+  gather_facts: no
+
   vars:
     overwrite_passwords: True
+    osm_config: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
+    mqtt_init_port: 8883
 
   pre_tasks:
-    - command: "incus init devtank:debian/bookworm/default {{ target }}"
-      connection: local
-      tags: init
+    - block:
 
-    # - command: "incus start {{ target }}"
-    #   connection: local
+      - name: Init customer container
+        ansible.builtin.shell:
+          cmd: "incus init devtank:debian/bookworm/default {{ customer_name }}"
 
-    # FIXME: !!!!!
-    - name: Get free MQTT port
-      connection: local
-      shell:
-        cmd: "echo '9999'"
-      register: mqtt_port
+      - name: Start customer container
+        ansible.builtin.shell:
+          cmd: "incus start {{ customer_name }}"
 
+      - name: Get container OSM host
+        ansible.builtin.shell:
+          cmd: "incus ls {{customer_name}} -c L -f csv"
+        register: target_hostname
 
-    - name: Get container's OSM host ID
-      connection: local
-      command: "incus ls {{ target }} -c L -fcsv"
-      register: customers_host_name
+      # TODO:
+      #     - what to do with DB (hosts, link table, mqtt port, etc)?
+      #     - should we use pyosmorch lib or make queries directly from ansible?
 
-    - name: Get container's OSM host ID
-      connection: local
-      community.mysql.mysql_query:
-        login_db: osm_orchestrator
-        login_password: UHo6FFIddUklSyiu
-        login_user: osm_orchestrator
-        query:
-          SELECT id FROM osm_hosts where name = "{{ customers_host_name.stdout }}"
-      register: sql_host_id
+      - name: Get OSM host IP address
+        ansible.builtin.shell:
+          cmd: "incus cluster show {{ target_hostname.stdout }} | sed -rn 's|^url:\\shttp[s]?://(.*):.*$|\\1|p'"
+        register: osmhost_ipaddr
 
-    - name: Set OSM host ID variable
-      set_fact:
-        osm_host_id: "{{ sql_host_id.query_result[0][0].id }}"
+      - name: Set target OSM host info
+        ansible.builtin.set_fact:
+          target_hostname: "{{ target_hostname.stdout }}"
+          target_ipaddress: "{{ osmhost_ipaddr.stdout }}"
 
-    - name: Add customer to osm_orchestrator
-      connection: local
-      community.mysql.mysql_query:
-        login_db: osm_orchestrator
-        login_password: UHo6FFIddUklSyiu
-        login_user: osm_orchestrator
-        query:
-          INSERT INTO osm_customers (name, host_mqtt_port, active_since) VALUES ("{{ target }}", {{ mqtt_port.stdout | int }}, {{ ansible_date_time.epoch }})
+      - name: Get OSM host ID from the devtank DB
+        community.mysql.mysql_query:
+          login_db: "{{ osm_config.orchestrator.database }}"
+          login_password: "{{ osm_config.orchestrator.password }}"
+          login_user: "{{ osm_config.orchestrator.user }}"
+          query:
+            SELECT id FROM osm_hosts WHERE name = %s
+          positional_args:
+            - "{{ target_hostname }}"
+        register: sql_host_id
 
-    - name: Get customer ID
-      connection: local
-      community.mysql.mysql_query:
-        login_db: osm_orchestrator
-        login_password: UHo6FFIddUklSyiu
-        login_user: osm_orchestrator
-        query:
-          SELECT id FROM osm_customers WHERE name = "{{ target }}" AND active_before is NULL
-      register: sql_customer_id
+      - name: Set target OSM host ID
+        ansible.builtin.set_fact:
+          target_host_id: "{{ sql_host_id.query_result[0][0].id }}"
 
-    - name: Set customer ID variable
-      set_fact:
-        customer_id: "{{ sql_customer_id.query_result[0][0].id }}"
+      - name: Get list of ports from the devtank DB
+        community.mysql.mysql_query:
+          login_db: "{{ osm_config.orchestrator.database }}"
+          login_password: "{{ osm_config.orchestrator.password }}"
+          login_user: "{{ osm_config.orchestrator.user }}"
+          query:
+            SELECT host_mqtt_port FROM osm_customers
+            # SELECT host_mqtt_port \
+            # FROM osm_customers \
+            # WHERE id IN (\
+            #     SELECT osm_customers_id\
+            #     WHERE osm_host_id = %s\
+            # )
+          # positional_args:
+          #   - "{{ target_host_id }}"
+        register: sql_mqtt_ports
 
-    - name: Add customer to osm_customer_host_link
-      connection: local
-      community.mysql.mysql_query:
-        login_db: osm_orchestrator
-        login_password: UHo6FFIddUklSyiu
-        login_user: osm_orchestrator
-        query:
-          INSERT INTO osm_customer_host_link (osm_hosts_id, osm_customers_id, active_since) VALUES ({{ osm_host_id }}, {{ customer_id }}, {{ ansible_date_time.epoch }})
+      - name: Set list of ports
+        set_fact:
+          mqtt_ports: "{{ sql_mqtt_ports.query_result[0] | map(attribute='host_mqtt_port') | list | sort }}"
 
+      - name: Get first missing or next available MQTT port
+        set_fact:
+          mqtt_port: >-
+            {{
+              (
+                (
+                  (range(mqtt_ports[0], mqtt_ports[-1] + 1) | difference(mqtt_ports)) | sort | first
+                ) if mqtt_ports | length > 0 else 1
+              ) if mqtt_ports and mqtt_ports | length > 0 else mqtt_init_port
+            }}
 
+      - name: Get OSM host domain
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        ansible.builtin.shell: |
+          domain="$(find /etc/letsencrypt/live/ -maxdepth 1 -mindepth 1 -type d -printf '%P' -quit)"
+          domain="${domain#*.}"
+          echo "$domain"
+        register: osmhost_domain
 
-    # - name: Get incus cluster members
-    #   connection: local
-    #   shell:
-    #     cmd: "incus cluster list -c nu -f json"
-    #   register: incus_members
+      - name: Set target domain
+        ansible.builtin.set_fact:
+          target_domain: "{{ osmhost_domain.stdout }}"
 
-    # - name: Create incus members dict
-    #   set_fact:
-    #     osm_hosts: >-
-    #       {{
-    #         incus_members.stdout | from_json | items2dict(
-    #           key_name='server_name',
-    #           value_name='url'
-    #         )
-    #       }}
+      - name: Set test_lets_encrypt variable
+        ansible.builtin.set_fact:
+          # test_lets_encrypt: "{{ lookup('ansible.builtin.env', 'TEST_LETS_ENCRYPT', default=False) }}"
+          test_lets_encrypt: "{{ lookup('ansible.builtin.env', 'TEST_LETS_ENCRYPT', default=True) }}"
 
-    # - name: Add cluster members to the DB
-    #   connection: local
-    #   community.mysql.mysql_query:
-    #     login_db: osm_orchestrator
-    #     login_password: UHo6FFIddUklSyiu
-    #     login_user: osm_orchestrator
-    #     query:
-    #       INSERT INTO osm_hosts (name, ip_addr, capacity, active_since) VALUES (%(name)s, %(ipaddr)s, 0, "{{ ansible_date_time.epoch }}")
-    #     named_args:
-    #       name: "{{ item.key }}"
-    #       ipaddr: "{{ item.value }}"
-    #   loop: "{{ osm_hosts | dict2items }}"
+      - name: Set certbot to use Pebble instance for testing cerbot in test/dev environment.
+        set_fact:
+          certbot_prefix : "REQUESTS_CA_BUNDLE=devtank.minica.pem "
+          certbot_postfix : "--server https://10.10.1.2:14000/dir \
+          --agree-tos \
+          --no-verify-ssl \
+          --http-01-port=5002 \
+          --register-unsafely-without-email"
+        when: test_lets_encrypt
 
+      - name: Set certbot to normal
+        set_fact:
+           certbot_prefix : ""
+           certbot_postfix : ""
+        when: not test_lets_encrypt
 
-    # - name: test query
-    #   connection: local
-    #   community.mysql.mysql_query:
-    #     login_db: osm_orchestrator
-    #     login_password: UHo6FFIddUklSyiu
-    #     login_user: osm_orchestrator
-    #     query:
-    #       SELECT * from osm_hosts
+      - name: Request certificate for customer
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        ansible.builtin.shell: |
+          {{ certbot_prefix }}certbot certonly --nginx \
+          -d {{ customer_name }}.{{ target_domain }},\
+          {{ customer_name }}-chirpstack.{{ target_domain }},\
+          {{ customer_name }}-mqtt.{{ target_domain }},\
+          {{ customer_name }}-influx.{{ target_domain }} \
+          {{ certbot_postfix }}
 
+        register: certbot_result
+        until: "certbot_result is not failed"
+        retries: 3
+        delay: 5
 
-  # roles:
-  #   - role: mosquitto
-  #   - role: influx
-  #   - role: postgres
-  #   - role: chirpstack
-  #   - role: grafana
-  #   - role: mqtt_influx_inserter
-  #   - role: prometheus_node_exporter
-  #   - role: finalization
+      - name: Create nginx HTTP config
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        ansible.builtin.copy:
+          src: /etc/nginx/devtank/customers.http.d/TEMPLATE
+          dest: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+
+      - name: Setup nginx HTTP config with customer name
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        ansible.builtin.replace:
+          path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+          regexp: 'CUSTOMERNAME'
+          replace: "{{ customer_name }}"
+
+      - name: Setup NGINX HTTP config with OSM domain
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        ansible.builtin.replace:
+          path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+          regexp: 'OSMDOMAIN'
+          replace: "{{ target_domain }}"
+
+      # TODO: fixme
+      - name: Setup NGINX HTTP config WG IP address
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        ansible.builtin.replace:
+          path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+          regexp: 'WG_IP'
+          # replace: "{{ wg_ip }}"
+          replace: "10.10.1.2"
+
+      - name: Create NGINX MQTT configs
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        ansible.builtin.copy:
+          src: /etc/nginx/devtank/customers.stream.d/TEMPLATE
+          dest: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+
+      - name: Setup NGINX MQTT Port config
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        ansible.builtin.replace:
+          path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+          regexp: 'CUSTOMER_MQTT'
+          replace: "{{ mqtt_port }}"
+
+      - name: Setup NGINX MQTT Container config
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        ansible.builtin.replace:
+          path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+          regexp: 'CUSTOMERNAME'
+          replace: "{{ customer_name }}"
+
+      - name: Setup NGINX MQTT Container SSL config
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        ansible.builtin.replace:
+          path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+          regexp: 'OSMDOMAIN'
+          replace: "{{ target_domain }}"
+
+      - name: Open UFW port
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        command: "ufw allow {{ mqtt_port }}"
+
+      # TODO: fix pdns
+      # - name: Reload NGINX
+      #   delegate_to: "{{ target_ipaddress }}"
+      #   connection: ssh
+      #   command: "{{ item }}"
+      #   with_items:
+      #     - "nginx -t"
+      #     - "nginx -s reload"
+
+- name: Provision Container
+  hosts: "{{ customer_name }}"
+  connection: community.general.incus
+  become: no
+  user: root
+  gather_facts: no
+
+  roles:
+    - role: mosquitto
+    - role: influx
+    - role: postgres
+    - role: chirpstack
+    - role: grafana
+    - role: mqtt_influx_inserter
+    - role: prometheus_node_exporter
+    - role: finalization
