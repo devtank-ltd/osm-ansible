@@ -307,6 +307,7 @@ EOF
         # shellcheck disable=SC2029
         ssh root@"$main_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts" >/dev/null 2>&1
     done
+
     run_ansible_incus
     run_ansible_postinst
 }
@@ -836,11 +837,16 @@ run_ansible_pebble() {
 }
 
 run_ansible_incus() {
-    ansible-playbook ansible/incus/deploy.yaml -i "${HOSTS_DIR}/hosts" --tags incus
+    edo ansible-playbook ansible/incus/deploy.yaml -i "${HOSTS_DIR}/hosts" --tags incus
 }
 
 run_ansible_postinst() {
-    ansible-playbook ansible/incus/deploy.yaml -i "${HOSTS_DIR}/hosts" --tags postinst
+    local args=(
+        --tags postinst
+        -e osm_domain="$OSM_DOMAIN"
+        -i "$ANSIBLE_HOSTS"
+    )
+    edo ansible-playbook "${args[@]}" ansible/incus/deploy.yaml
 }
 
 do_start_hosts() {

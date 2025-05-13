@@ -35,9 +35,7 @@
     INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES \
     (1,'{{ osm_domain }}','SOA',0,'{{ inventory_hostname }}.{{ osm_domain }} hostmaster.{{ osm_domain }} 20230717 10800 10800 108000 1800',1800);
     INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES \
-    (1,'{{ osm_domain }}','NS',0,'{{ inventory_hostname }}.{{ osm_domain }}',10800);
-    INSERT INTO records (domain_id,name,type,prio,content,ttl) VALUES \
-    (1,'{{ inventory_hostname }}.{{ osm_domain }}','A',0,'{{ ansible_host }}',10800);" | mysql -uroot pdns
+    (1,'{{ osm_domain }}','NS',0,'{{ inventory_hostname }}.{{ osm_domain }}',10800);" | mysql -uroot pdns
 
 - name: Create OSM Orchestrator DB Password
   ansible.builtin.set_fact:

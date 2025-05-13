@@ -43,3 +43,7 @@
     group: systemd-network
     mode: 0640
   notify: systemd network restart
+
+- name: Setup databases
+  when: inventory_hostname == "vosmhost0"
+  include_tasks: cluster2db.yaml

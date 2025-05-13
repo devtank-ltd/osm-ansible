@@ -6,12 +6,14 @@
   gather_facts: no
 
   vars:
-    overwrite_passwords: True
-    osm_config: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
     mqtt_init_port: 8883
 
-  pre_tasks:
+  tasks:
     - block:
+
+      - name: Get Devtank DB config
+        ansible.builtin.set_fact:
+          db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
 
       - name: Init customer container
         ansible.builtin.shell:
@@ -26,10 +28,6 @@
           cmd: "incus ls {{customer_name}} -c L -f csv"
         register: target_hostname
 
-      # TODO:
-      #     - what to do with DB (hosts, link table, mqtt port, etc)?
-      #     - should we use pyosmorch lib or make queries directly from ansible?
-
       - name: Get OSM host IP address
         ansible.builtin.shell:
           cmd: "incus cluster show {{ target_hostname.stdout }} | sed -rn 's|^url:\\shttp[s]?://(.*):.*$|\\1|p'"
@@ -42,9 +40,9 @@
 
       - name: Get OSM host ID from the devtank DB
         community.mysql.mysql_query:
-          login_db: "{{ osm_config.orchestrator.database }}"
-          login_password: "{{ osm_config.orchestrator.password }}"
-          login_user: "{{ osm_config.orchestrator.user }}"
+          login_db: "{{ db_conf.orchestrator.database }}"
+          login_password: "{{ db_conf.orchestrator.password }}"
+          login_user: "{{ db_conf.orchestrator.user }}"
           query:
             SELECT id FROM osm_hosts WHERE name = %s
           positional_args:
@@ -55,21 +53,14 @@
         ansible.builtin.set_fact:
           target_host_id: "{{ sql_host_id.query_result[0][0].id }}"
 
+      # TODO: add to pyosmorch?
       - name: Get list of ports from the devtank DB
         community.mysql.mysql_query:
-          login_db: "{{ osm_config.orchestrator.database }}"
-          login_password: "{{ osm_config.orchestrator.password }}"
-          login_user: "{{ osm_config.orchestrator.user }}"
+          login_db: "{{ db_conf.orchestrator.database }}"
+          login_password: "{{ db_conf.orchestrator.password }}"
+          login_user: "{{ db_conf.orchestrator.user }}"
           query:
             SELECT host_mqtt_port FROM osm_customers
-            # SELECT host_mqtt_port \
-            # FROM osm_customers \
-            # WHERE id IN (\
-            #     SELECT osm_customers_id\
-            #     WHERE osm_host_id = %s\
-            # )
-          # positional_args:
-          #   - "{{ target_host_id }}"
         register: sql_mqtt_ports
 
       - name: Set list of ports
@@ -79,12 +70,13 @@
       - name: Get first missing or next available MQTT port
         set_fact:
           mqtt_port: >-
+            {% set ports = mqtt_ports | list %}
             {{
               (
                 (
-                  (range(mqtt_ports[0], mqtt_ports[-1] + 1) | difference(mqtt_ports)) | sort | first
-                ) if mqtt_ports | length > 0 else 1
-              ) if mqtt_ports and mqtt_ports | length > 0 else mqtt_init_port
+                  (range(mqtt_ports[0], mqtt_ports[-1] + 1) | difference(mqtt_ports)) | sort | first | default(ports[-1] + 1)
+                )
+              ) if mqtt_ports | length > 0 else mqtt_init_port
             }}
 
       - name: Get OSM host domain
@@ -201,19 +193,30 @@
           regexp: 'OSMDOMAIN'
           replace: "{{ target_domain }}"
 
+      - name: Add customer to PowerDNS DB
+        devtank_db:
+          db_username: "{{ db_conf.pdns.user }}"
+          db_password: "{{ db_conf.pdns.password }}"
+          db_host: "{{ db_conf.pdns.host }}"
+          db_name: "{{ db_conf.pdns.database }}"
+          method: add_customer_dns
+          customer_name: "{{ customer_name }}"
+          domain: "{{ db_conf.pdns_domain }}"
+          domain_id: "{{ db_conf.pdns_domain_id }}"
+          host_name: "{{ target_hostname }}"
+
       - name: Open UFW port
         delegate_to: "{{ target_ipaddress }}"
         connection: ssh
         command: "ufw allow {{ mqtt_port }}"
 
-      # TODO: fix pdns
-      # - name: Reload NGINX
-      #   delegate_to: "{{ target_ipaddress }}"
-      #   connection: ssh
-      #   command: "{{ item }}"
-      #   with_items:
-      #     - "nginx -t"
-      #     - "nginx -s reload"
+      - name: Reload NGINX
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        command: "{{ item }}"
+        with_items:
+          - "nginx -t"
+          - "nginx -s reload"
 
 - name: Provision Container
   hosts: "{{ customer_name }}"
@@ -221,6 +224,11 @@
   become: no
   user: root
   gather_facts: no
+
+  vars:
+    overwrite_passwords: True
+    le_domain: hostvars["localhost"]["target_domain"]
+    mqtt_port: hostvars["localhost"]["mqtt_port"]
 
   roles:
     - role: mosquitto
@@ -231,3 +239,20 @@
     - role: mqtt_influx_inserter
     - role: prometheus_node_exporter
     - role: finalization
+
+- name: Post container setup
+  hosts: localhost
+  connection: local
+
+  tasks:
+
+    - name: Add customer to Devtank DB
+      devtank_db:
+        db_username: "{{ db_conf.orchestrator.user }}"
+        db_password: "{{ db_conf.orchestrator.password }}"
+        db_host: "{{ db_conf.orchestrator.host }}"
+        db_name: "{{ db_conf.orchestrator.database }}"
+        method: add_customer
+        osm_host_id: "{{ target_host_id }}"
+        customer_name: "{{ customer_name }}"
+        mqtt_port: "{{ mqtt_port }}"
