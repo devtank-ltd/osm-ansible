@@ -209,7 +209,7 @@
           db_password: "{{ db_conf.pdns.password }}"
           db_host: "{{ db_conf.pdns.host }}"
           db_name: "{{ db_conf.pdns.database }}"
-          method: add_customer_dns
+          method: add_customer
           customer_name: "{{ customer_name }}"
           domain: "{{ db_conf.pdns_domain }}"
           domain_id: "{{ db_conf.pdns_domain_id }}"
