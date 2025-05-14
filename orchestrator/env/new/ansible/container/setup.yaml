@@ -3,7 +3,9 @@
 - name: Prepare OSM host
   hosts: localhost
   connection: local
-  gather_facts: no
+  gather_facts: yes
+  gather_subset:
+    - "default_ipv4"
 
   vars:
     mqtt_init_port: 8883
@@ -38,6 +40,17 @@
           target_hostname: "{{ target_hostname.stdout }}"
           target_ipaddress: "{{ osmhost_ipaddr.stdout }}"
 
+      - name: Get target OSM host WireGuard IP address
+        delegate_to: "{{ target_ipaddress }}"
+        connection: ssh
+        shell:
+          cmd: "ip -o a s dev wg0 | sed -rn 's|.*inet\\s([0-9.]+).*|\\1|p'"
+        register: wg_ipaddr
+
+      - name: Set target WireGuard IP address variable
+        set_fact:
+          wg_ipaddr: "{{ wg_ipaddr.stdout }}"
+
       - name: Get OSM host ID from the devtank DB
         community.mysql.mysql_query:
           login_db: "{{ db_conf.orchestrator.database }}"
@@ -53,7 +66,6 @@
         ansible.builtin.set_fact:
           target_host_id: "{{ sql_host_id.query_result[0][0].id }}"
 
-      # TODO: add to pyosmorch?
       - name: Get list of ports from the devtank DB
         community.mysql.mysql_query:
           login_db: "{{ db_conf.orchestrator.database }}"
@@ -159,8 +171,7 @@
         ansible.builtin.replace:
           path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
           regexp: 'WG_IP'
-          # replace: "{{ wg_ip }}"
-          replace: "10.10.1.2"
+          replace: "{{ wg_ipaddr }}"
 
       - name: Create NGINX MQTT configs
         delegate_to: "{{ target_ipaddress }}"
