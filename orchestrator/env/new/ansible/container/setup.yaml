@@ -164,7 +164,6 @@
           regexp: 'OSMDOMAIN'
           replace: "{{ target_domain }}"
 
-      # TODO: fixme
       - name: Setup NGINX HTTP config WG IP address
         delegate_to: "{{ target_ipaddress }}"
         connection: ssh
@@ -228,6 +227,10 @@
         with_items:
           - "nginx -t"
           - "nginx -s reload"
+
+      # - name: DEBUG wait
+      #   ansible.builtin.pause:
+      #     seconds: 5
 
 - name: Provision Container
   hosts: "{{ customer_name }}"

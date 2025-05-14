@@ -1,0 +1,70 @@
+---
+
+- name: Delete customer
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  tasks:
+
+  - name: Remove customer configuration on OSM host
+    tags: configuration
+    block:
+      - name: Get Devtank DB config
+        ansible.builtin.set_fact:
+          db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
+
+      - name: Remove customer from Devtank DB
+        devtank_db:
+          db_username: "{{ db_conf.orchestrator.user }}"
+          db_password: "{{ db_conf.orchestrator.password }}"
+          db_host: "{{ db_conf.orchestrator.host }}"
+          db_name: "{{ db_conf.orchestrator.database }}"
+          method: remove_customer
+          customer_name: "{{ customer_name }}"
+        register: customer_info
+
+      - name: Get customer nginx configs
+        delegate_to: "{{ customer_info.output.host_ipaddr}}"
+        connection: ssh
+        ansible.builtin.find:
+          paths: "/etc/nginx/devtank/"
+          patterns: "{{ customer_info.output.customer_name }}.conf"
+          recurse: yes
+        register: customer_nginx_files
+
+      - name: Remove nginx configs
+        delegate_to: "{{ customer_info.output.host_ipaddr}}"
+        connection: ssh
+        ansible.builtin.file:
+          state: absent
+          path: "{{ item }}"
+        loop: "{{ customer_nginx_files.files | map(attribute='path') | list }}"
+
+      - name: Reload nginx
+        delegate_to: "{{ customer_info.output.host_ipaddr}}"
+        connection: ssh
+        command: "{{ item }}"
+        with_items:
+          - "nginx -t"
+          - "nginx -s reload"
+
+      - name: Remove customer DNS record
+        # TODO:
+        # delete from records where name regexp 'customer(\.|\-)(chirspstack|influx|mqtt)?\.?domain\.co\.uk';
+        devtank_db:
+          db_username: "{{ db_conf.pdns.user }}"
+          db_password: "{{ db_conf.pdns.password }}"
+          db_host: "{{ db_conf.pdns.host }}"
+          db_name: "{{ db_conf.pdns.database }}"
+          method: del_customer
+          customer_name: "{{ customer_name }}"
+          host_name: "{{ customer_info.output.host_name}}"
+          domain: "{{ db_conf.pdns_domain }}"
+          domain_id: "{{ db_conf.pdns_domain_id }}"
+
+      - name: Delete customer certificate
+        delegate_to: "{{ customer_info.output.host_ipaddr}}"
+        connection: ssh
+        ansible.builtin.shell:
+          certbot delete --cert-name "{{ customer_name }}.{{ db_conf.pdns_domain }}" --non-interactive

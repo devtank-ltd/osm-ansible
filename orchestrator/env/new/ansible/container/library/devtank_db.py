@@ -10,7 +10,6 @@ def main():
         db_password=dict(type="str", required=True, no_log=True),
         db_host=dict(type="str", required=True),
         db_name=dict(type="str", required=True),
-
         method=dict(type="str", required=True),
         osm_host_id=dict(type="int"),
         customer_name=dict(type="str"),
@@ -22,18 +21,23 @@ def main():
 
     result = dict(
         changed=False,
-        message=""
+        message="",
+        output=""
     )
     module = AnsibleModule(
         argument_spec=module_args,
-        required_if=[
-            ("method", "add_customer",
-             ("osm_host_id", "customer_name", "mqtt_port")
-             ),
-            ("method", "add_customer_dns",
-             ("customer_name", "domain", "domain_id", "host_name")
-             ),
-        ],
+        # required_if=[
+        #     ("method", "add_customer", ("osm_host_id", "customer_name", "mqtt_port"), True),
+        # ],
+        mutually_exclusive=[
+            ("osm_host_id", "domain"),
+            ("osm_host_id", "domain_id"),
+            ("osm_host_id", "host_name"),
+            ("mqtt_port", "domain"),
+            ("mqtt_port", "domain_id"),
+            ("mqtt_port", "host_name"),
+
+        ]
     )
     conf = {
         "drivername": "mysql+pymysql",
@@ -42,35 +46,81 @@ def main():
         "host": module.params["db_host"],
         "database": module.params["db_name"]
     }
-    osm_db = DBConnectionOrchestrator(**conf)
-    dns_db = DBConnectionPowerDNS(**conf)
 
+    db_name = module.params["db_name"]
+    db_query = module.params["method"]
 
-    if module.params['method'] == "add_customer":
-        query = getattr(osm_db, module.params['method'])
-        res = query(
-            module.params["osm_host_id"],
-            module.params["customer_name"],
-            module.params["mqtt_port"],
-        )
+    if db_name == "pdns":
+        db = DBConnectionPowerDNS(**conf)
+    elif db_name == "osm_orchestrator":
+        db = DBConnectionOrchestrator(**conf)
+    else:
+        module.fail_json(msg=f"Unknown database name '{db_name}'")
 
-        if res:
-            result['changed'] = True
-            result['message'] = (
-                f"Customer {module.params['customer_name']} added. "
-                f"Host ID: {module.params['osm_host_id']}, record ID: {res.id}"
-        )
-    if module.params['method'] == "add_customer_dns":
-        query = getattr(dns_db, "add_customer")
-        target_host = f"{module.params['host_name']}.{module.params['domain']}"
-        for part in ("", "-chirspstack", "-influx", "-mqtt"):
-            full_name = (
-                f"{module.params['customer_name']}{part}."
-                f"{module.params['domain']}"
-            )
-            res = query(module.params["domain_id"], full_name, target_host)
+    query = getattr(db, db_query, None)
+
+    if db_name == "osm_orchestrator":
+        if db_query == "add_customer":
+            args = [
+                module.params["osm_host_id"],
+                module.params["customer_name"],
+                module.params["mqtt_port"],
+            ]
+            res = query(*args)
             if not res:
-                module.fail_json(msg=f"Failed to add DNS record '{full_name}'")
+                module.fail_json(msg=f"Failed to customer")
+
+        if db_query == "remove_customer":
+            customer = module.params['customer_name']
+            host_id = db.get_host_by_customer(customer)
+
+            if not host_id:
+                module.fail_json(msg=f"Unable to get host id of '{customer}'")
+
+            host_name = db.get_host_name_by_id(host_id)
+            host_ipaddr = db.get_hosts_ipaddr(host_id)
+
+            if not host_name:
+                module.fail_json(
+                    msg=f"Unable to get host name by id '{host_id}'"
+                )
+
+            if not host_ipaddr:
+                module.fail_json(
+                    msg=f"Unable to get ip address of '{host_name}'"
+                )
+
+            if not db.del_customer(customer, host_id):
+                module.fail_json(msg=f"Unable to delete customer '{customer}'")
+
+            result['output'] = {
+                'customer_name': customer,
+                'host_name': host_name,
+                'host_ipaddr': host_ipaddr
+            }
+
+    elif db_name == "pdns":
+        name_parts = ("", "-chirspstack", "-influx", "-mqtt")
+        customer = module.params.get('customer_name') or module.fail_json(
+            msg=f"Unable to get customer name"
+        )
+        domain_id = module.params.get('domain_id') or module.fail_json(
+            msg=f"Unable to get domain_id"
+        )
+        domain = module.params.get('domain') or module.fail_json(
+            msg=f"Unable to get domain"
+        )
+        osm_host = module.params.get('host_name') or module.fail_json(
+                msg=f"Unable to get host name"
+        )
+        target_host = f"{osm_host}.{domain}"
+
+        for part in name_parts:
+            alias = f"{customer}{part}.{domain}"
+            action = "add" if "add" in db_query else "remove"
+            query(domain_id, alias, target_host) or module.fail_json(
+                msg=f"Failed to {action} alias '{alias}'"
+            )
 
     module.exit_json(**result)
 
