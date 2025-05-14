@@ -1,5 +1,7 @@
 ---
 
+# ansible-playbook -i "localhost," -e "customer_name=c4" delete.yaml
+
 - name: Delete customer
   hosts: localhost
   connection: local
@@ -67,4 +69,15 @@
         delegate_to: "{{ customer_info.output.host_ipaddr}}"
         connection: ssh
         ansible.builtin.shell:
-          certbot delete --cert-name "{{ customer_name }}.{{ db_conf.pdns_domain }}" --non-interactive
+          cmd:
+            "certbot delete --cert-name {{ customer_name }}.{{ db_conf.pdns_domain }} --non-interactive"
+
+      - name: Stop customer container
+        ansible.builtin.shell:
+          cmd:
+            "incus stop {{ customer_name }}"
+
+      - name: Remove customer container
+        ansible.builtin.shell:
+          cmd:
+            "incus rm {{ customer_name }}"
