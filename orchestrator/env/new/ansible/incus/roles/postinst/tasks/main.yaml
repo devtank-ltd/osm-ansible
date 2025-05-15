@@ -1,5 +1,9 @@
 ---
 
+- name: Initialize dictionary to store WireGuard info
+  ansible.builtin.set_fact:
+    wireguard_data: "{{ wireguard_data | default( {} ) }}"
+
 - name: Generate WireGuard keypair
   shell: |
     umask 077
@@ -15,11 +19,23 @@
   shell: cat /etc/wireguard/pub.key
   register: wireguard_pub_key
 
-- name: DEBUG
-  debug:
-    msg: |
-      {{ hostvars["vosmhost0"].wireguard_pub_key }}
-      # {{ groups['all'] }}
+- name: Set WireGuard IP address
+  ansible.builtin.set_fact:
+    wg_ip: "{{ '.'.join(wireguard.ipaddr.split('.')[:3]) + '.' + ansible_default_ipv4.address.split('.')[-1] }}"
+
+- name: Store WireGuard info to dictionary
+  ansible.builtin.set_fact:
+    wireguard_data:
+      "{{ wireguard_data | combine(
+          {
+              inventory_hostname: {
+                  'pub_key': wireguard_pub_key.stdout,
+                  'priv_key': wireguard_priv_key.stdout,
+                  'ipaddr': wg_ip
+              }
+          }
+        )
+      }}"
 
 - name: Generate WireGuard config
   template:
@@ -44,6 +60,15 @@
     mode: 0640
   notify: systemd network restart
 
+- debug:
+    var: wireguard_data
+
 - name: Setup databases
   when: inventory_hostname == "vosmhost0"
   include_tasks: cluster2db.yaml
+
+- name: Add OSM host WiregGuard info to Devtank DB
+  include_tasks: wireguard2db.yaml
+  args:
+    apply:
+      delegate_to: "vosmhost0"

@@ -1,5 +1,5 @@
 [Interface]
-Address = {{ wireguard.ipaddr }}/{{ wireguard.mask }}
+Address = {{ wg_ip }}/{{ wireguard.mask }}
 {% if inventory_hostname == "vosmhost0" %}
 PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
 PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
