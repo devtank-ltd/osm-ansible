@@ -231,6 +231,7 @@
       - name: Wait for change connection type
         ansible.builtin.pause:
           seconds: 2
+
        # TASK [mosquitto : Configure mosquitto] *********************************************************************************************************************************************
        #     self.run()
        #   File "/usr/lib/python3.11/threading.py", line 975, in run
@@ -269,6 +270,9 @@
   hosts: localhost
   connection: local
 
+  vars:
+    customer_key: hostvars["{{ customer_name }}"]["master_key.output.key"]
+
   tasks:
 
     - name: Add customer to Devtank DB
@@ -281,7 +285,34 @@
         osm_host_id: "{{ target_host_id }}"
         customer_name: "{{ customer_name }}"
         mqtt_port: "{{ mqtt_port }}"
+      register: customer_id
 
     - name: Add customer secrets to Devtank DB
-      debug:
-        msg: "Implement me"
+      block:
+        - name: Get customer encrypted passwords
+          ansible.builtin.shell:
+            cmd: "incus exec {{ customer_name }} -- cat /root/passwords-v2.json"
+          register: passwords_file
+
+        - name: Get orchestrator master key
+          ansible.builtin.shell:
+            cmd: "cat /srv/osm-lxc/orchestrator/master.key"
+          register: master_key
+
+        - name: Encrypt customer master key
+          devtank_crypt:
+            input_string: "{{ customer_key }}"
+            action: encrypt
+            key: "{{ master_key.stdout }}"
+          register: encrypted_customer_key
+
+        - name: Store customer secrets to Devtank DB
+          devtank_db:
+            db_username: "{{ db_conf.orchestrator.user }}"
+            db_password: "{{ db_conf.orchestrator.password }}"
+            db_host: "{{ db_conf.orchestrator.host }}"
+            db_name: "{{ db_conf.orchestrator.database }}"
+            method: add_customer_secrets
+            customer_id: "{{ customer_id.output.id }}"
+            key: "{{ encrypted_customer_key.output.string }}"
+            data: "{{ passwords_file.stdout }}"

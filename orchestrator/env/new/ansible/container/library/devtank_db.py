@@ -17,6 +17,9 @@ def main():
         domain=dict(type="str"),
         domain_id=dict(type="int"),
         host_name=dict(type="str"),
+        customer_id=dict(type="str"),
+        key=dict(type="str"),
+        data=dict(type="str"),
     )
 
     result = dict(
@@ -26,9 +29,6 @@ def main():
     )
     module = AnsibleModule(
         argument_spec=module_args,
-        # required_if=[
-        #     ("method", "add_customer", ("osm_host_id", "customer_name", "mqtt_port"), True),
-        # ],
         mutually_exclusive=[
             ("osm_host_id", "domain"),
             ("osm_host_id", "domain_id"),
@@ -69,6 +69,7 @@ def main():
             res = query(*args)
             if not res:
                 module.fail_json(msg=f"Failed to customer")
+            result['output'] = {'id': res.id}
 
         if db_query == "remove_customer":
             customer = module.params['customer_name']
@@ -99,19 +100,30 @@ def main():
                 'host_ipaddr': host_ipaddr
             }
 
+        if db_query == "add_customer_secrets":
+            key = module.params["key"]
+            data = module.params["data"]
+            customer_id = module.params["customer_id"]
+            db.add_customer_secret_key(customer_id, key) or module.fail_json(
+                msg="Failed to add customer key"
+            )
+            db.add_customer_secrets(customer_id, data) or module.fail_json(
+                msg="Failed to add customer secrets"
+            )
+
     elif db_name == "pdns":
         name_parts = ("", "-chirspstack", "-influx", "-mqtt")
         customer = module.params.get('customer_name') or module.fail_json(
-            msg=f"Unable to get customer name"
+            msg="Unable to get customer name"
         )
         domain_id = module.params.get('domain_id') or module.fail_json(
-            msg=f"Unable to get domain_id"
+            msg="Unable to get domain_id"
         )
         domain = module.params.get('domain') or module.fail_json(
-            msg=f"Unable to get domain"
+            msg="Unable to get domain"
         )
         osm_host = module.params.get('host_name') or module.fail_json(
-                msg=f"Unable to get host name"
+                msg="Unable to get host name"
         )
         target_host = f"{osm_host}.{domain}"
 
