@@ -228,9 +228,20 @@
           - "nginx -t"
           - "nginx -s reload"
 
-      # - name: DEBUG wait
-      #   ansible.builtin.pause:
-      #     seconds: 5
+      - name: Wait for change connection type
+        ansible.builtin.pause:
+          seconds: 2
+       # TASK [mosquitto : Configure mosquitto] *********************************************************************************************************************************************
+       #     self.run()
+       #   File "/usr/lib/python3.11/threading.py", line 975, in run
+       #     self._target(*self._args, **self._kwargs)
+       #   File "/usr/lib/python3/dist-packages/ansible/plugins/strategy/__init__.py", line 108, in results_thread_main
+       #     result = strategy._convert_wire_task_result_to_raw(result)
+       #              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+       #   File "/usr/lib/python3/dist-packages/ansible/plugins/strategy/__init__.py", line 456, in _convert_wire_task_result_to_raw
+       #     found_task = self._queued_task_cache[queue_cache_entry]['task']
+       #                  ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+       # KeyError: ('localhost', '525400ec-8428-d007-bfd7-000000000022')
 
 - name: Provision Container
   hosts: "{{ customer_name }}"
@@ -270,3 +281,7 @@
         osm_host_id: "{{ target_host_id }}"
         customer_name: "{{ customer_name }}"
         mqtt_port: "{{ mqtt_port }}"
+
+    - name: Add customer secrets to Devtank DB
+      debug:
+        msg: "Implement me"

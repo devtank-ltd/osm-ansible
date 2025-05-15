@@ -1,0 +1,10 @@
+---
+
+- name: Print passwords
+  include_tasks: print_passwords.yaml
+
+- name: Encrypt passwords
+  include_tasks: encrypt_passwords.yaml
+
+- name: Write passwords to JSON files
+  include_tasks: write_passwords.yaml
