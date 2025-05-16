@@ -72,3 +72,15 @@
   args:
     apply:
       delegate_to: "vosmhost0"
+
+- name: Put main host SSH key to authorized keys
+  block:
+    - name: Get main host SSH key
+      when: inventory_hostname == "vosmhost0"
+      ansible.builtin.shell:
+        cat /root/.ssh/id_rsa.pub
+      register: ssh_key
+
+    - name: Copy main host SSH key
+      ansible.builtin.shell:
+        echo "{{ hostvars.vosmhost0.ssh_key.stdout }}" >> /root/.ssh/authorized_keys

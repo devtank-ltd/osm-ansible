@@ -711,34 +711,15 @@ class osm_orchestrator_t:
         return [osm_host_t(self, row[0]) for row in rows]
 
     def add_osm_customer(self, customer_name: str) -> bool:
-        osm_host = self._db.find_osm_host_of(customer_name)
-        if osm_host:
-            self.logger.warning(f'Already customer "{customer_name}"')
-            return False
-
-        osm_host = self.find_free_osm_host()
-
-        if not osm_host:
-            self.logger.error(f"No free OSM host for customer {customer_name}")
-            return False
-
-        if osm_host.add_osm_customer(customer_name):
-            # apply prometheus configuration for customer exporter
-            playbook_path = "/srv/osm-lxc/ansible/configure-prometheus.yaml"
-            p = subprocess.run(
-                [
-                    "ansible-playbook",
-                    "-e",
-                    (
-                        f"customer={customer_name} "
-                        f"domain={self.config['pdns_domain']}"
-                    ),
-                    playbook_path,
-                ],
-                stdout=subprocess.DEVNULL,
-            )
-            return p.returncode == 0
-        return False
+        # TODO: fix playbook path after review
+        ansible_cmd = [
+            "ansible-playbook",
+            "-i", f"localhost,{customer_name},",
+            "-e", f"customer_name={customer_name}",
+            "/root/new/ansible/container/setup.yaml",
+        ]
+        ansible_proc = subprocess.run(ansible_cmd)
+        return ansible_proc.returncode == 0
 
     def add_osm_alerts_contact(self, customer_name: str, email: str) -> bool:
         return self._db.add_contact_point(customer_name, email) is not None
@@ -747,11 +728,15 @@ class osm_orchestrator_t:
         return self._db.query_contact_points()
 
     def del_osm_customer(self, customer_name: str) -> bool:
-        osm_host = self.find_osm_host_of(customer_name)
-        if not osm_host:
-            self.logger.warning(f'No customer "{customer_name}"')
-            return False
-        return osm_host.del_osm_customer(customer_name)
+        # TODO: fix playbook path after review
+        ansible_cmd = [
+            "ansible-playbook",
+            "-i", "localhost,",
+            "-e", f"customer_name={customer_name}",
+            "/root/new/ansible/container/delete.yaml",
+        ]
+        ansible_proc = subprocess.run(ansible_cmd)
+        return ansible_proc.returncode == 0
 
     def clone_container(self, customer_name: str) -> bool:
         osm_host = self.find_osm_host_of(customer_name)
