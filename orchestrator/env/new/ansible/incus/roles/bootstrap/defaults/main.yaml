@@ -22,7 +22,7 @@ main:
     - python3-paramiko
     - python3-pip
     - python3-pymysql
-    # - python3-pyosmorch
+    - python3-pyosmorch
     - python3-sqlalchemy
     - python3-venv
     - python3-yaml

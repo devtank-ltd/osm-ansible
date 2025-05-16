@@ -23,7 +23,7 @@
         - name: Add Devtank repository to apt source
           template:
             src: devtank.tpl
-            dest: /etc/apt/keyrings/devtank.gpg
+            dest: /etc/apt/sources.list.d/devtank.sources
 
     - name: Install packages
       apt:
@@ -39,6 +39,7 @@
         version: "{{ devtank.git_branch }}"
 
     - name: Generate master encryption data
+      # TODO: use ansible module
       shell: |
         /usr/bin/python3 crypt.py
       args:

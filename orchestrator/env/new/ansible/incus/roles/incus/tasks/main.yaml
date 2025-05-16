@@ -31,6 +31,17 @@
     dest: /etc/apt/sources.list.d/zabbly-incus-{{ incus_init["release"] }}.sources
   notify: Refresh apt
 
+- name: FIXME install systemd-resolved
+  apt:
+    name: systemd-resolved
+    install_recommends: no
+    state: present
+
+- name: FIXME dns
+  ansible.builtin.shell: |
+    systemctl stop systemd-resolved
+    resolvectl dns {{ ansible_default_ipv4.interface }} {{ devtank.dns_server_ip }}
+
 - name: FIXME Refresh apt as handler does not work
   apt:
     force_apt_get: yes
@@ -161,3 +172,8 @@
   shell:
     cmd: "incus remote add devtank {{ incus_init['image']['url'] }} --protocol {{ incus_init['image']['protocol'] }}"
   when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
+
+- name: Set DNS for incus
+  # TODO: use systemd config instead?
+  ansible.builtin.shell: |
+    resolvectl dns devtank {{ incus_init.network.ipaddr.split('/')[0] }}
