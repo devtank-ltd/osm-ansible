@@ -60,9 +60,6 @@
     mode: 0640
   notify: systemd network restart
 
-- debug:
-    var: wireguard_data
-
 - name: Setup databases
   when: inventory_hostname == "vosmhost0"
   include_tasks: cluster2db.yaml
