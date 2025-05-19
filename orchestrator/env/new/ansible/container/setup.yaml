@@ -294,16 +294,38 @@
             cmd: "incus exec {{ customer_name }} -- cat /root/passwords-v2.json"
           register: passwords_file
 
-        - name: Get orchestrator master key
-          ansible.builtin.shell:
-            cmd: "cat /srv/osm-lxc/orchestrator/master.key"
-          register: master_key
+        - name: Get OSM key
+          # TODO: move to variables
+          ansible.builtin.stat:
+            path: /srv/osm-lxc/orchestrator/master.key
+          register: osm_key
+
+        - name: Generate OSM key
+          when: not osm_key.stat.exists
+          devtank_crypt:
+            action: generate_key
+          register: osm_key
+
+        - name: Store OSM key
+          when: not osm_key.stat.exists
+          ansible.builtin.copy:
+            content: "{{ osm_key.output.key }}"
+            dest: /srv/osm-lxc/orchestrator/master.key
+
+        - name: Set OSM key
+          ansible.builtin.set_fact:
+            osm_key: "{{ lookup('file', '/srv/osm-lxc/orchestrator/master.key') }}"
+
+        # - name: Get orchestrator master key
+        #   ansible.builtin.shell:
+        #     cmd: "cat /srv/osm-lxc/orchestrator/master.key"
+        #   register: master_key
 
         - name: Encrypt customer master key
           devtank_crypt:
             input_string: "{{ customer_key }}"
             action: encrypt
-            key: "{{ master_key.stdout }}"
+            key: "{{ osm_key }}"
           register: encrypted_customer_key
 
         - name: Store customer secrets to Devtank DB
