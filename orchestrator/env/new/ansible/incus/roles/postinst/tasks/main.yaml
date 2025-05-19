@@ -95,3 +95,13 @@
     name: prometheus
     state: restarted
     enabled: true
+
+# TODO: remove me on dist-upgrade
+# incus connection type is a part of community collection since version 10.6.0 which requires ansible >= 2.15.0 version.
+# Hence, we need to use testing bookworm repository as current version of ansible is 2.14.18
+# 2025-05-19 16:50:36
+- name: Add testing repository
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.apt_repository:
+    repo: deb http://deb.debian.org/debian/ testing main
+    state: present
