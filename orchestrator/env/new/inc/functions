@@ -239,7 +239,7 @@ get_debian_iso() {
     download "${DEB_URL}/SHA512SUMS" "$dl_dir"
 
     pushd "$dl_dir" >/dev/null 2>&1 || true
-    sha512sum -c SHA512SUMS --quiet --status --ignore-missing
+    sha512sum -c SHA512SUMS --quiet --status --ignore-missing || die "sha512sums"
     popd >/dev/null 2>&1 || true
 }
 

@@ -1,6 +1,6 @@
 # shellcheck disable=SC2034
 
-readonly DEB_ISO_VER="12.10.0"
+readonly DEB_ISO_VER="12.11.0"
 readonly DEB_ISO_ARCH="amd64"
 readonly DEB_URL="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd"
 readonly ISO_NAME="debian-${DEB_ISO_VER}-${DEB_ISO_ARCH}-netinst.iso"
