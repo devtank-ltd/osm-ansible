@@ -81,3 +81,17 @@
     - name: Copy main host SSH key
       ansible.builtin.shell:
         echo "{{ hostvars.vosmhost0.ssh_key.stdout }}" >> /root/.ssh/authorized_keys
+
+- name: Add prometheus node
+  delegate_to: "vosmhost0"
+  ansible.builtin.blockinfile:
+    dest: /etc/prometheus/prometheus.yml
+    block: "{{ lookup('template', 'prometheus.tpl') }}"
+    marker: "# {mark} ANSIBLE MANAGED block for {{ inventory_hostname }}"
+
+- name: Restart prometheus
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.systemd_service:
+    name: prometheus
+    state: restarted
+    enabled: true
