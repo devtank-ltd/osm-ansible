@@ -2,7 +2,7 @@
 
 source functions.sh
 
-if [[ -z "$STY" ]]; then
+if [ -t 0 -a -z "$STY" ]; then
   echo "Not running in GNU Screen"
   yesno "Continue?"
 fi
