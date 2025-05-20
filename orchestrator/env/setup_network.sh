@@ -2,7 +2,7 @@
 
 source functions.sh
 
-if [[ -z "$STY" ]]; then
+if [[ -t 0 && -z "$STY" && -z "$JENKINS_HOME" ]]; then
   echo "Not running in GNU Screen"
   yesno "Continue?"
 fi
