@@ -1,0 +1,9 @@
+---
+
+- name: Setup InfluxDB
+  import_tasks: setup.yaml
+  when: install_only is not defined or install_only == False
+
+- name: Upgrade InfluxDB
+  import_tasks: migrate.yaml
+  when: upgrade_influx_and_delete_everything is defined and upgrade_influx_and_delete_everything == True

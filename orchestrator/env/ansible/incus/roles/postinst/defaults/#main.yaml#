@@ -1,0 +1,8 @@
+---
+
+wireguard:
+  interface: wg0
+  host: vosmhost0
+  ipaddr: 10.10.1.1
+  mask: 24
+  port: 51820

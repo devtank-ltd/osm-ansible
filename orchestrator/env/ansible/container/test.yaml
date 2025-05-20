@@ -1,0 +1,53 @@
+---
+
+- name: pyosmorch tests
+  hosts: localhost
+  connection: local
+
+  tasks:
+    # - name: test one
+    #   devtank_db:
+    #     db_username: osm_orchestrator
+    #     db_password: cvl2gsfFQienEbvL
+    #     db_host: localhost
+    #     db_name: osm_orchestrator
+    #     method: add_customer
+    #     customer_name: test_customer
+
+    #     osm_host_id: 3
+    #     mqtt_port: 131313
+
+    # - name: test two
+    #   devtank_db:
+    #     db_username: osm_orchestrator
+    #     db_password: cvl2gsfFQienEbvL
+    #     db_host: localhost
+    #     db_name: pdns
+    #     method: add_customer
+    #     customer_name: test
+
+    #     domain: test.xxx.yyy
+    #     domain_id: 666
+    #     host_name: non_existing_host
+
+    # - name: test three
+    #   devtank_db:
+    #     db_username: osm_orchestrator
+    #     db_password: cvl2gsfFQienEbvL
+    #     db_host: localhost
+    #     db_name: pdns
+    #     method: add_customer
+    #     customer_name: test
+
+    #     domain: test.xxx.yyy
+    #     domain_id: 666
+    #     host_name: non_existing_host
+
+    - name: test
+      devtank_db:
+        db_username: osm_orchestrator
+        db_password: cvl2gsfFQienEbvL
+        db_host: localhost
+        db_name: osm_orchestrator
+        method: remove_customer
+        customer_name: test_customer

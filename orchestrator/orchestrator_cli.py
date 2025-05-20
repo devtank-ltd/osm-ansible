@@ -331,6 +331,7 @@ class osm_orchestrator_t:
             "-i", "localhost,",
             "-e", f"customer_name={customer_name}",
             f"{DEVTANK_WD}/env/ansible/del_customer.yaml",
+            f"{DEVTANK_WD}/env/ansible/container/delete.yaml",
         ]
         ansible_proc = subprocess.run(ansible_cmd)
         return ansible_proc.returncode == 0

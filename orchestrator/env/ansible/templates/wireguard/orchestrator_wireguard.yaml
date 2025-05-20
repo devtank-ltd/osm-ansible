@@ -1,0 +1,14 @@
+- hosts: "{{ target }}"
+  vars:
+    wg_ipaddr: "{{ orchestrator_ipaddr }}"
+    wg_port: "{{ orchectrator_wg_port }}"
+    wg_priv_key: "{{ orchestrator_wg_key }}"
+
+  - set_fact:
+      wg_interface: "{{ ansible_default_ip4.interface }}"
+
+  tasks:
+    - name: "Apply orchestrator WireGuard configuration"
+      template:
+        src: "orchectrator_wireguard.j2"
+        dest: "/etc/wireguard/wg0.conf"

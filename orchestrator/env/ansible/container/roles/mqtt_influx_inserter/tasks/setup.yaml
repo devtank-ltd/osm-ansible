@@ -1,0 +1,13 @@
+- name: Configure MQTT Influx Inserter
+  template:
+    src: mqtt-influx-inserter.yaml.tpl
+    dest: /etc/mqtt-influx-inserter/mqtt-influx-inserter.yaml
+    owner: root
+    group: root
+    mode: "644"
+
+- name: Enable and start MQTT Influx inserter service
+  systemd:
+    name: mqtt-influx-inserter.service
+    state: restarted
+    enabled: yes

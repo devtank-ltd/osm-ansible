@@ -1,0 +1,5 @@
+---
+
+- name: Setup Postgres
+  include_tasks: setup.yaml
+  when: install_only is not defined or install_only == False

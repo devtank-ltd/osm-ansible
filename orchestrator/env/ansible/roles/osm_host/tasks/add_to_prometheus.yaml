@@ -1,0 +1,35 @@
+---
+
+- hosts: localhost
+  become: yes
+  connection: local
+  gather_facts: yes
+
+  vars:
+    prometheus_config: "/etc/prometheus/prometheus.yml"
+
+  tasks:
+    - name: Check variables
+      ansible.builtin.fail:
+        msg: "The {{ item }} was not passed or empty"
+      when: item is not defined or item == ""
+      with_items:
+        - customer
+
+    - name: Add {{ customer }} to Prometheus
+      ansible.builtin.blockinfile:
+        path: "{{ prometheus_config }}"
+        # append_newline: yes <--- since ansible-core v2.16
+        backup: yes
+        insertafter: EOF
+        marker: "# ORCHESTRATOR MANAGED {{ customer }}"
+        block: |2
+            - job_name: "{{ customer }}"
+              proxy_url: http://{{ ansible_wg0.ipv4.address }}:8080/
+              static_configs:
+                - targets: ["{{ customer }}:9100"]
+
+    - name: Restart Prometheus
+      ansible.builtin.systemd_service:
+        state: restarted
+        name: prometheus

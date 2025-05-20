@@ -1,0 +1,31 @@
+---
+
+- hosts: localhost
+  become: yes
+  connection: local
+  gather_facts: yes
+
+  vars:
+    prometheus_config: "/etc/prometheus/prometheus.yml"
+
+  tasks:
+    - name: Check variables
+      ansible.builtin.fail:
+        msg: "The {{ item }} was not passed or empty"
+      when: item is not defined or item == ""
+      with_items:
+        - customer
+        - domain
+
+    - name: Remove {{ customer }} from Prometheus
+      ansible.builtin.blockinfile:
+        path: "{{ prometheus_config }}"
+        # append_newline: yes <--- since ansible-core v2.16
+        backup: yes
+        marker: "# ORCHESTRATOR MANAGED {{ customer }}"
+        block: ""
+
+    - name: Restart Prometheus
+      ansible.builtin.systemd_service:
+        state: restarted
+        name: prometheus
