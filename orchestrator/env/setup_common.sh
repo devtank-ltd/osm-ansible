@@ -21,7 +21,8 @@ if [[ ! -e "${HOSTS_DIR}/iso_valid" ]]; then
     if ! sha512sum -c "$CHECKSUM_FILE" >/dev/null 2>&1; then
         die "ISO file '${ISO_NAME}' verification failed."
     fi
-    echo "${HOSTS_DIR}/${ISO_NAME}" > iso_valid
+    readonly DEBISO="${HOSTS_DIR}/${ISO_NAME}"
+    echo "${DEBISO}" > iso_valid
     popd >/dev/null 2>&1
 else
     readonly DEBISO=$(cat iso_valid)
