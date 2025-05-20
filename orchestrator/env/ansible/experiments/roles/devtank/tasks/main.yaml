@@ -1,0 +1,11 @@
+---
+
+- name: experiment 1
+  devtank_db:
+    db_user: "test user"
+    db_password: 123456
+    db_host: localhost
+    db: osm_orchestrator
+    add_customer:
+     name: customer
+     mqtt_port: 8336

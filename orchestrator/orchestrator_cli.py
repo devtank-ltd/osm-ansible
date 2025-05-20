@@ -50,6 +50,7 @@ PROMETHEUS_HOST_TMPL = """
       - targets: ["{wg_ipaddr}:19999"]
 """
 DOMAIN_PARTS = ("", "-chirpstack", "-influx", "-mqtt")
+DEVTANK_WD = "/srv/osm-lxc/orchestrator"
 
 
 parser = argparse.ArgumentParser(description="OSM Servers Orchestrator")
@@ -716,7 +717,7 @@ class osm_orchestrator_t:
             "ansible-playbook",
             "-i", f"localhost,{customer_name},",
             "-e", f"customer_name={customer_name}",
-            "/root/new/ansible/container/setup.yaml",
+            f"{DEVTANK_WD}/env/ansible/container/setup.yaml",
         ]
         ansible_proc = subprocess.run(ansible_cmd)
         return ansible_proc.returncode == 0
@@ -733,7 +734,7 @@ class osm_orchestrator_t:
             "ansible-playbook",
             "-i", "localhost,",
             "-e", f"customer_name={customer_name}",
-            "/root/new/ansible/container/delete.yaml",
+            f"{DEVTANK_WD}/env/ansible/container/delete.yaml",
         ]
         ansible_proc = subprocess.run(ansible_cmd)
         return ansible_proc.returncode == 0
