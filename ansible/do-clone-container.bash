@@ -26,9 +26,9 @@ do_clone() {
 
     subvol_cmd "snapshot" "${container}" "${container}-clone"
 
-    new_mac=$(echo $RANDOM | md5sum |sed 's/^\(..\)\(..\)\(..\)\(..\)\(..\).*$/02:\1:\2:\3:\4:\5/')
+    new_mac="$(hexdump -n5 -e '"02" 5/1 ":%02x"' /dev/random)"
     sed -i "s|${container}/rootfs-layer|${container}-clone/rootfs-layer|g" "${container}-clone/lxc.container.conf"
-    sed -i "s|lxc\.net\.0\.hwaddr.*$|lxc\.net\.0\.hwaddr = $new_mac|g" "${container}-clone/lxc.container.conf"
+    sed -i "s|([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}|$new_mac|g" "${container}-clone/lxc.container.conf"
 }
 
 main() {
