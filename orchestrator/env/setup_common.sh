@@ -1,10 +1,7 @@
 # -*- mode: sh; sh-shell: bash; -*-
 
 readonly DEB_ISO_ARCH="amd64"
-readonly DEB_ISO_VER="12.10.0"
-readonly DEB_URL="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd"
-readonly ISO_NAME="debian-${DEB_ISO_VER}-${DEB_ISO_ARCH}-netinst.iso"
-readonly DEB_ISO_URL="${DEB_URL}/${ISO_NAME}"
+readonly DEB_URL="https://cdimage.debian.org/debian-cd/current/${DEB_ISO_ARCH}/iso-cd"
 readonly CHECKSUM_FILE="SHA512SUMS"
 
 source functions.sh
@@ -12,17 +9,24 @@ source common.sh
 
 git_branch="$(git rev-parse --abbrev-ref HEAD | sed -n 's/HEAD/main/p;t;p')"
 
-readonly DEBISO="${HOSTS_DIR}/${ISO_NAME}"
 
-if [[ ! -e "${DEBISO}" ]]; then
+if [[ ! -e "${HOSTS_DIR}/iso_valid" ]]; then
     pushd "$HOSTS_DIR" >/dev/null 2>&1
-    download_file "${DEB_ISO_URL}" "."
     download_file "${DEB_URL}/${CHECKSUM_FILE}" "."
+    ISO_NAME="$(sed -rn 's|.*(debian-[0-9.]+-'"$DEB_ISO_ARCH"'-netinst.iso)|\1|p' "$CHECKSUM_FILE")"
+    readonly ISO_NAME
+    readonly DEB_ISO_URL="${DEB_URL}/${ISO_NAME}"
+    download_file "${DEB_ISO_URL}" "."
     sed -i.backup '/'"${ISO_NAME}"'/!d' "$CHECKSUM_FILE"
     if ! sha512sum -c "$CHECKSUM_FILE" >/dev/null 2>&1; then
         die "ISO file '${ISO_NAME}' verification failed."
     fi
+    readonly DEBISO="${HOSTS_DIR}/${ISO_NAME}"
+    echo "${DEBISO}" > iso_valid
     popd >/dev/null 2>&1
+else
+    DEBISO=$(cat iso_valid)
+    readonly DEBISO
 fi
 
 [[ -n "$DEFAULT_KEY_LOCATION" ]] || mapfile -t ssh_keys < <(find ~/.ssh/ -type f -name 'id_*.pub')
