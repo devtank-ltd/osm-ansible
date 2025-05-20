@@ -14,7 +14,7 @@ git_branch="$(git rev-parse --abbrev-ref HEAD | sed -n 's/HEAD/main/p;t;p')"
 if [[ ! -e "${HOSTS_DIR}/iso_valid" ]]; then
     pushd "$HOSTS_DIR" >/dev/null 2>&1
     download_file "${DEB_URL}/${CHECKSUM_FILE}" "."
-    readonly ISO_NAME="$(sed -En '1s|.*\s+(.*)$|\1|p' "$CHECKSUM_FILE")"
+    readonly ISO_NAME="$(sed -rn 's|.*(debian-[0-9.]+-amd64-netinst.iso)|\1|p' "$CHECKSUM_FILE")"
     readonly DEB_ISO_URL="${DEB_URL}/${ISO_NAME}"
     download_file "${DEB_ISO_URL}" "."
     sed -i.backup '/'"${ISO_NAME}"'/!d' "$CHECKSUM_FILE"
