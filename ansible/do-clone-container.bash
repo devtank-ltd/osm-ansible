@@ -23,20 +23,12 @@ subvol_cmd() {
 
 do_clone() {
     local container="$1"
-    local subvols=()
 
-    subvol_cmd "snapshot" "-r" "${container}" "${container}-ro"
-    subvol_cmd "create" "$CLONE_DIR"
+    subvol_cmd "snapshot" "${container}" "${container}-clone"
 
-    btrfs send "${container}-ro" | btrfs receive "$CLONE_DIR" || \
-        die "send / recieve"
-
-    subvol_cmd "snapshot" "${CLONE_DIR}/${container}-ro" "${container}-clone"
-
-    subvols+=("${container}-ro" "${CLONE_DIR}/${container}-ro" "${CLONE_DIR}")
-    for sub in "${subvols[@]}"; do
-        subvol_cmd "delete" "$sub"
-    done
+    new_mac="$(hexdump -n5 -e '"02" 5/1 ":%02x"' /dev/random)"
+    sed -i "s|${container}/rootfs-layer|${container}-clone/rootfs-layer|g" "${container}-clone/lxc.container.conf"
+    sed -i "s|([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}|$new_mac|g" "${container}-clone/lxc.container.conf"
 }
 
 main() {
