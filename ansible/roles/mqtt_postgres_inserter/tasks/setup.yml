@@ -1,7 +1,0 @@
-- name: "Configure MQTT Postgres Inserter"
-  template:
-    src: mqtt-postgres-inserter.yaml.j2
-    dest: /etc/mqtt-postgres-inserter/mqtt-postgres-inserter.yaml
-    owner: root
-    group: root
-    mode: "644"

@@ -75,10 +75,10 @@ url="redis://localhost:6379"
     # MQTT integration backend.
     [application_server.integration.mqtt]
     # Event topic template.
-    event_topic_template="osm/{{ .DevEUI }}/measurements"
+    event_topic_template="application/{{ .ApplicationID }}/device/{{ .DevEUI }}/event/{{ .EventType }}"
 
     # Command topic template.
-    command_topic_template="osm/{{ .DevEUI }}/command"
+    command_topic_template="application/{{ .ApplicationID }}/device/{{ .DevEUI }}/command/{{ .CommandType }}"
 
     # MQTT server (e.g. scheme://host:port where scheme is tcp, ssl or ws)
     server="tcp://localhost:1883"
@@ -134,4 +134,3 @@ url="redis://localhost:6379"
 [join_server]
 # ip:port to bind the join-server api interface to
 bind="0.0.0.0:8003"
-

@@ -29,22 +29,21 @@
     port: 3000
     connect_timeout: 10
 
-- name: "Add Postgres data source to Grafana"
+- name: "Add InfluxDB 2.0 data source to Grafana"
   community.grafana.grafana_datasource:
-    name: "postgresql"
+    name: "influxdb"
     grafana_url: "http://localhost:3000"
     grafana_user: "admin"
     grafana_password: "{{ grafana_admin_password }}"
     org_id: "1"
-    ds_type: "postgres"
-    ds_url: "localhost:5432"
-    database: "osm"
-    user: "{{ timescaledb_owner }}"
+    ds_type: "influxdb"
+    ds_url: "http://localhost:8086"
     additional_json_data:
-      postgresVersion: 15
-      timescaledb: true
+      organization: "devtank"
+      defaultBucket: "sf"
+      version: "Flux"
     additional_secure_json_data:
-      password: "{{ timescaledb_passwords['devtank'] }}"
+      token: "{{ influx_token }}"
 
 - name: "Create Grafana Viewer Password"
   ansible.builtin.set_fact:
@@ -61,4 +60,3 @@
     password: "{{ grafana_viewer_password }}"
     is_admin: false
     state: present
-

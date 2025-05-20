@@ -1,8 +1,0 @@
----
-# tasks file for roles/timescaledb# roles/timescaledb/tasks/main.yml
-
-- name: "Install Timescaledb"
-  include_tasks: "install.yml"
-
-- name: "Setup Timescaledb"
-  include_tasks: "setup.yml"
