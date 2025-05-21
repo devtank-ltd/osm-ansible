@@ -105,3 +105,10 @@
   ansible.builtin.apt_repository:
     repo: deb http://deb.debian.org/debian/ testing main
     state: present
+
+- name: Upgrade ansible
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.apt:
+    name: ansible
+    state: latest
+    update_cache: yes
