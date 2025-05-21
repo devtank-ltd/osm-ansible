@@ -5,7 +5,6 @@ set -o nounset
 set -o pipefail
 
 LXC_DIR="/srv/osm-lxc/lxc/containers"
-CLONE_DIR="${LXC_DIR}/clone"
 
 msg() {
     echo "$*"
@@ -29,6 +28,7 @@ do_clone() {
     new_mac="$(hexdump -n5 -e '"02" 5/1 ":%02x"' /dev/random)"
     sed -i "s|${container}/rootfs-layer|${container}-clone/rootfs-layer|g" "${container}-clone/lxc.container.conf"
     sed -i "s|([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}|$new_mac|g" "${container}-clone/lxc.container.conf"
+    sed -i 's|^lxc\.uts\.name.*$|&-clone|' "${container}-clone/lxc.container.conf"
 }
 
 main() {
