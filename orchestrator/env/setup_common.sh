@@ -39,7 +39,7 @@ if (( ${#ssh_keys[@]} > 1 )); then
         DEFAULT_KEY_LOCATION="$key"
         break
     done
-else
+elif [[ -z "$DEFAULT_KEY_LOCATION" ]]; then
     info "Set '${ssh_keys[0]}' public key."
     DEFAULT_KEY_LOCATION="${ssh_keys[0]}"
 fi
