@@ -582,25 +582,9 @@ class osm_orchestrator_t:
 
         tmp_conf.rename(conf_dir / tmp_conf.stem)
 
-    def find_free_osm_host(self):
-        row = self.db.find_free_osm_host()
-        if row:
-            osm_host = osm_host_t(self, row[0])
-            if osm_host:
-                utilization = row[1]
-                used = int(utilization * osm_host.capacity)
-                if used < osm_host.capacity:
-                    return osm_host
-
     def find_osm_host_of(self, customer_name: str) -> Union[osm_host_t, None]:
         row = self.db.get_host_by_customer(customer_name)
         return osm_host_t(self, row) if row else None
-
-    def _restart_systemd_service(self, service_name: str) -> bool:
-        proc = subprocess.run(
-            ["systemctl", "restart", f"{service_name}.service"]
-        )
-        return proc.returncode == 0
 
     def find_osm_host(self, name: str) -> Union[osm_host_t, None]:
         row = self.db.get_host(name)
@@ -720,33 +704,6 @@ class osm_orchestrator_t:
 
         return priv_key, pub_key
 
-    def add_wg_peer(
-        self, osm_host_name: str, osm_pub_key: str, osm_ipaddr: str
-    ) -> bool:
-        # TODO: add verifications
-        with open(WG_CONF_FILE, "a") as wg_conf:
-            wg_conf.write(
-                WG_PEER_TMPL.format(
-                    host_name=osm_host_name,
-                    pub_key=osm_pub_key,
-                    ip_addr=osm_ipaddr,
-                )
-            )
-
-        # TODO: should we restart it via dbus API
-        return self._restart_systemd_service("wg-quick@wg0")
-
-    def add_prometheus_host(self, host_name: str, osm_ipaddr: str) -> bool:
-        with open(PROMETHEUS_CONF_FILE, "a") as prometheus_conf:
-            prometheus_conf.write(
-                PROMETHEUS_HOST_TMPL.format(
-                    host_name=host_name, wg_ipaddr=osm_ipaddr
-                )
-            )
-
-        # TODO: should we restart it via dbus API
-        return self._restart_systemd_service("prometheus")
-
     def add_osm_host(self, host_name: str, ip_addr: str, capacity: int) -> int:
         # TODO: make it configurable via config.yaml file
         WG_IPADDR = "10.10.1."
@@ -827,16 +784,6 @@ class osm_orchestrator_t:
 
         self.add_dns_host(host_name, ip_addr)
         return True
-
-    def del_wg_peer(self, conf_file: str, host_name: str) -> None:
-        """delete WireGuard peer"""
-
-        self._delete_from_config(conf_file, host_name)
-        self._restart_systemd_service("wg-quick@wg0")
-
-    def del_prometheus_host(self, conf_file: str, host_name: str) -> None:
-        self._delete_from_config(conf_file, host_name)
-        self._restart_systemd_service("prometheus")
 
     def del_osm_host(self, host_name):
         osm_host = self.find_osm_host(host_name)

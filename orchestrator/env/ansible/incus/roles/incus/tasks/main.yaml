@@ -119,7 +119,7 @@
 
 - name: Add network
   shell:
-    cmd: "incus network create devtank --type={{ incus_init['network']['type'] }} ipv4.address={{ incus_init['network']['ipaddr'] }} ipv6.address=none"
+    cmd: "incus network create devtank --type={{ incus_init['network']['type'] }} ipv4.address={{ incus_init['network']['ipaddr'] }} ipv4.firewall=true ipv4.nat=true ipv6.address=none"
   when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
 
 - name: Add network description
