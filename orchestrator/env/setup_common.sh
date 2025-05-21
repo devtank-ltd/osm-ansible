@@ -25,7 +25,7 @@ if [[ ! -e "${HOSTS_DIR}/iso_valid" ]]; then
     echo "${DEBISO}" > iso_valid
     popd >/dev/null 2>&1
 else
-    DEBISO=$(cat iso_valid)
+    DEBISO=$(cat "${HOSTS_DIR}/iso_valid")
     readonly DEBISO
 fi
 
