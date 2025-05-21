@@ -37,7 +37,7 @@ do_clone() {
 
     new_mac="$(gen_hwaddr)"
     sed -i "s|${container}/rootfs-layer|${container}-clone/rootfs-layer|g" "$conf"
-    sed -ir "s|([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}|$new_mac|g" "$conf"
+    sed -i -r "s|([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}|$new_mac|g" "$conf"
     sed -i 's|^lxc\.uts\.name.*$|&-clone|' "$conf"
 }
 
