@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import subprocess
+import base64
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore
 from cryptography.fernet import Fernet
@@ -50,7 +51,10 @@ def main():
         crypt = Fernet(key)
 
         output_string = getattr(crypt, action)(bstring).decode("utf-8")
-        result["output"] = {"key": key, "string": output_string,}
+        result["output"] = {
+            "key": base64.b64encode(key).decode("utf-8"),
+            "string": output_string,
+        }
 
     module.exit_json(**result)
 

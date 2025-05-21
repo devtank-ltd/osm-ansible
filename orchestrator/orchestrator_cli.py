@@ -346,102 +346,6 @@ class osm_host_t:
         domain = self.config["pdns_domain"]
         return self.ssh_command(f"ping -c1 {customer_name}.{domain}")
 
-    def add_osm_customer(self, customer_name: str, timeout: int = 4) -> bool:
-        if len(self.customers) >= self.capacity:
-            return False
-        mqtt_port = self._find_free_mqtt_port(customer_name)
-
-        if not mqtt_port:
-            self.logger.error("No free MQTT found.")
-            return False
-
-        # Needs DNS entry before Anisble called, for LetsEncrypt
-        self._add_customer_to_database(customer_name, mqtt_port)
-
-        found = False
-        start_end = time.monotonic() + timeout
-        while time.monotonic() < start_end:
-            if self.can_ping_customer_grafana(customer_name):
-                found = True
-
-        if not found:
-            self.logger.error("Container DNS failed")
-            self._del_customer_to_database(customer_name)
-            return False
-
-        failed = True
-        customer_key = Fernet.generate_key()
-        enc_customer_key = Fernet(self._orchestrator.master_key).encrypt(
-            customer_key
-        )
-        _, wg_ip = self.db.get_wireguard_info(self.id)
-
-        if self.ssh_command(
-            "sudo /srv/osm-lxc/ansible/do-create-container.sh "
-            f'"{customer_name}" {mqtt_port} "" '
-            f'"{customer_key.decode(self.encoding)}" '
-            f'"{wg_ip}"'
-        ):
-            start_end = time.monotonic() + timeout
-            while time.monotonic() < start_end:
-                if self.can_ping_customer_container(customer_name):
-                    failed = False
-            if failed:
-                self.logger.error("Container creation ping")
-            else:
-                out = self.ssh_read_command(
-                    "sudo /srv/osm-lxc/ansible/do-shell.sh "
-                    f'"{customer_name}-svr" '
-                    "'cat /root/passwords-v2.json'"
-                )
-                try:
-                    customer_pwds = json.loads("".join(out))
-                except json.JSONDecodeError as err:
-                    self.logger.error("Not valid JSON: %s" % err)
-                    return False
-                else:
-                    self._add_customer_secrets_to_database(
-                        customer_name,
-                        base64.b64encode(enc_customer_key).decode(
-                            self.encoding
-                        ),
-                        json.dumps(customer_pwds),
-                    )
-        else:
-            self.logger.error("Container creation failed")
-
-        if failed:
-            self._del_customer_to_database(customer_name)
-            self.ssh_command(
-                "sudo /srv/osm-lxc/ansible/do-delete-container.sh "
-                f'"{customer_name}"'
-            )
-            return False
-        return True
-
-    def del_osm_customer(self, customer_name: str, timeout: int = 4) -> bool:
-
-        if not self.ssh_command(
-            "sudo /srv/osm-lxc/ansible/do-delete-container.sh "
-            f'"{customer_name}"'
-        ):
-            self.logger.error("Container creation failed")
-            return False
-
-        start_end = time.monotonic() + timeout
-
-        while time.monotonic() < start_end:
-            if not self.can_ping_customer_container(customer_name):
-                self._del_customer_to_database(customer_name)
-
-                return True
-
-        self.logger.error(
-            f'Unable to delete customer "{customer_name} from OSM-Host". '
-            f"Please debug OSM-Host {self.name}."
-        )
-        return False
-
     def clone_container(self, customer_name: str) -> bool:
         cmd = "sudo /srv/osm-lxc/ansible/do-clone-container.bash"
         return self.ssh_command(f"{cmd} {customer_name}")
@@ -549,9 +453,10 @@ class osm_host_t:
             self.logger.error("Unable to get customer key")
             return passwords
 
-        k = k.encode(self.encoding)
-        k = base64.b64decode(k)
+        k = base64.b64decode(k.encode(self.encoding))
+        print(f"{k=}")
         k = Fernet(self._orchestrator.master_key).decrypt(k)
+        print(f"{k=}")
         crypt = Fernet(k)
         secrets = self.db.get_customer_secrets(customer_id)
 
@@ -581,8 +486,6 @@ class osm_orchestrator_t:
     def __init__(self, config):
         self.config = config
         orch_config = self.config["orchestrator"]
-        # self._db = pymysql.connect(**orch_config, connect_timeout=10)
-        # TODO: sqlalchemy migration
         self._db = DBConnectionOrchestrator(
             **{
                 "drivername": "mysql+pymysql",
@@ -593,7 +496,6 @@ class osm_orchestrator_t:
             }
         )
         pdns_config = self.config["pdns"]
-        # self._pdns_db = pymysql.connect(**pdns_config, connect_timeout=10)
         self._pdns_db = DBConnectionPowerDNS(
             **{
                 "drivername": "mysql+pymysql",
@@ -712,7 +614,6 @@ class osm_orchestrator_t:
         return [osm_host_t(self, row[0]) for row in rows]
 
     def add_osm_customer(self, customer_name: str) -> bool:
-        # TODO: fix playbook path after review
         ansible_cmd = [
             "ansible-playbook",
             "-i", f"localhost,{customer_name},",
@@ -729,7 +630,6 @@ class osm_orchestrator_t:
         return self._db.query_contact_points()
 
     def del_osm_customer(self, customer_name: str) -> bool:
-        # TODO: fix playbook path after review
         ansible_cmd = [
             "ansible-playbook",
             "-i", "localhost,",

@@ -271,7 +271,7 @@
   connection: local
 
   vars:
-    customer_key: hostvars["{{ customer_name }}"]["master_key.output.key"]
+    customer_key: "{{ hostvars[customer_name]['master_key'] }}"
 
   tasks:
 
@@ -315,11 +315,6 @@
         - name: Set OSM key
           ansible.builtin.set_fact:
             osm_master_key: "{{ lookup('file', '/srv/osm-lxc/orchestrator/master.key') }}"
-
-        # - name: Get orchestrator master key
-        #   ansible.builtin.shell:
-        #     cmd: "cat /srv/osm-lxc/orchestrator/master.key"
-        #   register: master_key
 
         - name: Encrypt customer master key
           devtank_crypt:

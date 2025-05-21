@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import base64
+
 from ansible.module_utils.basic import AnsibleModule  # type: ignore
 from pyosmorch import DBConnectionOrchestrator, DBConnectionPowerDNS  # type: ignore
 
@@ -73,7 +75,11 @@ def main():
 
         if db_query == "remove_customer":
             customer = module.params['customer_name']
+            customer_id = db.get_customer_id(customer)
             host_id = db.get_host_by_customer(customer)
+
+            if not customer_id:
+                module.fail_json(msg=f"Unable to get customer id for '{customer}'")
 
             if not host_id:
                 module.fail_json(msg=f"Unable to get host id of '{customer}'")
@@ -94,6 +100,16 @@ def main():
             if not db.del_customer(customer, host_id):
                 module.fail_json(msg=f"Unable to delete customer '{customer}'")
 
+            if not db.del_customer_secret_key(customer_id):
+                module.fail_json(
+                    msg=f"Unable to delete key for customer '{customer}'"
+                )
+
+            if not db.del_customer_secrets(customer_id):
+                module.fail_json(
+                    msg=f"Unable to delete secrets for customer '{customer}'"
+                )
+
             result['output'] = {
                 'customer_name': customer,
                 'host_name': host_name,
@@ -104,6 +120,7 @@ def main():
             key = module.params["key"]
             data = module.params["data"]
             customer_id = module.params["customer_id"]
+            key = base64.b64encode(key.encode("utf-8")).decode("utf-8")
             db.add_customer_secret_key(customer_id, key) or module.fail_json(
                 msg="Failed to add customer key"
             )
