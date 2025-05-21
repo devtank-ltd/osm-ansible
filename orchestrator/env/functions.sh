@@ -95,7 +95,9 @@ parse_config() {
         info "${v}=${vars[$v]}"
     done
 
-    yesno "Is this correct? "
+    if [[ -z "$JENKINS_HOME" ]]; then
+        yesno "Is this correct? "
+    fi
 
     # make global variables
     for k in "${!vars[@]}"; do
