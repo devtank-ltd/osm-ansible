@@ -112,3 +112,9 @@
     name: ansible
     state: latest
     update_cache: yes
+
+- name: Install java for jenkins agent
+  when: inventory_hostname == "vosmhost0" and install_java is defined
+  ansible.builtin.apt:
+    name: default-jdk
+    state: present
