@@ -1,0 +1,35 @@
+pipeline {
+    agent none
+    stages {
+        stage('Get OSM sources') {
+            agent { label 'vosmhost0-incus' }
+            steps {
+                dir('/srv/osm-lxc') {
+                    checkout scmGit(
+                        branches: [[name: 'ref']],
+                        userRemoteConfigs: [[url: 'https://git.devtank.co.uk/Devtank/osm-ansible.git']]
+                        )
+
+                }
+            }
+
+        }
+        stage('Run tests') {
+            agent { label 'vosmhost0-incus' }
+            steps {
+                dir('/srv/osm-lxc/orchestrator/env') {
+                    ansiColor('xterm') {
+                        sh '''
+                        /srv/osm-lxc/orchestrator/orchestrator_cli.py add_customer c1
+                        incus ls
+                        /srv/osm-lxc/orchestrator/orchestrator_cli.py get_customer_passwords c1
+                        /srv/osm-lxc/orchestrator/orchestrator_cli.py del_customer c1
+                        incus ls
+
+                        '''
+                    }
+                }
+            }
+        }
+    }
+}
