@@ -1,45 +1,48 @@
 ---
 
-- name: "Download Grafana GPG key"
+- name: Download Grafana GPG key
   shell: "wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/grafana.gpg > /dev/null"
 
-- name: "Make sure Grafana apt source exists"
+- name: Make sure Grafana apt source exists
   lineinfile:
     path: "/etc/apt/sources.list.d/grafana.list"
     line: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://packages.grafana.com/oss/deb stable main"
     create: yes
 
-- name: "Install Grafana"
+- name: Install Grafana
   apt:
     name: "grafana-nightly"
     update_cache: yes
 
-- name: "Apply grafana configuration file"
+- name: Apply grafana configuration file
   template:
     src: "grafana/grafana.ini.j2"
     dest: "/etc/grafana/grafana.ini"
 
-- name: "Create Orch Grafana Admin Password"
+- name: Create Orch Grafana Admin Password
   ansible.builtin.set_fact:
     orch_grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
 
-- name: "Set Grafana Admin Password"
+- name: Set Grafana Admin Password
   command: "grafana-cli admin reset-admin-password {{ orch_grafana_admin_password }}; chown grafana: /var/lib/grafana/grafana.db;"
 
-- name: "Start and enable Grafana"
+- name: Start and enable Grafana
   systemd:
     name: "grafana-server"
     state: restarted
     enabled: yes
     daemon_reload: yes
 
-- name: "Wait for Grafana API"
+- name: Wait for Grafana API
   ansible.builtin.uri:
     url: http://localhost:3000/api/health
     method: GET
-  retries: 3
+  until: uri_out.status == 200
+  retries: 5
+  delay: 5
+  register: uri_out
 
-- name: "Create Grafana Service Account"
+- name: Create Grafana Service Account
   ansible.builtin.uri:
     url: http://localhost:3000/api/serviceaccounts
     url_username: admin
@@ -55,7 +58,7 @@
     status_code: 201
   register: orch_grafana_service_account
 
-- name: "Create Grafana Service Account Token"
+- name: Create Grafana Service Account Token
   ansible.builtin.uri:
     url: "http://localhost:3000/api/serviceaccounts/{{ orch_grafana_service_account.json.id }}/tokens"
     url_username: admin
@@ -79,7 +82,7 @@
     content: "{{ json_pwds | to_nice_json }}"
     dest: "/root/passwords.json"
 
-- name: "Add Prometheus data source to Grafana"
+- name: Add Prometheus data source to Grafana
   community.grafana.grafana_datasource:
     name: "prometheus_ds"
     grafana_url: "http://localhost:3000"
@@ -90,7 +93,7 @@
     ds_url: "http://localhost:9090"
   register: orch_grafana_datasource_prometheus
 
-- name: "Add Grafana Stats Dashboard"
+- name: Add Grafana Stats Dashboard
   vars:
     dashboard: "{{ lookup('file', 'templates/grafana/orchestrator_dashboard_stats.json') }}"
   ansible.builtin.uri:
@@ -103,7 +106,7 @@
     unredirected_headers: [ Authorization ]
     body: "{{ dashboard|replace('DATABASE_UID', orch_grafana_datasource_prometheus.datasource.uid) }}"
 
-- name: "Add Grafana Contact Point"
+- name: Add Grafana Contact Point
   ansible.builtin.uri:
     url: "http://localhost:3000/api/v1/provisioning/contact-points"
     method: POST
@@ -120,7 +123,7 @@
     status_code: 202
   register: orch_grafana_contact_point
 
-- name: "Add Grafana Folder"
+- name: Add Grafana Folder
   ansible.builtin.uri:
     url: "http://localhost:3000/api/folders"
     method: POST
@@ -134,7 +137,7 @@
       title: "Alerts"
   register: orch_grafana_folder
 
-- name: "Add Grafana Alert Group"
+- name: Add Grafana Alert Group
   vars:
     rules: "{{ lookup('file', 'templates/grafana/orchestrator_alert_rules.json') }}"
   ansible.builtin.uri:
