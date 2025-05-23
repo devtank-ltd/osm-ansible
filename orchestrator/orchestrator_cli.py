@@ -897,14 +897,27 @@ class cli_osm_orchestrator_t:
             self.logger.warning(f'No customer "{customer_name}"')
             return os.EX_CONFIG
 
-    def test_osm_host(self, host_name):
-        osm_host = self._osm_orch.find_osm_host(host_name)
-        if not osm_host:
-            self.logger.warning(f'No osm host of name "{host_name}"')
+    def test_osm_host(self, host_name) -> int:
+        cmd = ["incus", "cluster", "show", host_name]
+        incus_proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text = True
+        )
+        if incus_proc.returncode != 0:
+            self.logger.error(incus_proc.stderr.strip())
             return os.EX_CONFIG
 
-        if not osm_host.get_ssh():
-            return os.EX_CONFIG
+        status = {}
+        targets = ("status", "message")
+        for line in incus_proc.stdout.splitlines():
+            if ":" in line:
+                k, v = line.split(":", 1)
+                if k in targets:
+                    status[k.strip()]=v.strip()
+
+        print(f"{host_name}: {status['status']} ({status['message']})")
+        return os.EX_OK if status['status'] == "Online" else os.EX_CONFIG
 
     def list_hosts(self):
         osm_hosts = self._osm_orch.list_hosts()
