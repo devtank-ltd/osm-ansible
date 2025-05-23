@@ -1036,29 +1036,41 @@ class cli_osm_orchestrator_t:
         print("Validate grafana config failed.")
         return os.EX_CONFIG
 
+    def _transfer_files(
+            self, cmd: str, customer_name: str, src: str, dst: str
+    ) -> bool:
+        if not cmd in ("pull", "push"):
+            self.logger.error("Unsupported command given: '%s'", cmd)
+            return False
+
+        if cmd == "pull":
+            tmp = src
+            src = dst
+            dst = tmp
+
+        flags = ["-p", "-r"]
+        incus_cmd = ["incus", "file", cmd]
+        target = [src, f"{customer_name}/{dst}"]
+        incus_cmd += target if cmd == "push" else target[::-1]
+        incus_cmd += flags
+
+        incus_proc = subprocess.run(incus_cmd)
+        return incus_proc.returncode == 0
+
     def push_file_or_directory(
         self, customer_name: str, src: str, dest: str
     ) -> int:
-        osm_host = self._osm_orch.find_osm_host_of(customer_name)
-        if not osm_host:
-            self.logger.warning(f'No osm host for customer "{customer_name}"')
-            return os.EX_CONFIG
-        do_push = osm_host.ssh_push_file_or_directory(customer_name, src, dest)
-        if not do_push:
-            return os.EX_CONFIG
-        return os.EX_OK
+        return os.EX_OK if self._transfer_files(
+            "push", customer_name, src, dest
+        ) else os.EX_CONFIG
+
 
     def pull_file_or_directory(
         self, customer_name: str, src: str, dest: str
     ) -> int:
-        osm_host = self._osm_orch.find_osm_host_of(customer_name)
-        if not osm_host:
-            self.logger.warning(f'No osm host for customer "{customer_name}"')
-            return os.EX_CONFIG
-        do_pull = osm_host.ssh_pull_file_or_directory(customer_name, src, dest)
-        if not do_pull:
-            return os.EX_CONFIG
-        return os.EX_OK
+        return os.EX_OK if self._transfer_files(
+            "pull", customer_name, src, dest
+        ) else os.EX_CONFIG
 
     def upgrade_influx_inserter(self, host_name: str) -> int:
         if self._osm_orch.upgrade_influx_inserter(host_name):
