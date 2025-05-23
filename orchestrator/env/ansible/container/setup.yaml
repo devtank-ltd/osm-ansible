@@ -12,237 +12,254 @@
 
   tasks:
     - block:
+        - name: Get Devtank DB config
+          ansible.builtin.set_fact:
+            db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
+        - name: Verify customer presence
+          ansible.builtin.shell:
+            cmd: "incus ls {{ customer_name }} -cn -fcsv"
+          register: result
 
-      - name: Get Devtank DB config
-        ansible.builtin.set_fact:
-          db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
+        - name: Set variable if customer already exists
+          when: result.stdout != ""
+          ansible.builtin.set_fact:
+            customer_fail: true
 
-      - name: Init customer container
-        ansible.builtin.shell:
-          cmd: "incus init devtank:debian/bookworm/default {{ customer_name }}"
+        - name: Fail because customer exists
+          when: customer_fail is defined
+          ansible.builtin.fail:
+            msg: "Customer {{ customer_name}} already exists"
 
-      - name: Start customer container
-        ansible.builtin.shell:
-          cmd: "incus start {{ customer_name }}"
+        - name: Init customer container
+          ansible.builtin.shell:
+            cmd: "incus init devtank:debian/bookworm/default {{ customer_name }}"
 
-      - name: Get container OSM host
-        ansible.builtin.shell:
-          cmd: "incus ls {{customer_name}} -c L -f csv"
-        register: target_hostname
+        - name: Start customer container
+          ansible.builtin.shell:
+            cmd: "incus start {{ customer_name }}"
 
-      - name: Get OSM host IP address
-        ansible.builtin.shell:
-          cmd: "incus cluster show {{ target_hostname.stdout }} | sed -rn 's|^url:\\shttp[s]?://(.*):.*$|\\1|p'"
-        register: osmhost_ipaddr
+        - name: Get container OSM host
+          ansible.builtin.shell:
+            cmd: "incus ls {{customer_name}} -c L -f csv"
+          register: target_hostname
 
-      - name: Set target OSM host info
-        ansible.builtin.set_fact:
-          target_hostname: "{{ target_hostname.stdout }}"
-          target_ipaddress: "{{ osmhost_ipaddr.stdout }}"
+        - name: Get OSM host IP address
+          ansible.builtin.shell:
+            cmd: "incus cluster show {{ target_hostname.stdout }} | sed -rn 's|^url:\\shttp[s]?://(.*):.*$|\\1|p'"
+          register: osmhost_ipaddr
 
-      - name: Get target OSM host WireGuard IP address
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        shell:
-          cmd: "ip -o a s dev wg0 | sed -rn 's|.*inet\\s([0-9.]+).*|\\1|p'"
-        register: wg_ipaddr
+        - name: Set target OSM host info
+          ansible.builtin.set_fact:
+            target_hostname: "{{ target_hostname.stdout }}"
+            target_ipaddress: "{{ osmhost_ipaddr.stdout }}"
 
-      - name: Set target WireGuard IP address variable
-        set_fact:
-          wg_ipaddr: "{{ wg_ipaddr.stdout }}"
+        - name: Get target OSM host WireGuard IP address
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          shell:
+            cmd: "ip -o a s dev wg0 | sed -rn 's|.*inet\\s([0-9.]+).*|\\1|p'"
+          register: wg_ipaddr
 
-      - name: Get OSM host ID from the devtank DB
-        community.mysql.mysql_query:
-          login_db: "{{ db_conf.orchestrator.database }}"
-          login_password: "{{ db_conf.orchestrator.password }}"
-          login_user: "{{ db_conf.orchestrator.user }}"
-          query:
-            SELECT id FROM osm_hosts WHERE name = %s
-          positional_args:
-            - "{{ target_hostname }}"
-        register: sql_host_id
+        - name: Set target WireGuard IP address variable
+          set_fact:
+            wg_ipaddr: "{{ wg_ipaddr.stdout }}"
 
-      - name: Set target OSM host ID
-        ansible.builtin.set_fact:
-          target_host_id: "{{ sql_host_id.query_result[0][0].id }}"
+        - name: Get OSM host ID from the devtank DB
+          community.mysql.mysql_query:
+            login_db: "{{ db_conf.orchestrator.database }}"
+            login_password: "{{ db_conf.orchestrator.password }}"
+            login_user: "{{ db_conf.orchestrator.user }}"
+            query:
+              SELECT id FROM osm_hosts WHERE name = %s
+            positional_args:
+              - "{{ target_hostname }}"
+          register: sql_host_id
 
-      - name: Get list of ports from the devtank DB
-        community.mysql.mysql_query:
-          login_db: "{{ db_conf.orchestrator.database }}"
-          login_password: "{{ db_conf.orchestrator.password }}"
-          login_user: "{{ db_conf.orchestrator.user }}"
-          query:
-            SELECT host_mqtt_port FROM osm_customers
-        register: sql_mqtt_ports
+        - name: Set target OSM host ID
+          ansible.builtin.set_fact:
+            target_host_id: "{{ sql_host_id.query_result[0][0].id }}"
 
-      - name: Set list of ports
-        set_fact:
-          mqtt_ports: "{{ sql_mqtt_ports.query_result[0] | map(attribute='host_mqtt_port') | list | sort }}"
+        - name: Get list of ports from the devtank DB
+          community.mysql.mysql_query:
+            login_db: "{{ db_conf.orchestrator.database }}"
+            login_password: "{{ db_conf.orchestrator.password }}"
+            login_user: "{{ db_conf.orchestrator.user }}"
+            query:
+              SELECT host_mqtt_port FROM osm_customers
+          register: sql_mqtt_ports
 
-      - name: Get first missing or next available MQTT port
-        set_fact:
-          mqtt_port: >-
-            {% set ports = mqtt_ports | list %}
-            {{
-              (
+        - name: Set list of ports
+          set_fact:
+            mqtt_ports: "{{ sql_mqtt_ports.query_result[0] | map(attribute='host_mqtt_port') | list | sort }}"
+
+        - name: Get first missing or next available MQTT port
+          set_fact:
+            mqtt_port: >-
+              {% set ports = mqtt_ports | list %}
+              {{
                 (
-                  (range(mqtt_ports[0], mqtt_ports[-1] + 1) | difference(mqtt_ports)) | sort | first | default(ports[-1] + 1)
-                )
-              ) if mqtt_ports | length > 0 else mqtt_init_port
-            }}
+                  (
+                    (range(mqtt_ports[0], mqtt_ports[-1] + 1) | difference(mqtt_ports)) | sort | first | default(ports[-1] + 1)
+                  )
+                ) if mqtt_ports | length > 0 else mqtt_init_port
+              }}
 
-      - name: Get OSM host domain
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        ansible.builtin.shell: |
-          domain="$(find /etc/letsencrypt/live/ -maxdepth 1 -mindepth 1 -type d -printf '%P' -quit)"
-          domain="${domain#*.}"
-          echo "$domain"
-        register: osmhost_domain
+        - name: Get OSM host domain
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            domain="$(find /etc/letsencrypt/live/ -maxdepth 1 -mindepth 1 -type d -printf '%P' -quit)"
+            domain="${domain#*.}"
+            echo "$domain"
+          register: osmhost_domain
 
-      - name: Set target domain
-        ansible.builtin.set_fact:
-          target_domain: "{{ osmhost_domain.stdout }}"
+        - name: Set target domain
+          ansible.builtin.set_fact:
+            target_domain: "{{ osmhost_domain.stdout }}"
 
-      - name: Set test_lets_encrypt variable
-        ansible.builtin.set_fact:
-          # test_lets_encrypt: "{{ lookup('ansible.builtin.env', 'TEST_LETS_ENCRYPT', default=False) }}"
-          test_lets_encrypt: "{{ lookup('ansible.builtin.env', 'TEST_LETS_ENCRYPT', default=True) }}"
+        - name: Set test_lets_encrypt variable
+          ansible.builtin.set_fact:
+            # test_lets_encrypt: "{{ lookup('ansible.builtin.env', 'TEST_LETS_ENCRYPT', default=False) }}"
+            test_lets_encrypt: "{{ lookup('ansible.builtin.env', 'TEST_LETS_ENCRYPT', default=True) }}"
 
-      - name: Set certbot to use Pebble instance for testing cerbot in test/dev environment.
-        set_fact:
-          certbot_prefix : "REQUESTS_CA_BUNDLE=devtank.minica.pem "
-          certbot_postfix : "--server https://10.10.1.2:14000/dir \
-          --agree-tos \
-          --no-verify-ssl \
-          --http-01-port=5002 \
-          --register-unsafely-without-email"
-        when: test_lets_encrypt
+        - name: Set certbot to use Pebble instance for testing cerbot in test/dev environment.
+          set_fact:
+            certbot_prefix : "REQUESTS_CA_BUNDLE=devtank.minica.pem "
+            certbot_postfix : "--server https://10.10.1.2:14000/dir \
+            --agree-tos \
+            --no-verify-ssl \
+            --http-01-port=5002 \
+            --register-unsafely-without-email"
+          when: test_lets_encrypt
 
-      - name: Set certbot to normal
-        set_fact:
-           certbot_prefix : ""
-           certbot_postfix : ""
-        when: not test_lets_encrypt
+        - name: Set certbot to normal
+          set_fact:
+             certbot_prefix : ""
+             certbot_postfix : ""
+          when: not test_lets_encrypt
 
-      - name: Request certificate for customer
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        ansible.builtin.shell: |
-          {{ certbot_prefix }}certbot certonly --nginx \
-          -d {{ customer_name }}.{{ target_domain }},\
-          {{ customer_name }}-chirpstack.{{ target_domain }},\
-          {{ customer_name }}-mqtt.{{ target_domain }},\
-          {{ customer_name }}-influx.{{ target_domain }} \
-          {{ certbot_postfix }}
+        - name: Request certificate for customer
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            {{ certbot_prefix }}certbot certonly --nginx \
+            -d {{ customer_name }}.{{ target_domain }},\
+            {{ customer_name }}-chirpstack.{{ target_domain }},\
+            {{ customer_name }}-mqtt.{{ target_domain }},\
+            {{ customer_name }}-influx.{{ target_domain }} \
+            {{ certbot_postfix }}
 
-        register: certbot_result
-        until: "certbot_result is not failed"
-        retries: 3
-        delay: 5
+          register: certbot_result
+          until: "certbot_result is not failed"
+          retries: 3
+          delay: 5
 
-      - name: Create nginx HTTP config
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        ansible.builtin.copy:
-          src: /etc/nginx/devtank/customers.http.d/TEMPLATE
-          dest: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+        - name: Create nginx HTTP config
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          ansible.builtin.copy:
+            src: /etc/nginx/devtank/customers.http.d/TEMPLATE
+            dest: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
 
-      - name: Setup nginx HTTP config with customer name
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        ansible.builtin.replace:
-          path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
-          regexp: 'CUSTOMERNAME'
-          replace: "{{ customer_name }}"
+        - name: Setup nginx HTTP config with customer name
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          ansible.builtin.replace:
+            path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+            regexp: 'CUSTOMERNAME'
+            replace: "{{ customer_name }}"
 
-      - name: Setup NGINX HTTP config with OSM domain
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        ansible.builtin.replace:
-          path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
-          regexp: 'OSMDOMAIN'
-          replace: "{{ target_domain }}"
+        - name: Setup NGINX HTTP config with OSM domain
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          ansible.builtin.replace:
+            path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+            regexp: 'OSMDOMAIN'
+            replace: "{{ target_domain }}"
 
-      - name: Setup NGINX HTTP config WG IP address
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        ansible.builtin.replace:
-          path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
-          regexp: 'WG_IP'
-          replace: "{{ wg_ipaddr }}"
+        - name: Setup NGINX HTTP config WG IP address
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          ansible.builtin.replace:
+            path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+            regexp: 'WG_IP'
+            replace: "{{ wg_ipaddr }}"
 
-      - name: Create NGINX MQTT configs
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        ansible.builtin.copy:
-          src: /etc/nginx/devtank/customers.stream.d/TEMPLATE
-          dest: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+        - name: Create NGINX MQTT configs
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          ansible.builtin.copy:
+            src: /etc/nginx/devtank/customers.stream.d/TEMPLATE
+            dest: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
 
-      - name: Setup NGINX MQTT Port config
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        ansible.builtin.replace:
-          path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
-          regexp: 'CUSTOMER_MQTT'
-          replace: "{{ mqtt_port }}"
+        - name: Setup NGINX MQTT Port config
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          ansible.builtin.replace:
+            path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+            regexp: 'CUSTOMER_MQTT'
+            replace: "{{ mqtt_port }}"
 
-      - name: Setup NGINX MQTT Container config
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        ansible.builtin.replace:
-          path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
-          regexp: 'CUSTOMERNAME'
-          replace: "{{ customer_name }}"
+        - name: Setup NGINX MQTT Container config
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          ansible.builtin.replace:
+            path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+            regexp: 'CUSTOMERNAME'
+            replace: "{{ customer_name }}"
 
-      - name: Setup NGINX MQTT Container SSL config
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        ansible.builtin.replace:
-          path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
-          regexp: 'OSMDOMAIN'
-          replace: "{{ target_domain }}"
+        - name: Setup NGINX MQTT Container SSL config
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          ansible.builtin.replace:
+            path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+            regexp: 'OSMDOMAIN'
+            replace: "{{ target_domain }}"
 
-      - name: Add customer to PowerDNS DB
-        devtank_db:
-          db_username: "{{ db_conf.pdns.user }}"
-          db_password: "{{ db_conf.pdns.password }}"
-          db_host: "{{ db_conf.pdns.host }}"
-          db_name: "{{ db_conf.pdns.database }}"
-          method: add_customer
-          customer_name: "{{ customer_name }}"
-          domain: "{{ db_conf.pdns_domain }}"
-          domain_id: "{{ db_conf.pdns_domain_id }}"
-          host_name: "{{ target_hostname }}"
+        - name: Add customer to PowerDNS DB
+          devtank_db:
+            db_username: "{{ db_conf.pdns.user }}"
+            db_password: "{{ db_conf.pdns.password }}"
+            db_host: "{{ db_conf.pdns.host }}"
+            db_name: "{{ db_conf.pdns.database }}"
+            method: add_customer
+            customer_name: "{{ customer_name }}"
+            domain: "{{ db_conf.pdns_domain }}"
+            domain_id: "{{ db_conf.pdns_domain_id }}"
+            host_name: "{{ target_hostname }}"
 
-      - name: Open UFW port
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        command: "ufw allow {{ mqtt_port }}"
+        - name: Open UFW port
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          command: "ufw allow {{ mqtt_port }}"
 
-      - name: Reload NGINX
-        delegate_to: "{{ target_ipaddress }}"
-        connection: ssh
-        command: "{{ item }}"
-        with_items:
-          - "nginx -t"
-          - "nginx -s reload"
+        - name: Reload NGINX
+          delegate_to: "{{ target_ipaddress }}"
+          connection: ssh
+          command: "{{ item }}"
+          with_items:
+            - "nginx -t"
+            - "nginx -s reload"
 
-      - name: Wait for change connection type
-        ansible.builtin.pause:
-          seconds: 2
-
-       # TASK [mosquitto : Configure mosquitto] *********************************************************************************************************************************************
-       #     self.run()
-       #   File "/usr/lib/python3.11/threading.py", line 975, in run
-       #     self._target(*self._args, **self._kwargs)
-       #   File "/usr/lib/python3/dist-packages/ansible/plugins/strategy/__init__.py", line 108, in results_thread_main
-       #     result = strategy._convert_wire_task_result_to_raw(result)
-       #              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-       #   File "/usr/lib/python3/dist-packages/ansible/plugins/strategy/__init__.py", line 456, in _convert_wire_task_result_to_raw
-       #     found_task = self._queued_task_cache[queue_cache_entry]['task']
-       #                  ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+        - name: Wait for change connection type
+          ansible.builtin.pause:
+            seconds: 2
+         # TASK [mosquitto : Configure mosquitto] *********************************************************************************************************************************************
+         #     self.run()
+         #   File "/usr/lib/python3.11/threading.py", line 975, in run
+         #     self._target(*self._args, **self._kwargs)
+         #   File "/usr/lib/python3/dist-packages/ansible/plugins/strategy/__init__.py", line 108, in results_thread_main
+         #     result = strategy._convert_wire_task_result_to_raw(result)
+         #              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         #   File "/usr/lib/python3/dist-packages/ansible/plugins/strategy/__init__.py", line 456, in _convert_wire_task_result_to_raw
+         #     found_task = self._queued_task_cache[queue_cache_entry]['task']
+         #                  ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
        # KeyError: ('localhost', '525400ec-8428-d007-bfd7-000000000022')
+
+      # rescue:
+      #   - name: Delete configuration
+      #     when: customer_fail is not defined
+      #     ignore_errors: yes
 
 - name: Provision Container
   hosts: "{{ customer_name }}"
@@ -258,13 +275,21 @@
 
   roles:
     - role: mosquitto
+      when: hostvars["localhost"]["customer_fail"] is not defined
     - role: influx
+      when: hostvars["localhost"]["customer_fail"] is not defined
     - role: postgres
+      when: hostvars["localhost"]["customer_fail"] is not defined
     - role: chirpstack
+      when: hostvars["localhost"]["customer_fail"] is not defined
     - role: grafana
+      when: hostvars["localhost"]["customer_fail"] is not defined
     - role: mqtt_influx_inserter
+      when: hostvars["localhost"]["customer_fail"] is not defined
     - role: prometheus_node_exporter
+      when: hostvars["localhost"]["customer_fail"] is not defined
     - role: finalization
+      when: hostvars["localhost"]["customer_fail"] is not defined
 
 - name: Post container setup
   hosts: localhost
@@ -274,6 +299,10 @@
     customer_key: "{{ hostvars[customer_name]['master_key'] }}"
 
   tasks:
+    - name: Fail if customer exists
+      ansible.builtin.fail:
+        msg: "Customer '{{ hostvars['localhost']['customer_name'] }}' alredy exists"
+      when: hostvars["localhost"]["customer_fail"] is defined
 
     - name: Add customer to Devtank DB
       devtank_db:
