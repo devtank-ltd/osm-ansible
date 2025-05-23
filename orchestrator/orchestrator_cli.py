@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import paramiko
+import re
 import select
 import socket
 import struct
@@ -908,15 +909,21 @@ class cli_osm_orchestrator_t:
             self.logger.error(incus_proc.stderr.strip())
             return os.EX_CONFIG
 
+        url_pattern = re.compile(r"(\w?http[s]?:\/\/)(.*)(:\d+)")
         status = {}
-        targets = ("status", "message")
+        targets = ("status", "message", "url")
         for line in incus_proc.stdout.splitlines():
             if ":" in line:
                 k, v = line.split(":", 1)
                 if k in targets:
+                    if k == "url":
+                        v = re.sub(url_pattern, r'\2', v)
                     status[k.strip()]=v.strip()
 
-        print(f"{host_name}: {status['status']} ({status['message']})")
+        print(
+            f"{host_name} [{status['url']}]: {status['status']} "
+            f"({status['message']})"
+        )
         return os.EX_OK if status['status'] == "Online" else os.EX_CONFIG
 
     def list_hosts(self):
