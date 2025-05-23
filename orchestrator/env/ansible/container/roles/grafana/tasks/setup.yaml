@@ -1,6 +1,6 @@
 ---
 
-- name: "Configure Grafana"
+- name: Configure Grafana
   template:
     src: grafana.ini.tpl
     dest: /etc/grafana/grafana.ini
@@ -8,15 +8,15 @@
     group: grafana
     mode: "640"
 
-- name: "Create Grafana Admin Password"
+- name: Create Grafana Admin Password
   ansible.builtin.set_fact:
     grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
 
-- name: "Set Grafana Admin Password"
+- name: Set Grafana Admin Password
   command: "grafana-cli admin reset-admin-password {{ grafana_admin_password }}; chown grafana: /var/lib/grafana/grafana.db;"
 
 
-- name: "Start and enable Grafana"
+- name: Start and enable Grafana
   systemd:
     name: "grafana-server"
     state: restarted
@@ -29,7 +29,7 @@
     port: 3000
     connect_timeout: 10
 
-- name: "Add InfluxDB 2.0 data source to Grafana"
+- name: Add InfluxDB 2.0 data source to Grafana
   community.grafana.grafana_datasource:
     name: "influxdb"
     grafana_url: "http://localhost:3000"
@@ -45,7 +45,7 @@
     additional_secure_json_data:
       token: "{{ influx_token }}"
 
-- name: "Create Grafana Viewer Password"
+- name: Create Grafana Viewer Password
   ansible.builtin.set_fact:
     grafana_viewer_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
 

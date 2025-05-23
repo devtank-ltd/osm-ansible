@@ -1,7 +1,7 @@
 ---
 
 # These started as a loop, but ownership added complication.
-- name: "Rollout application config file"
+- name: Rollout application config file
   template:
     src: "chirpstack-application-server.toml.tpl"
     dest: "/etc/chirpstack-application-server/chirpstack-application-server.toml"
@@ -9,7 +9,7 @@
     group: "appserver"
     mode: "0640"
 
-- name: "Rollout network config file"
+- name: Rollout network config file
   template:
     src: "chirpstack-network-server.toml.tpl"
     dest: "/etc/chirpstack-network-server/chirpstack-network-server.toml"
@@ -31,11 +31,11 @@
     port: 8080
     timeout: 10
 
-- name: "Create chirpstack admin password"
+- name: Create chirpstack admin password
   ansible.builtin.set_fact:
     chirpstack_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
 
-- name: "Get chirpstack jwt token"
+- name: Get chirpstack jwt token
   ansible.builtin.uri:
     url: http://localhost:8080/api/internal/login
     method: POST
@@ -47,7 +47,7 @@
     return_content: true
   register: chirp_api_token
 
-- name: "Set chirpstack admin password"
+- name: Set chirpstack admin password
   ansible.builtin.uri:
     url: http://localhost:8080/api/users/1/password
     method: PUT

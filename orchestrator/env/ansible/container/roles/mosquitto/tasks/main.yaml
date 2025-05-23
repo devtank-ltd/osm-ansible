@@ -22,7 +22,7 @@
   command: "mosquitto_passwd -c -b /etc/mosquitto/passwd {{ customer_name }} '{{ mosquitto_passwd }}'"
  # creates: /etc/mosquitto/passwd
 
-- name: "Start and enable mosquitto"
+- name: Start and enable mosquitto
   systemd:
     name: mosquitto.service
     state: restarted

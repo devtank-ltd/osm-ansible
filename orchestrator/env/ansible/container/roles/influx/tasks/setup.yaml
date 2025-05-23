@@ -30,22 +30,22 @@
 - name: Get authentication token
   block:
 
-    - name: "Get current token"
+    - name: Get current token
       command: 'influx auth list --json'
       register: influx_auths
 
-    - name: "Save current token"
+    - name: Save current token
       set_fact:
         influx_token: "{{ influx_auths.stdout | from_json | first | json_query('token') }}"
         influx_token_id: "{{ influx_auths.stdout | from_json | first | json_query('id') }}"
 
 - name: Get influx org id
   block:
-    - name: "Get org ID"
+    - name: Get org ID
       command: 'influx org list --json'
       register: influx_orgs
 
-    - name: "Save org ID"
+    - name: Save org ID
       set_fact:
         influx_org_id: "{{ influx_orgs.stdout | from_json | first | json_query('id') }}"
 

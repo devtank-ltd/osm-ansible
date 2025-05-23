@@ -177,4 +177,3 @@
   # TODO: use systemd config instead?
   ansible.builtin.shell: |
     resolvectl dns devtank {{ incus_init.network.ipaddr.split('/')[0] }}
-    resolvectl domain devtank ~{{ osm_domain }}
