@@ -1,0 +1,28 @@
+---
+
+- name: Add nginx configuration
+  ansible.builtin.debug:
+    msg: "Add customer nginx fonfiguration"
+
+- name: Request certificate
+  ansible.builtin.debug:
+    msg: "certbot and pebble"
+
+- name: Reload nginx
+  ansible.builtin.debug:
+    msg: "nginx -t && nginx -s reload"
+
+- name: Configure customer components
+  include_role:
+    name: "customer_instance/{{ item }}"
+  loop:
+    - mosquitto
+    - influx
+    - postgres
+    - chirpstack
+    - grafana
+    - mqtt_influx_inserter
+    - prometheus_node_exporter
+    - finalization
+  loop_control:
+    label: "{{ item }}"

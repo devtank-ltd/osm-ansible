@@ -1,0 +1,5 @@
+---
+
+- name: Add customer to devtank database
+  ansible.builtin.debug:
+    msg: "Simulating: INSERT INTO osm_customers..."
