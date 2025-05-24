@@ -2,58 +2,74 @@
   hosts: localhost
   gather_facts: false
 
+  vars:
+    local_connection: local
+    incur_connection: community.general.incus
+    main_host: "vosmhost0"
+
   tasks:
     - name: Add customer records to PDNS database
       block:
       - name:  Add customer records to PDNS database
-        include_role:
+        import_role:
           name: pdns_management
           tasks_from: add
+        vars:
+          ansible_connection: "{{ local_connection }}"
+        delegate_to: "{{ main_host }}"
 
 
       - name: Create incus instance
         block:
           - name: Create incus instance
-            include_role:
+            import_role:
               name: incus_instance
               tasks_from: add
+            vars:
+              ansible_connection: "{{ local_connection }}"
+            delegate_to: "{{ main_host }}"
+
 
           - name: Add customer to devtank database
-            include_role:
+            import_role:
               name: db_management
               tasks_from: add
+            vars:
+              ansible_connection: "{{ local_connection }}"
+            delegate_to: "{{ main_host }}"
 
           # - name: Simulate failure on database
           #   ansible.builtin.fail:
           #     msg: "Failure on devtank database"
 
           - name: Add customer configuration to OSM host
-            include_role:
+            import_role:
               name: osm_host
               tasks_from: add
+            delegate_to: "{{ osm_host }}"
 
-          - name: Simulate failure on customer configs
-            ansible.builtin.fail:
-              msg: "Failure on customer configs"
+          # - name: Simulate failure on customer configs
+          #   ansible.builtin.fail:
+          #     msg: "Failure on customer configs"
 
         rescue:
           - name: Rollback devtank database entries (if exist)
-            include_role:
+            import_role:
               name: db_management
               tasks_from: remove
 
           - name: Remove incus instance
-            include_role:
+            import_role:
               name: incus_instance
               tasks_from: remove
 
           - name: Remove customer configuration from OSM host
-            include_role:
+            import_role:
               name: osm_host
               tasks_from: remove
 
           - name: Rollback PDNS database entries
-            include_role:
+            import_role:
               name: pdns_management
               tasks_from: remove
 
