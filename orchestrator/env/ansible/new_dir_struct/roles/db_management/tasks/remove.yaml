@@ -1,5 +1,0 @@
----
-
-- name: Remove customer from devtank database
-  ansible.builtin.debug:
-    msg: "Simulating: DELETE FROM osm_customers..."

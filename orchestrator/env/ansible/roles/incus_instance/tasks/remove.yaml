@@ -1,0 +1,9 @@
+---
+
+- name: Stop incus instance
+  ansible.builtin.shell:
+    cmd: "incus stop {{ customer_name }}"
+
+- name: Remove incus instance
+  ansible.builtin.shell:
+    cmd: "incus rm {{ customer_name }}"

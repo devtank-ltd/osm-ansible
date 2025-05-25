@@ -1,9 +1,0 @@
----
-
-- name: Create customer instance
-  ansible.builtin.debug:
-    msg: "incus init blah..."
-
-- name: Prepare customer instance
-  import_role:
-    name: customer_instance

@@ -1,5 +1,0 @@
----
-
-- name: Configure morquitto
-  ansible.builtin.debug:
-    msg: "Configure MQTT"

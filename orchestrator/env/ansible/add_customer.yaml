@@ -1,0 +1,119 @@
+- name: Create devtank customer
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    main_host: localhost
+    base_image: "devtank:debian/bookworm/default"
+
+  tasks:
+    - name: Init customer instance
+      import_role:
+        name: incus_instance
+        tasks_from: add
+
+    - name: Get init data from devtank database
+      block:
+        - name: Get data MQTT and domain from database
+          import_role:
+            name: db_management
+            tasks_from: get_port_domain_info.yaml
+
+    - name: Setup databases and OSM host
+      block:
+        - name: Add customer alias to PDNS database
+          import_role:
+            name: pdns_management
+            tasks_from: add
+          vars:
+            ansible_connection: local
+          delegate_to: "{{ main_host }}"
+
+        - name: Add customer configuration to OSM host
+          import_role:
+            name: osm_host
+            tasks_from: add
+          vars:
+            ansible_connection: ssh
+          delegate_to: "{{ osm_ip }}"
+
+        - name: Add customer to devtank database
+          import_role:
+            name: db_management
+            tasks_from: add
+          vars:
+            ansible_connection: local
+          delegate_to: "{{ main_host }}"
+
+        # - name: Simulate failure
+        #   ansible.builtin.fail:
+        #     msg: "OOPS :("
+
+      rescue:
+        - name: Rollback devtank database entries (if exist)
+          import_role:
+            name: db_management
+            tasks_from: remove
+
+        - name: Remove incus instance
+          import_role:
+            name: incus_instance
+            tasks_from: remove
+
+        - name: Remove customer configuration from OSM host
+          import_role:
+            name: osm_host
+            tasks_from: remove
+          vars:
+            ansible_connection: ssh
+          delegate_to: "{{ osm_ip }}"
+
+        - name: Rollback PDNS database entries
+          import_role:
+            name: pdns_management
+            tasks_from: remove
+
+        - name: Fail to stop further processing
+          ansible.builtin.fail:
+            msg: "Customer creatin failed. Rollback completed"
+
+- name: Setup customer services
+  hosts: "{{ customer_name }}"
+  connection: community.general.incus
+
+  vars:
+    overwrite_passwords: true
+
+  tasks:
+    - name: Set variables from previous plays
+      ansible.builtin.set_fact:
+        le_domain: hostvars["localhost"].target_domain
+        mqtt_port: hostvars["localhost"].mqtt_port
+
+    - name: Include customer service roles
+      include_role:
+        name: "customer_instance/{{ item }}"
+      loop:
+        - mosquitto
+        - influx
+        - postgres
+        - chirpstack
+        - grafana
+        - mqtt_influx_inserter
+        - prometheus_node_exporter
+        - finalization
+
+- name: Post container setup
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Set customer master key
+      ansible.builtin.set_fact:
+        customer_key: "{{ hostvars[customer_name]['customer_master_key'] }}"
+
+    - name: Put customer secrets to devtank database
+      import_role:
+        name: db_management
+        tasks_from: add_customer_secrets.yaml

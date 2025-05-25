@@ -1,5 +1,0 @@
----
-
-- name: Add customer alias to PDNS records
-  ansible.builtin.debug:
-    msg: "Simulating: INSERT INTO records..."

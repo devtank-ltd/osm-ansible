@@ -1,5 +1,0 @@
----
-
-- name: Configure influxdb
-  ansible.builtin.debug:
-    msg: "Configure influxdb"

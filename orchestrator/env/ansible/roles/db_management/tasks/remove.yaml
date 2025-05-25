@@ -1,0 +1,11 @@
+---
+
+- name: Remove customer from devtank database
+  devtank_db:
+    db_username: "{{ db_conf.orchestrator.user }}"
+    db_password: "{{ db_conf.orchestrator.password }}"
+    db_host: "{{ db_conf.orchestrator.host }}"
+    db_name: "{{ db_conf.orchestrator.database }}"
+    method: remove_customer
+    customer_name: "{{ customer_name }}"
+  register: customer_info

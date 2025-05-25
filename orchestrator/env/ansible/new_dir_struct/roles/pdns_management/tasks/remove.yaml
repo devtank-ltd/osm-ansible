@@ -1,5 +1,0 @@
----
-
-- name: Remove customer alias from PDNS records
-  ansible.builtin.debug:
-    msg: "Simulating: DELETE FROM records..."
