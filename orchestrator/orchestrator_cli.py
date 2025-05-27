@@ -603,7 +603,7 @@ class osm_orchestrator_t:
             "ansible-playbook",
             "-i", f"localhost,{customer_name},",
             "-e", f"customer_name={customer_name}",
-            f"{DEVTANK_WD}/env/ansible/container/setup.yaml",
+            f"{DEVTANK_WD}/env/ansible/add_customer.yaml",
         ]
         ansible_proc = subprocess.run(ansible_cmd)
         return ansible_proc.returncode == 0
@@ -619,7 +619,7 @@ class osm_orchestrator_t:
             "ansible-playbook",
             "-i", "localhost,",
             "-e", f"customer_name={customer_name}",
-            f"{DEVTANK_WD}/env/ansible/container/delete.yaml",
+            f"{DEVTANK_WD}/env/ansible/del_customer.yaml",
         ]
         ansible_proc = subprocess.run(ansible_cmd)
         return ansible_proc.returncode == 0

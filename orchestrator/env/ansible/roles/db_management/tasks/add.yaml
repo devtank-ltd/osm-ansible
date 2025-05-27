@@ -1,5 +1,13 @@
 ---
 
 - name: Add customer to devtank database
-  ansible.builtin.debug:
-    msg: "Simulating: INSERT INTO osm_customers..."
+  devtank_db:
+    db_username: "{{ db_conf.orchestrator.user }}"
+    db_password: "{{ db_conf.orchestrator.password }}"
+    db_host: "{{ db_conf.orchestrator.host }}"
+    db_name: "{{ db_conf.orchestrator.database }}"
+    method: add_customer
+    customer_name: "{{ customer_name }}"
+    osm_host_id: "{{ osm_id }}"
+    mqtt_port: "{{ mqtt_port }}"
+  register: customer_info

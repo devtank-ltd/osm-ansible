@@ -19,6 +19,8 @@
           import_role:
             name: db_management
             tasks_from: get_port_domain_info.yaml
+          vars:
+            mqtt_init_port: 8883
 
     - name: Setup databases and OSM host
       block:
@@ -89,7 +91,7 @@
     - name: Set variables from previous plays
       ansible.builtin.set_fact:
         le_domain: hostvars["localhost"].target_domain
-        mqtt_port: hostvars["localhost"].mqtt_port
+
 
     - name: Include customer service roles
       include_role:
@@ -109,9 +111,11 @@
   connection: local
 
   tasks:
-    - name: Set customer master key
+
+    - name: Set customer variables
       ansible.builtin.set_fact:
         customer_key: "{{ hostvars[customer_name]['customer_master_key'] }}"
+        customer_id: "{{ hostvars['localhost']['customer_info']['output']['id']}}"
 
     - name: Put customer secrets to devtank database
       import_role:
