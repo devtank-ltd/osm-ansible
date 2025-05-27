@@ -1,0 +1,154 @@
+---
+
+- name: Prepare main host
+  when: inventory_hostname == "vosmhost0"
+  block:
+    - name: Set WireGuard interface
+      set_fact:
+        wg_if: "{{ ansible_default_ipv4.interface }}"
+
+    - name: Add devtank repository
+      block:
+        - name: Create apt keyring path
+          file:
+            path: /etc/apt/keyrings/
+            mode: 0755
+            state: directory
+
+        - name: Add Devtank GPG key
+          copy:
+            src: devtank.gpg
+            dest: /etc/apt/keyrings/devtank.gpg
+
+        - name: Add Devtank repository to apt source
+          template:
+            src: devtank.tpl
+            dest: /etc/apt/sources.list.d/devtank.sources
+
+    - name: Install packages
+      apt:
+        pkg: "{{ main.packages }}"
+        state: latest
+        update_cache: yes
+
+    - name: Clone OSM Ansible git repository
+      git:
+        repo: "{{ devtank.git_repo }}"
+        dest: "{{ devtank.dir }}"
+        single_branch: yes
+        version: "{{ devtank.git_branch }}"
+
+    - name: Generate master encryption data
+      # TODO: use ansible module
+      shell: |
+        /usr/bin/python3 crypt.py
+      args:
+        chdir: "{{ devtank.dir }}/orchestrator"
+        creates: master.json
+
+    - name: "Enable IP forwarding"
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        sysctl_set: true
+        state: present
+        reload: true
+
+    - import_tasks: minica.yaml
+    - import_tasks: pebble.yaml
+    - import_tasks: db.yaml
+    # - import_tasks: wireguard.yaml
+    - import_tasks: query_exporter.yaml
+    - import_tasks: prometheus.yaml
+    - import_tasks: grafana.yaml
+
+- name: Prepare osm host
+  when: inventory_hostname != "orchestrator"
+  block:
+    - name: Check /srv directory for BTRFS
+      shell: |
+        if [[ -e /srv ]]; then
+            srv_fs="$(df --output=fstype /srv | sed '/Type/d')"
+            if [[ "$srv_fs" != 'btrfs' ]]; then
+                echo "Requires btrfs /srv"
+                exit 1
+            fi
+        else
+            root_fs="$(df --output=fstype / | sed '/Type/d')"
+            if [[ "$root_fs" != 'btrfs' ]]; then
+                echo "Requires btrfs root or /srv"
+                exit 1
+            fi
+            mkdir -v -p -m 0755 /srv
+        fi
+      args:
+        executable: /bin/bash
+
+    - name: Install packages
+      apt:
+        pkg: "{{ osmhost.packages }}"
+        state: latest
+        update_cache: yes
+
+    - name: Clone OSM Ansible git repository
+      git:
+        repo: "{{ devtank.git_repo }}"
+        dest: "{{ devtank.dir }}"
+        single_branch: yes
+        version: "{{ devtank.git_branch }}"
+      when: inventory_hostname != "vosmhost0"
+
+    # TODO: do we still need it?
+    - name: Add OSM orchestrator user
+      ansible.builtin.user:
+        name: osm_orchestrator
+        comment: OSM Orchestrator
+        create_home: yes
+        group: users
+
+    - name: Fetch, build and install duperemove
+      block:
+        - name: Fetch duperemove
+          ansible.builtin.git:
+            repo: https://github.com/markfasheh/duperemove.git
+            dest: /srv/osm-lxc/orchestrator/env/dist/duperemove
+            version: "v0.14.1"
+
+        - name: Build and install duperemove
+          shell: |
+            make && make install
+          args:
+            chdir: /srv/osm-lxc/orchestrator/env/dist/duperemove
+
+    - name: Add netdata main config
+      copy:
+        src: templates/netdata/netdata.conf
+        dest: /etc/netdata/netdata.conf
+
+    - name: Add netdata cgroups config
+      copy:
+        src: templates/netdata/cgroups.conf
+        dest: /etc/netdata/python.d/cgroups.conf
+
+    - name: Restart netdata
+      ansible.builtin.service:
+        name: netdata
+        state: restarted
+
+    - name: Copy OSM Host files
+      shell: rsync -a /srv/osm-lxc/root_overlay/ /
+
+    - name: Update OSM Host overlay NGINX with hostname
+      ansible.builtin.replace:
+        path: /etc/nginx/nginx.conf
+        regexp: 'OSM_HOST_NAME'
+        # replace: "{{ osm_host_name }}"
+        replace: "{{ ansible_hostname }}"
+      tags: pebble
+
+    - name: Update OSM Host overlay NGINX with domain
+      ansible.builtin.replace:
+        path: /etc/nginx/nginx.conf
+        regexp: 'OSM_DOMAIN'
+        replace: "{{ osm_domain }}"
+      tags: pebble

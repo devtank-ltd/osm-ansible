@@ -138,6 +138,31 @@ def main():
                 "host_capacity": res.capacity,
             }
 
+        if db_query == "get_host_name_by_customer":
+            customer = module.params.get('customer_name') or module.fail_json(
+                msg="Unable to get customer name"
+            )
+            host_id = db.get_host_by_customer(customer) or module.fail_json(
+                msg="Unable to get OSM host ID from database"
+            )
+
+            host_name = db.get_host_name_by_id(host_id) or module.fail_json(
+                msg="Uname to get OSM host name from database"
+            )
+
+            result["output"] = {
+                "host_name": host_name,
+            }
+
+        if db_query == "get_customer_port":
+            customer = module.params.get('customer_name') or module.fail_json(
+                msg="Unable to get customer name"
+            )
+            res = query(customer)
+            result["output"] = {
+                "mqtt_port": res,
+            }
+
     elif db_name == "pdns":
         name_parts = ("", "-chirspstack", "-influx", "-mqtt")
         customer = module.params.get('customer_name') or module.fail_json(

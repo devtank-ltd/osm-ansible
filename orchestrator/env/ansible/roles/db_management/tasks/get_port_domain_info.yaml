@@ -22,7 +22,7 @@
 - name: Fail on OSM IP mismatch
   when: osm_host_ip != osm_ip
   ansible.builtin.fail:
-    msg: "incus cluster member IP != osm host ip from devtank database"
+    msg: "incus cluster member IP != osm host IP from devtank database"
 
 # TODO: pyosmorch adjust
 - name: Get list of ports from the devtank DB

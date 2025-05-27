@@ -18,7 +18,7 @@
         - name: Get data MQTT and domain from database
           import_role:
             name: db_management
-            tasks_from: get_port_domain_info.yaml
+            tasks_from: get_port_domain_info
           vars:
             mqtt_init_port: 8883
 

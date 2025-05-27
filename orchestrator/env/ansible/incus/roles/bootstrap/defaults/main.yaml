@@ -1,0 +1,75 @@
+---
+
+main:
+  packages:
+    - ansible
+    - apt-transport-https
+    - curl
+    - default-mysql-client
+    - default-mysql-server
+    - git
+    - golang-go
+    - iproute2
+    - iptables
+    - pdns-backend-mysql
+    - pebble
+    - prometheus
+    - prometheus-pushgateway
+    - python3
+    - python3-crcmod
+    - python3-fastapi
+    - python3-paho-mqtt
+    - python3-paramiko
+    - python3-pip
+    - python3-pymysql
+    - python3-pyosmorch
+    - python3-sqlalchemy
+    - python3-venv
+    - python3-yaml
+    - software-properties-common
+    - vim
+    - wget
+    - wireguard
+
+  wireguard:
+    ipaddr: 10.10.1.1
+    port: 51820
+
+osmhost:
+  packages:
+    - ansible
+    - btrfs-progs
+    - certbot
+    - git
+    - libbsd-dev
+    - libglib2.0-dev
+    - libnginx-mod-stream
+    - libsqlite3-dev
+    - libxxhash-dev
+    - netdata
+    - nginx
+    - pandoc
+    - prometheus-node-exporter
+    - python3-certbot-nginx
+    - python3-lxc
+    - rsync
+    - snapper
+    - sudo
+    - ufw
+    - vim
+    - wireguard
+
+devtank:
+  git_repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
+  git_branch: main
+
+  gpg_key: devtank.gpg
+  apt_repo: https://dak.devtank.co.uk/debian
+
+  dir: /srv/osm-lxc
+  user: osm_orchestrator
+  db: osm_orchestrator
+
+  minica:
+    cert: devtank.minica.pem
+    key: devtank.minica.key.pem

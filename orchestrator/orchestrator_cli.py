@@ -625,54 +625,67 @@ class osm_orchestrator_t:
         return ansible_proc.returncode == 0
 
     def clone_container(self, customer_name: str) -> bool:
-        osm_host = self.find_osm_host_of(customer_name)
-        if not osm_host:
-            self.logger.warning(f'No customer "{customer_name}"')
-            return False
-        if osm_host.clone_container(customer_name):
-            print(
-                f"Clone {customer_name} container is created on "
-                f"{osm_host.name}"
-            )
-            return True
-        return False
+        raise Exception("Not implemented")
 
-    def move_osm_customer(self, customer_name: str, host_name: str) -> bool:
-        current_osm_host = self.find_osm_host_of(customer_name)
+        # osm_host = self.find_osm_host_of(customer_name)
+        # if not osm_host:
+        #     self.logger.warning(f'No customer "{customer_name}"')
+        #     return False
+        # if osm_host.clone_container(customer_name):
+        #     print(
+        #         f"Clone {customer_name} container is created on "
+        #         f"{osm_host.name}"
+        #     )
+        #     return True
+        # return False
 
-        if not current_osm_host:
-            self.logger.warning(f"No customer '{customer_name}'")
-            return False
+    def move_osm_customer(self, customer_name: str, target_host: str) -> bool:
+        ansible_cmd = [
+            "ansible-playbook",
+            "-v",
+            "-i", "localhost,",
+            "-e", f"customer_name={customer_name}",
+            "-e", f"target_host={target_host}",
+            f"{DEVTANK_WD}/env/ansible/mv_customer.yaml"
+        ]
+        ansible_proc = subprocess.run(ansible_cmd)
+        return ansible_proc.returncode == 0
 
-        if current_osm_host == host_name:
-            self.logger.info(
-                "The host '%s' alraedy has customer '%s'",
-                host_name,
-                customer_name,
-            )
-            return True
+        # current_osm_host = self.find_osm_host_of(customer_name)
 
-        new_osm_host = self.find_osm_host(host_name)
-        if not new_osm_host:
-            self.logger.warning("No host '%s' found", host_name)
-            return False
+        # if not current_osm_host:
+        #     self.logger.warning(f"No customer '{customer_name}'")
+        #     return False
 
-        cust_num = self.db.num_active_hosts(new_osm_host.id)
+        # if current_osm_host == host_name:
+        #     self.logger.info(
+        #         "The host '%s' alraedy has customer '%s'",
+        #         host_name,
+        #         customer_name,
+        #     )
+        #     return True
 
-        if new_osm_host.capacity == cust_num:
-            self.logger.error(
-                "No space left for customer on host '%s': %d/%d",
-                host_name,
-                cust_num,
-                new_osm_host.capacity,
-            )
-            return False
+        # new_osm_host = self.find_osm_host(host_name)
+        # if not new_osm_host:
+        #     self.logger.warning("No host '%s' found", host_name)
+        #     return False
 
-        if new_osm_host.move_osm_customer(
-            customer_name, current_osm_host, new_osm_host
-        ):
-            return self.db.update_customer_host(customer_name, new_osm_host.id)
-        return False
+        # cust_num = self.db.num_active_hosts(new_osm_host.id)
+
+        # if new_osm_host.capacity == cust_num:
+        #     self.logger.error(
+        #         "No space left for customer on host '%s': %d/%d",
+        #         host_name,
+        #         cust_num,
+        #         new_osm_host.capacity,
+        #     )
+        #     return False
+
+        # if new_osm_host.move_osm_customer(
+        #     customer_name, current_osm_host, new_osm_host
+        # ):
+        #     return self.db.update_customer_host(customer_name, new_osm_host.id)
+        # return False
 
     def upgrade_osm_customers(self, host_name: str) -> bool:
         if osm_host := self.find_osm_host(host_name):

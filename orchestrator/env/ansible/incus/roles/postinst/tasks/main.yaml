@@ -1,0 +1,120 @@
+---
+
+- name: Initialize dictionary to store WireGuard info
+  ansible.builtin.set_fact:
+    wireguard_data: "{{ wireguard_data | default( {} ) }}"
+
+- name: Generate WireGuard keypair
+  shell: |
+    umask 077
+    wg genkey | tee /etc/wireguard/priv.key | wg pubkey | tee /etc/wireguard/pub.key
+  args:
+    creates: /etc/wireguard/priv.key
+
+- name: Register private key
+  shell: cat /etc/wireguard/priv.key
+  register: wireguard_priv_key
+
+- name: Register public key
+  shell: cat /etc/wireguard/pub.key
+  register: wireguard_pub_key
+
+- name: Set WireGuard IP address
+  ansible.builtin.set_fact:
+    wg_ip: "{{ '.'.join(wireguard.ipaddr.split('.')[:3]) + '.' + ansible_default_ipv4.address.split('.')[-1] }}"
+
+- name: Store WireGuard info to dictionary
+  ansible.builtin.set_fact:
+    wireguard_data:
+      "{{ wireguard_data | combine(
+          {
+              inventory_hostname: {
+                  'pub_key': wireguard_pub_key.stdout,
+                  'priv_key': wireguard_priv_key.stdout,
+                  'ipaddr': wg_ip
+              }
+          }
+        )
+      }}"
+
+- name: Generate WireGuard config
+  template:
+    src: wg.conf.tpl
+    dest: /etc/wireguard/wg0.conf
+
+- name: Setup wg0 device
+  template:
+    src: systemd.netdev.tpl
+    dest: /etc/systemd/network/99-wg0.netdev
+    owner: root
+    group: systemd-network
+    mode: 0640
+  notify: systemd network restart
+
+- name: Setup wg0 network
+  template:
+    src: systemd.network.tpl
+    dest: /etc/systemd/network/99-wg0.network
+    owner: root
+    group: systemd-network
+    mode: 0640
+  notify: systemd network restart
+
+- name: Setup databases
+  when: inventory_hostname == "vosmhost0"
+  include_tasks: cluster2db.yaml
+
+- name: Add OSM host WiregGuard info to Devtank DB
+  include_tasks: wireguard2db.yaml
+  args:
+    apply:
+      delegate_to: "vosmhost0"
+
+- name: Put main host SSH key to authorized keys
+  block:
+    - name: Get main host SSH key
+      when: inventory_hostname == "vosmhost0"
+      ansible.builtin.shell:
+        cat /root/.ssh/id_rsa.pub
+      register: ssh_key
+
+    - name: Copy main host SSH key
+      ansible.builtin.shell:
+        echo "{{ hostvars.vosmhost0.ssh_key.stdout }}" >> /root/.ssh/authorized_keys
+
+- name: Add prometheus node
+  delegate_to: "vosmhost0"
+  ansible.builtin.blockinfile:
+    dest: /etc/prometheus/prometheus.yml
+    block: "{{ lookup('template', 'prometheus.tpl') }}"
+    marker: "# {mark} ANSIBLE MANAGED block for {{ inventory_hostname }}"
+
+- name: Restart prometheus
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.systemd_service:
+    name: prometheus
+    state: restarted
+    enabled: true
+
+# TODO: remove me on dist-upgrade
+# incus connection type is a part of community collection since version 10.6.0 which requires ansible >= 2.15.0 version.
+# Hence, we need to use testing bookworm repository as current version of ansible is 2.14.18
+# 2025-05-19 16:50:36
+- name: Add testing repository
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.apt_repository:
+    repo: deb http://deb.debian.org/debian/ testing main
+    state: present
+
+- name: Upgrade ansible
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.apt:
+    name: ansible
+    state: latest
+    update_cache: yes
+
+- name: Install java for jenkins agent
+  when: inventory_hostname == "vosmhost0" and install_java is defined
+  ansible.builtin.apt:
+    name: default-jdk
+    state: present
