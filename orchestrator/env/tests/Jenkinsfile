@@ -20,19 +20,7 @@ pipeline {
                 dir('/srv/osm-lxc/orchestrator/env') {
                     ansiColor('xterm') {
                         sh '''
-                        /srv/osm-lxc/orchestrator/orchestrator_cli.py add_customer c1
-                        /srv/osm-lxc/orchestrator/orchestrator_cli.py add_customer c2
-                        /srv/osm-lxc/orchestrator/orchestrator_cli.py add_customer c3
-                        incus ls
-                        /srv/osm-lxc/orchestrator/orchestrator_cli.py get_customer_passwords c1
-                        /srv/osm-lxc/orchestrator/orchestrator_cli.py get_customer_passwords c2
-                        /srv/osm-lxc/orchestrator/orchestrator_cli.py get_customer_passwords c3
-                        /srv/osm-lxc/orchestrator/orchestrator_cli.py del_customer c3
-                        incus ls
-                        /srv/osm-lxc/orchestrator/orchestrator_cli.py del_customer c2
-                        incus ls
-                        /srv/osm-lxc/orchestrator/orchestrator_cli.py del_customer c1
-                        incus ls
+                        bats tests/customers.bats
                         '''
                     }
                 }
