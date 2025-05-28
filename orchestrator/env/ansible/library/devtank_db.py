@@ -8,11 +8,16 @@ from pyosmorch import DBConnectionOrchestrator, DBConnectionPowerDNS  # type: ig
 
 def main():
     module_args = dict(
+        # TODO: refactor!
+        # - Parse passed config
+        # - parse params for db queries
+        # - split to functions or make separate classes
         db_username=dict(type="str", required=True),
         db_password=dict(type="str", required=True, no_log=True),
         db_host=dict(type="str", required=True),
         db_name=dict(type="str", required=True),
         method=dict(type="str", required=True),
+
         osm_host_id=dict(type="int"),
         customer_name=dict(type="str"),
         mqtt_port=dict(type="int"),
@@ -163,14 +168,26 @@ def main():
                 "mqtt_port": res,
             }
 
+        if db_query == "update_customer_host":
+            customer = module.params.get('customer_name') or module.fail_json(
+                msg="Unable to get customer name"
+            )
+            host_id = module.params.get('osm_host_id') or module.fail_json(
+                msg="Unable to get host id"
+            )
+            query(customer, host_id) or module.fail_json(
+                msg=f"Unable to update host for customer {customer_name}"
+            )
+
     elif db_name == "pdns":
         name_parts = ("", "-chirspstack", "-influx", "-mqtt")
         customer = module.params.get('customer_name') or module.fail_json(
             msg="Unable to get customer name"
         )
-        domain_id = module.params.get('domain_id') or module.fail_json(
-            msg="Unable to get domain_id"
-        )
+        if db_query != "update_record":
+            domain_id = module.params.get('domain_id') or module.fail_json(
+                msg="Unable to get domain_id"
+            )
         domain = module.params.get('domain') or module.fail_json(
             msg="Unable to get domain"
         )
@@ -182,9 +199,18 @@ def main():
         for part in name_parts:
             alias = f"{customer}{part}.{domain}"
             action = "add" if "add" in db_query else "remove"
-            query(domain_id, alias, target_host) or module.fail_json(
-                msg=f"Failed to {action} alias '{alias}'"
-            )
+            if db_query == "update_record":
+                result["output"] = {
+                    "customer": customer,
+                    "host": target_host,
+                }
+                query(alias, target_host) or module.fail_json(
+                    msg=f"Failed to update customer content"
+                )
+            else:
+                query(domain_id, alias, target_host) or module.fail_json(
+                    msg=f"Failed to {action} alias '{alias}'"
+                )
 
     module.exit_json(**result)
 

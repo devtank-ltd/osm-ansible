@@ -1,0 +1,134 @@
+---
+
+# TODO: merge tasks from add_customer roles
+
+- name: Move devtank customer
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Get customer instance info
+      block:
+        - name: Get devtank database config
+          ansible.builtin.set_fact:
+            db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
+
+        - name: Get current OSM host from incus
+          ansible.builtin.shell:
+            cmd: "incus ls {{ customer_name }} -cL -fcsv"
+          register: incus_result
+
+        - name: Set current host from incus
+          ansible.builtin.set_fact:
+            osm_host: "{{ incus_result.stdout }}"
+
+        - name: Get source host info
+          devtank_db:
+            db_username: "{{ db_conf.orchestrator.user }}"
+            db_password: "{{ db_conf.orchestrator.password }}"
+            db_host: "{{ db_conf.orchestrator.host }}"
+            db_name: "{{ db_conf.orchestrator.database }}"
+            method: get_host
+            host_name: "{{ osm_host }}"
+          register: src_host_info
+
+        - name: Get destination host info
+          devtank_db:
+            db_username: "{{ db_conf.orchestrator.user }}"
+            db_password: "{{ db_conf.orchestrator.password }}"
+            db_host: "{{ db_conf.orchestrator.host }}"
+            db_name: "{{ db_conf.orchestrator.database }}"
+            method: get_host
+            host_name: "{{ target_host }}"
+          register: dst_host_info
+
+        - name: Get OSM host domain
+          # TODO: which host to use, or DB?
+          #       is it possible to have different domains on different hosts?
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            domain="$(find /etc/letsencrypt/live/ -maxdepth 1 -mindepth 1 -type d -printf '%P' -quit)"
+            domain="${domain#*.}"
+            echo "$domain"
+          register: osm_domain
+
+        - name: Set target domain
+          ansible.builtin.set_fact:
+            target_domain: "{{ osm_domain.stdout }}"
+
+        - name: Get customer MQTT port
+          devtank_db:
+            db_username: "{{ db_conf.orchestrator.user }}"
+            db_password: "{{ db_conf.orchestrator.password }}"
+            db_host: "{{ db_conf.orchestrator.host }}"
+            db_name: "{{ db_conf.orchestrator.database }}"
+            method: get_customer_port
+            customer_name: "{{ customer_name }}"
+          register: result
+
+        # TODO: use get_port_domain role (rework port task)
+        - name: Set mqtt port
+          ansible.builtin.set_fact:
+            mqtt_port: "{{ result.output.mqtt_port }}"
+
+        - name: Stop customer instance
+          ansible.builtin.shell:
+            cmd: "incus stop {{ customer_name }}"
+
+        - name: Move customer instances to target host
+          ansible.builtin.shell:
+            cmd: "incus move {{customer_name }} --target {{ target_host }}"
+
+        - name: Start customer instance
+          ansible.builtin.shell:
+            cmd: "incus start {{ customer_name }}"
+
+        - name: Get OSM host WireGuard IP address
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell:
+            cmd: "ip -o a s dev wg0 | sed -rn 's|.*inet\\s([0-9.]+).*|\\1|p'"
+          register: osm_host_wg_ipaddr
+
+        - name: Set OSM host Wireguard IP address
+          ansible.builtin.set_fact:
+            wg_ipaddr: "{{ osm_host_wg_ipaddr.stdout }}"
+
+        - name: Configure target OSM host
+          import_role:
+            name: osm_host
+            tasks_from: add
+          vars:
+            ansible_connection: ssh
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+
+        - name: Remove nginx configuration from the source host
+          import_role:
+            name: osm_host
+            tasks_from: remove
+          vars:
+            ansible_connection: ssh
+          delegate_to: "{{ src_host_info.output.host_ip }}"
+
+        - name: Update customer host in devtank database
+          devtank_db:
+            db_username: "{{ db_conf.orchestrator.user }}"
+            db_password: "{{ db_conf.orchestrator.password }}"
+            db_host: "{{ db_conf.orchestrator.host }}"
+            db_name: "{{ db_conf.orchestrator.database }}"
+            method: update_customer_host
+            customer_name: "{{ customer_name }}"
+            osm_host_id: "{{ dst_host_info.output.host_id }}"
+
+        - name: Update alias in PoweDNS database
+          devtank_db:
+            db_username: "{{ db_conf.pdns.user }}"
+            db_password: "{{ db_conf.pdns.password }}"
+            db_host: "{{ db_conf.pdns.host }}"
+            db_name: "{{ db_conf.pdns.database }}"
+            method: update_record
+            customer_name: "{{ customer_name }}"
+            domain: "{{ target_domain }}"
+            host_name: "{{ dst_host_info.output.host_name }}"
