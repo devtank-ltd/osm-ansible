@@ -3,14 +3,16 @@
 # - teardown: remove files, clean up database
 # - parse commands output
 
-setup() {
+setup_file() {
     load /usr/lib/bats/bats-assert/load
     load /usr/lib/bats/bats-support/load
 
     DIR="$( cd "$( dirname "$BATS_TEST_FILENAME" )" >/dev/null 2>&1 && pwd )"
     PATH="$DIR/..:$PATH"
-
     CLI="/srv/osm-lxc/orchestrator/orchestrator_cli.py"
+
+    UUID="$(uuidgen)"
+    echo "Some test data: $UUID" > /tmp/devtank_test_data
 }
 
 @test "Add customer" {
@@ -133,11 +135,21 @@ setup() {
 }
 
 @test "Push File Or Directory" {
-    skip "Not implemented"
+    run "$CLI" push_file_or_directory customer1 /tmp/devtank_test_data /root/
+    assert_success
+
+    run incus exec customer1 -- cat /root/devtank_test_data
+    echo "Some test data: $UUID" | assert_output
 }
 
 @test "Pull File Or Directory" {
-    skip "Not implemented"
+    rm /tmp/devtank_test_data
+    run "$CLI" push_file_or_directory customer1 /root/devtank_test_data /tmp
+    assert_success
+
+    run cat /tmp/devtank_test_data
+    assert_success
+    echo "Some test data: $UUID" | assert_output
 }
 
 @test "Add Dashboards" {
