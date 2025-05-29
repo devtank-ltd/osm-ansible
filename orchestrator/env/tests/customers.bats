@@ -13,8 +13,14 @@ setup() {
 }
 
 setup_file() {
+    OSM_HOSTS=("vosmhost0" "vosmhost1" "vosmhost2")
     UUID="$(uuidgen)"
     echo "Some test data: $UUID" > /tmp/devtank_test_data
+}
+
+teardown_file() {
+    # we don't have remove contacts functionality so far
+    mysql -u root osm_orchestrator -e 'delete from osm_customer_contact'
 }
 
 @test "Add customer" {
@@ -39,37 +45,53 @@ setup_file() {
     assert_success
 }
 
-@test "Test Host vosmhost0" {
-    run "$CLI" test_host vosmhost0
-    assert_success
-}
+@test "Test Host" {
+    for h in "${OSM_HOSTS[@]}"; do
+        run "$CLI" test_host vosmhost0
+        assert_line --index 0 --regexp ''"$h"' \[[[:digit:]].+\]: Online \(Fully operational\)'
+        assert_success
+    done
 
-@test "Test Host vosmhost1" {
-    run "$CLI" test_host vosmhost1
-    assert_success
-}
-
-@test "Test Host vosmhost2" {
-    run "$CLI" test_host vosmhost2
-    assert_success
-}
-
-@test "Test Host vosmhost3" {
     run "$CLI" test_host vosmhost3
+    assert_line --index 0 'Error: Cluster member not found'
     assert_failure
 }
 
 @test "Add Alerts Contact" {
-    run "$CLI" add_alerts_contact c1 c1@mail.xyz
+    run "$CLI" add_alerts_contact customer1 customer1@mail.xyz
     assert_success
 }
 
 @test "List Alerts Contacts" {
-    skip "Not implemented. Parse output"
+    run "$CLI" list_alerts_contacts
+    assert_success
+    assert_output --regexp '.*^customer1[[:blank:]]+\| customer1@mail.xyz[[:blank:]]+\| [[:alnum:]]{8}\-([[:alnum:]]{4}\-){3}[[:alnum:]]{12}'
 }
 
 @test "Clone Container" {
     skip "Not implemented. Use incus instead?"
+}
+
+@test "List Hosts (customer on vosmhost0)" {
+    run "$CLI" list_hosts
+    assert_success
+    assert_line --index 1 --regexp '^[[:blank:]]+Host: vosmhost0: capacity: 1\/[[:digit]]+'
+    assert_line --index 2 --regexp '^[[:blank:]]+Host: vosmhost1: capacity: 0\/[[:digit]]+'
+    assert_line --index 3 --regexp '^[[:blank:]]+Host: vosmhost2: capacity: 0\/[[:digit]]+'
+}
+
+@test "List Host Customers (customer on vsomhost0)" {
+    for host in "${OSM_HOSTS[@]}"; do
+        run "$CLI" list_host_customers "$host"
+        assert_success
+        if [[ "$host" == "vosmhost0" ]]; then
+            assert_line --index 0 --regexp '^Host: '"$host"': capacity: 1\/[[:digit]]+'
+            assert_line --index 1 --regexp '^[[:blank:]]+Customer: customer1 \(MQTT:[[:digit:]]+\)$'
+        else
+            assert_line --index 0 --regexp '^Host: '"$host"': capacity: 0\/[[:digit]]+'
+            assert_line --index 1 'Command: list_host_customers : Result: SUCCESS'
+        fi
+    done
 }
 
 @test "Move Customer" {
@@ -77,33 +99,30 @@ setup_file() {
     assert_success
 }
 
-@test "Upgrade Customers" {
-    skip "Not implemented"
-}
-
-@test "List Hosts" {
+@test "List Hosts (customer on vosmhost1)" {
     run "$CLI" list_hosts
     assert_success
+    assert_line --index 1 --regexp '^[[:blank:]]+Host: vosmhost0: capacity: 0\/[[:digit]]+'
+    assert_line --index 2 --regexp '^[[:blank:]]+Host: vosmhost1: capacity: 1\/[[:digit]]+'
+    assert_line --index 3 --regexp '^[[:blank:]]+Host: vosmhost2: capacity: 0\/[[:digit]]+'
 }
 
-@test "List Host Customers vosmhost0" {
-    run "$CLI" list_host_customers vosmhost0
-    assert_success
+@test "List Host Customers (customer on vosmhost1)" {
+    for host in "${OSM_HOSTS[@]}"; do
+        run "$CLI" list_host_customers "$host"
+        assert_success
+        if [[ "$host" == "vosmhost1" ]]; then
+            assert_line --index 0 --regexp '^Host: '"$host"': capacity: 1\/[[:digit]]+'
+            assert_line --index 1 --regexp '^[[:blank:]]+Customer: customer1 \(MQTT:[[:digit:]]+\)$'
+        else
+            assert_line --index 0 --regexp '^Host: '"$host"': capacity: 0\/[[:digit]]+'
+            assert_line --index 1 'Command: list_host_customers : Result: SUCCESS'
+        fi
+    done
 }
 
-@test "List Host Customers vosmhost1" {
-    run "$CLI" list_host_customers vosmhost1
-    assert_success
-}
-
-@test "List Host Customers vosmhost2" {
-    run "$CLI" list_host_customers vosmhost2
-    assert_success
-}
-
-@test "List Host Customers vosmhost3" {
-    run "$CLI" list_host_customers vosmhost3
-    assert_failure
+@test "Upgrade Customers" {
+    skip "Not implemented"
 }
 
 @test "List Customers" {
@@ -116,22 +135,12 @@ setup_file() {
     assert_success
 }
 
-@test "Get WG Info vosmhost0" {
-    run "$CLI" get_wg_info vosmhost0
-    assert_success
-}
+@test "Get WG Info" {
+    for host in "${OSM_HOSTS[@]}"; do
+        run "$CLI" get_wg_info "$host"
+        assert_success
+    done
 
-@test "Get WG Info vosmhost1" {
-    run "$CLI" get_wg_info vosmhost1
-    assert_success
-}
-
-@test "Get WG Info vosmhost2" {
-    run "$CLI" get_wg_info vosmhost2
-    assert_success
-}
-
-@test "Get WG Info vosmhost3" {
     run "$CLI" get_wg_info vosmhost3
     assert_failure
 }
@@ -146,7 +155,7 @@ setup_file() {
 
 @test "Pull File Or Directory" {
     rm /tmp/devtank_test_data
-    run "$CLI" push_file_or_directory customer1 /root/devtank_test_data /tmp
+    run "$CLI" pull_file_or_directory customer1 /root/devtank_test_data /tmp
     assert_success
 
     run cat /tmp/devtank_test_data
