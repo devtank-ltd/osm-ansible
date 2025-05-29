@@ -18,6 +18,11 @@ setup() {
     assert_success
 }
 
+@test "Add same customer" {
+    run "$CLI" add_customer customer1
+    assert_failure
+}
+
 @test "Add Host" {
     skip "Not implemented"
 }
@@ -27,6 +32,11 @@ setup() {
 }
 @test "Find Host" {
     run "$CLI" find_host customer1
+    assert_success
+}
+
+@test "Test Host vosmhost0" {
+    run "$CLI" test_host vosmhost0
     assert_success
 }
 
@@ -42,7 +52,7 @@ setup() {
 
 @test "Test Host vosmhost3" {
     run "$CLI" test_host vosmhost3
-    assert_success
+    assert_failure
 }
 
 @test "Add Alerts Contact" {
@@ -68,13 +78,28 @@ setup() {
 }
 
 @test "List Hosts" {
-    run "$CLI" test_host vosmhost3
+    run "$CLI" list_hosts
     assert_success
 }
 
-@test "List Host Customers" {
-    run "$CLI" list_hosts
+@test "List Host Customers vosmhost0" {
+    run "$CLI" list_host_customers vosmhost0
     assert_success
+}
+
+@test "List Host Customers vosmhost1" {
+    run "$CLI" list_host_customers vosmhost1
+    assert_success
+}
+
+@test "List Host Customers vosmhost2" {
+    run "$CLI" list_host_customers vosmhost2
+    assert_success
+}
+
+@test "List Host Customers vosmhost3" {
+    run "$CLI" list_host_customers vosmhost3
+    assert_failure
 }
 
 @test "List Customers" {
@@ -100,6 +125,11 @@ setup() {
 @test "Get WG Info vosmhost2" {
     run "$CLI" get_wg_info vosmhost2
     assert_success
+}
+
+@test "Get WG Info vosmhost3" {
+    run "$CLI" get_wg_info vosmhost3
+    assert_failure
 }
 
 @test "Push File Or Directory" {
