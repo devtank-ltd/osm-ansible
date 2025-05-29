@@ -1,3 +1,8 @@
+# TODO:
+# - setup: create file for push test
+# - teardown: remove files, clean up database
+# - parse commands output
+
 setup() {
     load /usr/lib/bats/bats-assert/load
     load /usr/lib/bats/bats-support/load
@@ -11,6 +16,116 @@ setup() {
 @test "Add customer" {
     run "$CLI" add_customer customer1
     assert_success
+}
+
+@test "Add Host" {
+    skip "Not implemented"
+}
+
+@test "Del Host" {
+    skip "Not implemented"
+}
+@test "Find Host" {
+    run "$CLI" find_host customer1
+    assert_success
+}
+
+@test "Test Host vosmhost1" {
+    run "$CLI" test_host vosmhost1
+    assert_success
+}
+
+@test "Test Host vosmhost2" {
+    run "$CLI" test_host vosmhost2
+    assert_success
+}
+
+@test "Test Host vosmhost3" {
+    run "$CLI" test_host vosmhost3
+    assert_success
+}
+
+@test "Add Alerts Contact" {
+    run "$CLI" add_alerts_contact c1 c1@mail.xyz
+    assert_success
+}
+
+@test "List Alerts Contacts" {
+    skip "Not implemented. Parse output"
+}
+
+@test "Clone Container" {
+    skip "Not implemented. Use incus instead?"
+}
+
+@test "Move Customer" {
+    run "$CLI" mv_customer customer1 vosmhost1
+    assert_success
+}
+
+@test "Upgrade Customers" {
+    skip "Not implemented"
+}
+
+@test "List Hosts" {
+    run "$CLI" test_host vosmhost3
+    assert_success
+}
+
+@test "List Host Customers" {
+    run "$CLI" list_hosts
+    assert_success
+}
+
+@test "List Customers" {
+    run "$CLI" list_customers
+    assert_success
+}
+
+@test "Get Customer Passwords" {
+    run "$CLI" get_customer_passwords customer1
+    assert_success
+}
+
+@test "Get WG Info vosmhost0" {
+    run "$CLI" get_wg_info vosmhost0
+    assert_success
+}
+
+@test "Get WG Info vosmhost1" {
+    run "$CLI" get_wg_info vosmhost1
+    assert_success
+}
+
+@test "Get WG Info vosmhost2" {
+    run "$CLI" get_wg_info vosmhost2
+    assert_success
+}
+
+@test "Push File Or Directory" {
+    skip "Not implemented"
+}
+
+@test "Pull File Or Directory" {
+    skip "Not implemented"
+}
+
+@test "Add Dashboards" {
+    skip "Not implemented"
+}
+
+@test "Del Dashboards" {
+    skip "Not implemented"
+}
+
+@test "Upgrade Influx Inserter" {
+    skip "Not implemented"
+}
+
+@test "MQTT Listener" {
+    run "$CLI" mqtt_listener customer1
+    assert_success
+}
 }
 
 @test "Delete customer" {
