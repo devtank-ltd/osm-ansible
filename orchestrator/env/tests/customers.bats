@@ -3,14 +3,16 @@
 # - teardown: remove files, clean up database
 # - parse commands output
 
-setup_file() {
+setup() {
     load /usr/lib/bats/bats-assert/load
     load /usr/lib/bats/bats-support/load
 
     DIR="$( cd "$( dirname "$BATS_TEST_FILENAME" )" >/dev/null 2>&1 && pwd )"
     PATH="$DIR/..:$PATH"
     CLI="/srv/osm-lxc/orchestrator/orchestrator_cli.py"
+}
 
+setup_file() {
     UUID="$(uuidgen)"
     echo "Some test data: $UUID" > /tmp/devtank_test_data
 }
