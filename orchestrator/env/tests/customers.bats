@@ -126,7 +126,6 @@ setup() {
     run "$CLI" mqtt_listener customer1
     assert_success
 }
-}
 
 @test "Delete customer" {
     run "$CLI" del_customer customer1
