@@ -20,7 +20,7 @@ pipeline {
                 dir('/srv/osm-lxc/orchestrator/env') {
                     ansiColor('xterm') {
                         sh '''
-                        bats -p --print-output-on-failure --verbose-run -T tests/customers.bats
+                        stdbuf -oL -eL bats -p --print-output-on-failure --verbose-run -T tests/customers.bats
                         '''
                     }
                 }
