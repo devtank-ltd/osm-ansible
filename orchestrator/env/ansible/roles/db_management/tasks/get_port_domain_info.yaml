@@ -1,15 +1,8 @@
 ---
 
-- name: Get devtank database config
-  ansible.builtin.set_fact:
-    db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
-
 - name: Get OSM host info from devtank database
   devtank_db:
-    db_username: "{{ db_conf.orchestrator.user }}"
-    db_password: "{{ db_conf.orchestrator.password }}"
-    db_host: "{{ db_conf.orchestrator.host }}"
-    db_name: "{{ db_conf.orchestrator.database }}"
+    db_conf: "{{ db_conf.orchestrator }}"
     method: get_host
     host_name: "{{ osm_host }}"
   register: osm_info
@@ -31,7 +24,7 @@
     login_password: "{{ db_conf.orchestrator.password }}"
     login_user: "{{ db_conf.orchestrator.user }}"
     query:
-      SELECT host_mqtt_port FROM osm_customers
+      SELECT host_mqtt_port FROM osm_customers ORDER BY host_mqtt_port ASC
   register: mqtt_ports
 
 - name: Set list of ports

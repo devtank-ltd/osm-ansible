@@ -2,10 +2,7 @@
 
 - name: Add customer to devtank database
   devtank_db:
-    db_username: "{{ db_conf.orchestrator.user }}"
-    db_password: "{{ db_conf.orchestrator.password }}"
-    db_host: "{{ db_conf.orchestrator.host }}"
-    db_name: "{{ db_conf.orchestrator.database }}"
+    db_conf: "{{ db_conf.orchestrator }}"
     method: add_customer
     customer_name: "{{ customer_name }}"
     osm_host_id: "{{ osm_id }}"

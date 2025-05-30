@@ -3,10 +3,7 @@
 - name: Remove customer alias from PDNS records
   # delete from records where name regexp 'customer(\.|\-)(chirspstack|influx|mqtt)?\.?domain\.co\.uk';
   devtank_db:
-    db_username: "{{ db_conf.pdns.user }}"
-    db_password: "{{ db_conf.pdns.password }}"
-    db_host: "{{ db_conf.pdns.host }}"
-    db_name: "{{ db_conf.pdns.database }}"
+    db_conf: "{{ db_conf.pdns }}"
     method: del_customer
     customer_name: "{{ customer_name }}"
     host_name: "{{ customer_info.output.host_name}}"

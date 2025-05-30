@@ -12,6 +12,12 @@
       import_role:
         name: incus_instance
         tasks_from: add
+      vars:
+        customer_name: "{{ customer_name }}"
+
+    - name: Get devtank database config
+      ansible.builtin.set_fact:
+        db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
 
     - name: Get init data from devtank database
       block:
@@ -30,6 +36,7 @@
             tasks_from: add
           vars:
             ansible_connection: local
+            db_conf: "{{ db_conf.orchestrator }}"
           delegate_to: "{{ main_host }}"
 
         - name: Add customer configuration to OSM host

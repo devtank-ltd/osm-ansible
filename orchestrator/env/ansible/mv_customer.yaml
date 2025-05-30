@@ -25,20 +25,14 @@
 
         - name: Get source host info
           devtank_db:
-            db_username: "{{ db_conf.orchestrator.user }}"
-            db_password: "{{ db_conf.orchestrator.password }}"
-            db_host: "{{ db_conf.orchestrator.host }}"
-            db_name: "{{ db_conf.orchestrator.database }}"
+            db_conf: "{{ db_conf.orchestrator }}"
             method: get_host
             host_name: "{{ osm_host }}"
           register: src_host_info
 
         - name: Get destination host info
           devtank_db:
-            db_username: "{{ db_conf.orchestrator.user }}"
-            db_password: "{{ db_conf.orchestrator.password }}"
-            db_host: "{{ db_conf.orchestrator.host }}"
-            db_name: "{{ db_conf.orchestrator.database }}"
+            db_conf: "{{ db_conf.orchestrator }}"
             method: get_host
             host_name: "{{ target_host }}"
           register: dst_host_info
@@ -60,10 +54,7 @@
 
         - name: Get customer MQTT port
           devtank_db:
-            db_username: "{{ db_conf.orchestrator.user }}"
-            db_password: "{{ db_conf.orchestrator.password }}"
-            db_host: "{{ db_conf.orchestrator.host }}"
-            db_name: "{{ db_conf.orchestrator.database }}"
+            db_conf: "{{ db_conf.orchestrator }}"
             method: get_customer_port
             customer_name: "{{ customer_name }}"
           register: result
@@ -114,20 +105,14 @@
 
         - name: Update customer host in devtank database
           devtank_db:
-            db_username: "{{ db_conf.orchestrator.user }}"
-            db_password: "{{ db_conf.orchestrator.password }}"
-            db_host: "{{ db_conf.orchestrator.host }}"
-            db_name: "{{ db_conf.orchestrator.database }}"
+            db_conf: "{{ db_conf.orchestrator }}"
             method: update_customer_host
             customer_name: "{{ customer_name }}"
             osm_host_id: "{{ dst_host_info.output.host_id }}"
 
         - name: Update alias in PoweDNS database
           devtank_db:
-            db_username: "{{ db_conf.pdns.user }}"
-            db_password: "{{ db_conf.pdns.password }}"
-            db_host: "{{ db_conf.pdns.host }}"
-            db_name: "{{ db_conf.pdns.database }}"
+            db_conf: "{{ db_conf.pdns }}"
             method: update_record
             customer_name: "{{ customer_name }}"
             domain: "{{ target_domain }}"
