@@ -36,7 +36,7 @@
             tasks_from: add
           vars:
             ansible_connection: local
-            db_conf: "{{ db_conf.orchestrator }}"
+            db_conf: "{{ db_conf.pdns }}"
           delegate_to: "{{ main_host }}"
 
         - name: Add customer configuration to OSM host

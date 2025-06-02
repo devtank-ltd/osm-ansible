@@ -1,0 +1,67 @@
+- name: Clone devtank customer
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    main_host: localhost
+
+  tasks:
+    - name: Get devtank database config
+      ansible.builtin.set_fact:
+        db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
+
+    - name:
+      block:
+        - name: Add customer alias to PDNS database
+          import_role:
+            name: pdns_management
+            tasks_from: add
+          vars:
+            ansible_connection: local
+            db_conf: "{{ db_conf.pdns }}"
+          delegate_to: "{{ main_host }}"
+
+        - name: Add customer to devtank database
+          import_role:
+            name: db_management
+            tasks_from: add
+          vars:
+            ansible_connection: local
+          delegate_to: "{{ main_host }}"
+
+        - name: Add customer configuration to OSM host
+          import_role:
+            name: osm_host
+            tasks_from: add
+          vars:
+            ansible_connection: ssh
+          delegate_to: "{{ osm_ip }}"
+      rescue:
+        - name: Rollback devtank database entries (if exist)
+          import_role:
+            name: db_management
+            tasks_from: remove
+
+        - name: Remove incus instance
+          import_role:
+            name: incus_instance
+            tasks_from: remove
+
+        - name: Remove customer configuration from OSM host
+          import_role:
+            name: osm_host
+            tasks_from: remove
+          vars:
+            ansible_connection: ssh
+          delegate_to: "{{ osm_ip }}"
+
+        - name: Rollback PDNS database entries
+          import_role:
+            name: pdns_management
+            tasks_from: remove
+
+        - name: Fail to stop further processing
+          ansible.builtin.fail:
+            msg: "Customer creatin failed. Rollback completed"
+      ignore_errors: yes

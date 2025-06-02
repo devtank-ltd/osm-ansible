@@ -48,15 +48,18 @@ class OrchestratorHandler:
         if not host_name or not host_ipaddr:
             module.fail_json(msg="Unable to get host details")
 
-        if not all(
+        self.db.del_customer(customer, host_id) or module.fail_json(
+            msg=f"Failed to remove customer '{customer}'"
+        )
+
+        if "-clone" not in customer and not all(
             [
-                self.db.del_customer(customer, host_id),
                 self.db.del_customer_secret_key(customer_id),
                 self.db.del_customer_secrets(customer_id),
             ]
         ):
             module.fail_json(
-                msg=f"Failed to fully remove customer '{customer}'"
+                msg=f"Failed to remove customer secrets '{customer}'"
             )
 
         return {

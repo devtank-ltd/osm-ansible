@@ -1,8 +1,3 @@
-# TODO:
-# - setup: create file for push test
-# - teardown: remove files, clean up database
-# - parse commands output
-
 setup() {
     load /usr/lib/bats/bats-assert/load
     load /usr/lib/bats/bats-support/load
@@ -10,6 +5,7 @@ setup() {
     DIR="$( cd "$( dirname "$BATS_TEST_FILENAME" )" >/dev/null 2>&1 && pwd )"
     PATH="$DIR/..:$PATH"
     CLI="/srv/osm-lxc/orchestrator/orchestrator_cli.py"
+    DOMAIN="incus-devtank.co.uk"
 }
 
 setup_file() {
@@ -21,6 +17,7 @@ setup_file() {
 teardown_file() {
     # we don't have remove contacts functionality so far
     mysql -u root osm_orchestrator -e 'delete from osm_customer_contact'
+    rm -v /tmp/devtank_test_data
 }
 
 @test "Add customer" {
@@ -40,6 +37,7 @@ teardown_file() {
 @test "Del Host" {
     skip "Not implemented"
 }
+
 @test "Find Host" {
     run "$CLI" find_host customer1
     assert_success
@@ -68,9 +66,6 @@ teardown_file() {
     assert_output --regexp '.*^customer1[[:blank:]]+\| customer1@mail.xyz[[:blank:]]+\| [[:alnum:]]{8}\-([[:alnum:]]{4}\-){3}[[:alnum:]]{12}'
 }
 
-@test "Clone Container" {
-    skip "Not implemented. Use incus instead?"
-}
 
 @test "List Hosts (customer on vosmhost0)" {
     run "$CLI" list_hosts
@@ -119,6 +114,65 @@ teardown_file() {
             assert_line --index 1 'Command: list_host_customers : Result: SUCCESS'
         fi
     done
+}
+
+@test "Clone Customer. Same OSM host. Non-public" {
+    run "$CLI" clone_container customer1
+    assert_success
+    run incus ls customer1-clone -cnL -fcsv
+    assert_output 'customer1-clone,vosmhost1'
+    run incus stop customer1-clone
+    run incus rm customer1-clone
+}
+
+@test "Clone Customer. Other OSM host. Non-public" {
+    run "$CLI" clone_container customer1 vosmhost0
+    assert_success
+    run incus ls customer1-clone -cnL -fcsv
+    assert_output 'customer1-clone,vosmhost0'
+    run incus stop customer1-clone
+    run incus rm customer1-clone
+}
+
+@test "Clone Customer. Same OSM host. Public" {
+    run "$CLI" clone_container customer1
+    assert_success
+    run ping -c3 customer1-clone."$DOMAIN"
+    assert_success
+    assert_line --index 0 --regexp '^PING vosmhost0.'"$DOMAIN"' \([[:digit:]].+\).*$'
+    for n in "$(seq 1 3)"; do
+        assert_line --index "$n" --regexp '^[[:digit:]]+ bytes from vosmhost0 \([[:digit:]].+\): icmp_seq='"$n"''
+    done
+    assert_line --index 6 --regexp '^.*, 0% packets loss.*$'
+    run "$CLI" del_customer customer1-clone
+}
+
+@test "Clone Customer. Other OSM host. Public" {
+    run "$CLI" clone_container customer1 vosmhost1 yes
+    assert_success
+    run ping -c3 customer1-clone."$DOMAIN"
+    assert_line --index 0 --regexp '^PING vosmhost1.'"$DOMAIN"' \([[:digit:]].+\).*$'
+    for n in "$(seq 1 3)"; do
+        assert_line --index "$n" --regexp '^[[:digit:]]+ bytes from vosmhost1 \([[:digit:]].+\): icmp_seq='"$n"''
+    done
+    assert_line --index 6 --regexp '^.*, 0% packets loss.*$'
+    run "$CLI" del_customer customer1-clone
+
+}
+
+@test "Clone Already Cloned Customer. Same OSM host. Non-public" {
+    run "$CLI" clone_container customer1
+    assert_failure
+}
+
+@test "Clone Already Cloned Customer. Other OSM host. Non-public" {
+    run "$CLI" clone_container customer1 vosmhost1
+    assert_failure
+}
+
+@test "Clone Already Cloned Customer. Other OSM host. Public" {
+    run "$CLI" clone_container customer1 vosmhost1 yes
+    assert_failure
 }
 
 @test "Upgrade Customers" {

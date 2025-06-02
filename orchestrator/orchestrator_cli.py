@@ -29,27 +29,6 @@ from pyosmorch import DBConnectionOrchestrator, DBConnectionPowerDNS  # type: ig
 
 
 CONFIG_FILE = "config.yaml"
-WG_CONF_FILE = "/etc/wireguard/wg0.conf"
-PROMETHEUS_CONF_FILE = "/etc/prometheus/prometheus.yml"
-WG_PEER_TMPL = """
-# ----- {host_name} peer -----
-[Peer]
-PublicKey = {pub_key}
-AllowedIPs = {ip_addr}/32
-
-"""
-PROMETHEUS_HOST_TMPL = """
-  # ----- {host_name} -----
-  - job_name: "{host_name}"
-    static_configs:
-      - targets: ["{wg_ipaddr}:9100"]
-
-  - job_name: "{host_name}-lxc"
-    metrics_path: "/api/v1/allmetrics?format=prometheus&help=yes"
-    honor_labels: true
-    static_configs:
-      - targets: ["{wg_ipaddr}:19999"]
-"""
 DOMAIN_PARTS = ("", "-chirpstack", "-influx", "-mqtt")
 DEVTANK_WD = "/srv/osm-lxc/orchestrator"
 
@@ -64,8 +43,6 @@ parser.add_argument(
 parser.add_argument(
     "command", type=str, help="command followed by arguments.", nargs="*"
 )
-
-crc8_func = crcmod.predefined.mkCrcFun("crc-8")
 
 
 class SSHException(Exception):
@@ -170,262 +147,92 @@ class osm_host_t:
         self.db.del_customer_secrets(customer_id)
         self.db.del_customer_secret_key(customer_id)
 
-    def get_ssh(self) -> Union[paramiko.SSHClient, None]:
-        if self._ssh_ref:
-            current = self._ssh_ref()
-            if current and current.get_transport():
-                return current
-        ssh = paramiko.SSHClient()
-        known_hosts = os.environ["HOME"] + "/.ssh/known_hosts"
+    # def can_ping_customer_container(self, customer_name: str) -> bool:
+    #     return self.ssh_command(f"ping -c1 {customer_name}-svr")
 
-        if not os.path.exists(known_hosts):
-            self.logger.error("No known_hosts files.")
-            return None
-        ssh.load_host_keys(known_hosts)
+    # def can_ping_customer_grafana(self, customer_name: str) -> bool:
+    #     domain = self.config["pdns_domain"]
+    #     return self.ssh_command(f"ping -c1 {customer_name}.{domain}")
 
-        try:
-            ssh.connect(self.ip_addr, username="osm_orchestrator", timeout=2)
-        except TimeoutError:
-            self.logger.error(
-                f"Timeout connecting to {self.name} ({self.ip_addr})."
-            )
-            return None
-        except paramiko.ssh_exception.AuthenticationException as e:
-            self.logger.error(
-                f"Authentication fail connecting to {self.name} "
-                f"({self.ip_addr}): {e}"
-            )
-            return None
-        except OSError as e:
-            self.logger.error(
-                f"OS Error connecting to {self.name} ({self.ip_addr}): {e}"
-            )
-            return None
+    # def clone_container(self, customer_name: str) -> bool:
+    #     cmd = "sudo /srv/osm-lxc/ansible/do-clone-container.bash"
+    #     return self.ssh_command(f"{cmd} {customer_name}")
 
-        self._ssh_ref = weakref.ref(ssh)
-        return ssh
+    # def move_osm_customer(
+    #     self, customer_name: str, src: "osm_host_t", dst: "osm_host_t"
+    # ) -> bool:
+    #     if not src.upgrade_osm_customers():
+    #         return False
 
-    def ssh_command(self, cmd: str, pty: bool = False) -> bool:
-        ssh = self.get_ssh()
-        if not ssh:
-            return False
-        try:
-            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(
-                cmd, get_pty=pty
-            )
-        except SSHException as err:
-            self.logger.error(err)
-            return False
+    #     if not src.ssh_command(
+    #         "sudo /srv/osm-lxc/ansible/do-move-container.bash "
+    #         f"{customer_name} {dst.ip_addr}"
+    #     ):
+    #         self.logger.error("Container moving failed")
+    #         return False
+    #     mqtt_port = self.db.get_customer_port(customer_name)
 
-        for line in ssh_stdout:
-            self.logger.debug(line.rstrip())
+    #     # get current CNAME to restore it in case of failure
+    #     domain = self.config["pdns_domain"]
+    #     parts = ("", "-chirpstack", "-influx", "-mqtt")
+    #     for d in parts:
+    #         self.pdns_db.update_record(
+    #             f"{customer_name}{d}.{domain}", dst.dns_entry
+    #         )
 
-        error_code = ssh_stdout.channel.recv_exit_status()
+    #     if not dst.ssh_command(
+    #         "sudo /srv/osm-lxc/ansible/do-start-new-container.bash "
+    #         f"{customer_name} {mqtt_port}"
+    #     ):
+    #         self.logger.error("Failed to start new container")
+    #         # restore records
+    #         for d in parts:
+    #             self.pdns_db.update_record(
+    #                 f"{customer_name}{d}.{domain}", src.dns_entry
+    #             )
 
-        if error_code:
-            self.logger.error(
-                f"Command '{cmd}' failed : "
-                f"{error_code}:{os.strerror(error_code)}"
-            )
-            for line in ssh_stderr:
-                self.logger.error(line.rstrip())
-            return False
-        ssh.close()
-        return True
+    #         return False
+    #     if not src.ssh_command(
+    #         "sudo /srv/osm-lxc/ansible/do-delete-container.sh "
+    #         f'"{customer_name}"'
+    #     ):
+    #         self.logger.error(
+    #             "Unable to delete container '%s' on the host '%s",
+    #             customer_name,
+    #             src.name,
+    #         )
+    #         return False
 
-    def ssh_pull_file_or_directory(
-        self, customer_name: str, src: str, dst: str
-    ) -> bool:
-        path = Path(src)
-        if not (ssh := self.get_ssh()):
-            return False
-        parent = path.parent.absolute()
-        basename = path.name
-        remote_tar_cmd = (
-            f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' "
-            f"'tar -C {parent} -Jc {basename}'"
-        )
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(remote_tar_cmd)
-        local_extract_cmd = ["tar", "-Jx", "-C", "{dst}"]
+    #     dst_id = self.db.get_host_by_customer(customer_name)
+    #     return self.db.update_customer_host(customer_name, dst_id)
 
-        with subprocess.Popen(
-            local_extract_cmd,
-            shell=True,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        ) as tar_process:
-            try:
-                if tar_process.stdin is not None:
-                    for chunk in iter(lambda: ssh_stdout.read(4096), b""):
-                        tar_process.stdin.write(chunk)
-                    tar_process.stdin.close()
-                tar_process.wait()
-                if tar_process.returncode != 0:
-                    print(
-                        "Error: Local tar extraction failed with code "
-                        f"{tar_process.returncode}"
-                    )
-                    return False
-                ssh_error = ssh_stderr.read().decode()
-                if ssh_error:
-                    print(
-                        f"Error: SSH command failed with message: {ssh_error}"
-                    )
-                    return False
-            except Exception as e:
-                print(f"Error occurred during file transfer: {e}")
-                return False
-        return True
+    # def upgrade_osm_customers(self) -> bool:
+    #     upgrade_cmd = "sudo /srv/osm-lxc/ansible/do-upgrade-container.bash"
+    #     lxc_dir = "/srv/osm-lxc/lxc/containers"
+    #     os_base_dir = "/srv/osm-lxc/lxc/os-bases"
+    #     duphash = "/root/dedup.hash"
+    #     dedup_cmd = (
+    #         "sudo /usr/local/bin/duperemove -rhd --hashfile="
+    #         f"{duphash} {lxc_dir} {os_base_dir}"
+    #     )
+    #     # upgrade base container
+    #     if self.ssh_command(f"{upgrade_cmd} 'base-os'", True):
+    #         # upgrade customers containers
+    #         for customer in self.customers:
+    #             self.logger.info("Upgrade '%s' customer container", customer)
+    #             if not self.ssh_command(f"{upgrade_cmd} {customer}", True):
+    #                 self.logger.error(
+    #                     "The customer '%s' was not upgraded", customer
+    #                 )
+    #                 return False
+    #         return self.ssh_command(dedup_cmd)
+    #         return True
 
-    def ssh_push_file_or_directory(self, customer_name, src, dst):
-        path = Path(src)
-        dstpath = Path(dst)
-        ssh = self.get_ssh()
-        if not ssh:
-            return False
-        if not os.path.exists(path):
-            self.logger.error(f"Cannot find path to {src}")
-            return False
-        parent = path.parent.absolute()
-        basename = os.path.basename(src)
-        tar_cmd = f"tar -C {parent} -Jc {basename}"
-        if not os.path.isdir(path):
-            dst = dstpath.parent.absolute()
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(
-            f"sudo /srv/osm-lxc/ansible/do-shell.sh '{customer_name}-svr' 'tar -Jx -C {dst}'"
-        )
+    #     self.logger.error("The base container was not upgraded")
+    #     return False
 
-        with subprocess.Popen(
-            tar_cmd, shell=True, stdout=subprocess.PIPE
-        ) as tar_process:
-            try:
-                for chunk in iter(lambda: tar_process.stdout.read(4096), b""):
-                    ssh_stdin.write(chunk)
-                ssh_stdin.close()
-            except Exception as e:
-                print(f"Error occurred: {e}")
-                return False
-        error_code = ssh_stdout.channel.recv_exit_status()
-        if error_code:
-            self.logger.error(
-                f"Push failed : {error_code}:{os.strerror(error_code)}"
-            )
-            for line in ssh_stderr:
-                self.logger.error(line.rstrip())
-            return False
-        return True
-
-    def ssh_read_command(self, cmd: str) -> list:
-        if not (ssh := self.get_ssh()):
-            print("Unable to get SSH")
-            raise SSHException("Unable to get ssh")
-
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd, timeout=10)
-        stdout_r: list[str] = []
-        error_code = ssh_stdout.channel.recv_exit_status()
-
-        if error_code:
-            self.logger.error(
-                "Command '%s' failed : %s:%s" % cmd,
-                error_code,
-                os.strerror(error_code),
-            )
-            for line in ssh_stderr:
-                self.logger.error(line.rstrip())
-            return stdout_r
-
-        for line in ssh_stdout:
-            stdout_r += [line.rstrip()]
-
-        return stdout_r
-
-    def can_ping_customer_container(self, customer_name: str) -> bool:
-        return self.ssh_command(f"ping -c1 {customer_name}-svr")
-
-    def can_ping_customer_grafana(self, customer_name: str) -> bool:
-        domain = self.config["pdns_domain"]
-        return self.ssh_command(f"ping -c1 {customer_name}.{domain}")
-
-    def clone_container(self, customer_name: str) -> bool:
-        cmd = "sudo /srv/osm-lxc/ansible/do-clone-container.bash"
-        return self.ssh_command(f"{cmd} {customer_name}")
-
-    def move_osm_customer(
-        self, customer_name: str, src: "osm_host_t", dst: "osm_host_t"
-    ) -> bool:
-        if not src.upgrade_osm_customers():
-            return False
-
-        if not src.ssh_command(
-            "sudo /srv/osm-lxc/ansible/do-move-container.bash "
-            f"{customer_name} {dst.ip_addr}"
-        ):
-            self.logger.error("Container moving failed")
-            return False
-        mqtt_port = self.db.get_customer_port(customer_name)
-
-        # get current CNAME to restore it in case of failure
-        domain = self.config["pdns_domain"]
-        parts = ("", "-chirpstack", "-influx", "-mqtt")
-        for d in parts:
-            self.pdns_db.update_record(
-                f"{customer_name}{d}.{domain}", dst.dns_entry
-            )
-
-        if not dst.ssh_command(
-            "sudo /srv/osm-lxc/ansible/do-start-new-container.bash "
-            f"{customer_name} {mqtt_port}"
-        ):
-            self.logger.error("Failed to start new container")
-            # restore records
-            for d in parts:
-                self.pdns_db.update_record(
-                    f"{customer_name}{d}.{domain}", src.dns_entry
-                )
-
-            return False
-        if not src.ssh_command(
-            "sudo /srv/osm-lxc/ansible/do-delete-container.sh "
-            f'"{customer_name}"'
-        ):
-            self.logger.error(
-                "Unable to delete container '%s' on the host '%s",
-                customer_name,
-                src.name,
-            )
-            return False
-
-        dst_id = self.db.get_host_by_customer(customer_name)
-        return self.db.update_customer_host(customer_name, dst_id)
-
-    def upgrade_osm_customers(self) -> bool:
-        upgrade_cmd = "sudo /srv/osm-lxc/ansible/do-upgrade-container.bash"
-        lxc_dir = "/srv/osm-lxc/lxc/containers"
-        os_base_dir = "/srv/osm-lxc/lxc/os-bases"
-        duphash = "/root/dedup.hash"
-        dedup_cmd = (
-            "sudo /usr/local/bin/duperemove -rhd --hashfile="
-            f"{duphash} {lxc_dir} {os_base_dir}"
-        )
-        # upgrade base container
-        if self.ssh_command(f"{upgrade_cmd} 'base-os'", True):
-            # upgrade customers containers
-            for customer in self.customers:
-                self.logger.info("Upgrade '%s' customer container", customer)
-                if not self.ssh_command(f"{upgrade_cmd} {customer}", True):
-                    self.logger.error(
-                        "The customer '%s' was not upgraded", customer
-                    )
-                    return False
-            return self.ssh_command(dedup_cmd)
-            return True
-
-        self.logger.error("The base container was not upgraded")
-        return False
-
-    def get_osm_customer_mqtt_port(self, customer_name: str):
-        return self.db.get_customer_port(customer_name)
+    # def get_osm_customer_mqtt_port(self, customer_name: str):
+    #     return self.db.get_customer_port(customer_name)
 
     def get_osm_customer_domains(self, customer_name: str):
         rx = "("
@@ -470,15 +277,6 @@ class osm_host_t:
             walk_encrypted_dict(passwords, crypt, k)
 
         return passwords
-
-    def upgrade_influx_inserter(self) -> bool:
-        cmd = "sudo /srv/osm-lxc/ansible/do-influx-inserter-upgrade.bash"
-        for customer in self.customers:
-            self.logger.info("Upgrade '%s' influx inserter service", customer)
-            if not self.ssh_command(f"{cmd} {customer}", True):
-                self.logger.error("Service for '%s' was not upgraded", customer)
-                return False
-        return True
 
 
 class osm_orchestrator_t:
@@ -624,25 +422,94 @@ class osm_orchestrator_t:
         ansible_proc = subprocess.run(ansible_cmd)
         return ansible_proc.returncode == 0
 
-    def clone_container(self, customer_name: str) -> bool:
-        raise Exception("Not implemented")
+    def clone_container(
+            self, customer_name: str, target: str = "", public: bool = False
+    ) -> bool:
+        if not self.db.get_customer_id(customer_name):
+            self.logger.error(
+                "ERROR: Unable to find customer '%s' in the database",
+                customer_name
+            )
+            return False
 
-        # osm_host = self.find_osm_host_of(customer_name)
-        # if not osm_host:
-        #     self.logger.warning(f'No customer "{customer_name}"')
-        #     return False
-        # if osm_host.clone_container(customer_name):
-        #     print(
-        #         f"Clone {customer_name} container is created on "
-        #         f"{osm_host.name}"
-        #     )
-        #     return True
-        # return False
+        def instance_cmd(
+                cmd: str, customer_name: str, extra_args: list = []
+        ) -> bool:
+            if cmd not in ("start", "stop", "copy"):
+                self.logger.error("Only 'start' or 'stop' command is supported")
+                return False
+            try:
+                proc = subprocess.run(
+                    ["incus", cmd, customer_name] + extra_args, check=True
+                )
+            except subprocess.CalledProcessError as err:
+                self.logger.error(err)
+                return False
+
+            return proc.returncode == 0
+
+        # current OSM host
+        target_id = self.db.get_host_by_customer(customer_name)
+        target_ip = self.db.get_hosts_ipaddr(target_id)
+
+        if not instance_cmd("stop", customer_name):
+            return False
+
+        extra_args = [f"{customer_name}-clone", "--instance-only"]
+        if target:
+            target_ip = self.db.get_host(target).ip_addr
+        else:
+            target = self.db.get_host_name_by_id(target_id)
+
+        extra_args += ["--target", target]
+
+        if (not instance_cmd("copy", customer_name, extra_args) or
+            not instance_cmd("start", customer_name) or
+            not instance_cmd("start", f"{customer_name}-clone")):
+            return False
+
+        ret = True
+
+        if public:
+            ret = False
+            mqtt_port = self._db.get_max_mqtt_port() + 1
+            alias = self.pdns_db.get_customer_record(customer_name)[0][0]
+            domain_pattern = re.compile(r".*?\.(?P<domain>-?.*)")
+            domain_match = domain_pattern.search(alias)
+            if not domain_match:
+                self.logger.error("Unable to get domain from '%s' alias", alias)
+                return False
+            domain = domain_match.group("domain")
+
+            target_id = self.db.get_host_by_ip(target_ip)[0]
+            target_name = self.db.get_host_name_by_id(target_id)
+            wg_ipaddr = self.db.get_wireguard_info(target_id).ip_addr
+
+            # prepare OSM host for a new customer
+            ansible_cmd = [
+                "ansible-playbook",
+                "-i", f"{target_ip},",
+                "-e", f"customer_name={customer_name}-clone",
+                "-e", f"mqtt_port={mqtt_port}",
+                "-e", f"wg_ipaddr={wg_ipaddr}",
+                "-e", f"osm_host={target_name}",
+                "-e", f"osm_id={target_id}",
+                "-e", f"osm_ip={target_ip}",
+                "-e", f"target_domain={domain}",
+                f"{DEVTANK_WD}/env/ansible/clone_customer.yaml",
+            ]
+            try:
+                ansible_proc = subprocess.run(ansible_cmd, check=True)
+            except subprocess.CalledProcessError as err:
+                self.logger.error(err)
+                return False
+            else:
+                ret = ansible_proc.returncode == 0
+        return ret
 
     def move_osm_customer(self, customer_name: str, target_host: str) -> bool:
         ansible_cmd = [
             "ansible-playbook",
-            "-v",
             "-i", "localhost,",
             "-e", f"customer_name={customer_name}",
             "-e", f"target_host={target_host}",
@@ -651,178 +518,14 @@ class osm_orchestrator_t:
         ansible_proc = subprocess.run(ansible_cmd)
         return ansible_proc.returncode == 0
 
-        # current_osm_host = self.find_osm_host_of(customer_name)
-
-        # if not current_osm_host:
-        #     self.logger.warning(f"No customer '{customer_name}'")
-        #     return False
-
-        # if current_osm_host == host_name:
-        #     self.logger.info(
-        #         "The host '%s' alraedy has customer '%s'",
-        #         host_name,
-        #         customer_name,
-        #     )
-        #     return True
-
-        # new_osm_host = self.find_osm_host(host_name)
-        # if not new_osm_host:
-        #     self.logger.warning("No host '%s' found", host_name)
-        #     return False
-
-        # cust_num = self.db.num_active_hosts(new_osm_host.id)
-
-        # if new_osm_host.capacity == cust_num:
-        #     self.logger.error(
-        #         "No space left for customer on host '%s': %d/%d",
-        #         host_name,
-        #         cust_num,
-        #         new_osm_host.capacity,
-        #     )
-        #     return False
-
-        # if new_osm_host.move_osm_customer(
-        #     customer_name, current_osm_host, new_osm_host
-        # ):
-        #     return self.db.update_customer_host(customer_name, new_osm_host.id)
-        # return False
-
     def upgrade_osm_customers(self, host_name: str) -> bool:
-        if osm_host := self.find_osm_host(host_name):
-            return osm_host.upgrade_osm_customers()
-        self.logger.error("The OSM host '%s' is not found", host_name)
-        return False
-
-    def upgrade_influx_inserter(self, host_name: str) -> bool:
-        if osm_host := self.find_osm_host(host_name):
-            return osm_host.upgrade_influx_inserter()
-        self.logger.error("The OSM host '%s' is not found", host_name)
-        return False
-
-    def generate_wg_keys(self) -> tuple:
-        """generate wireguard private and public key pairs"""
-        priv_key = subprocess.run(
-            ["wg", "genkey"], capture_output=True, text=True
-        ).stdout.strip("\n")
-
-        pub_key_proc = subprocess.Popen(
-            ["echo", priv_key], stdout=subprocess.PIPE
-        )
-        pub_key_proc = subprocess.Popen(
-            ["wg", "pubkey"],
-            stdin=pub_key_proc.stdout,
-            stdout=subprocess.PIPE,
-        )
-        stdout, stderr = pub_key_proc.communicate()
-        pub_key = stdout.decode("utf-8").rstrip("\n")
-
-        return priv_key, pub_key
+        raise Exception("Not implemented")
 
     def add_osm_host(self, host_name: str, ip_addr: str, capacity: int) -> int:
-        # TODO: make it configurable via config.yaml file
-        WG_IPADDR = "10.10.1."
-
-        try:
-            capacity = int(capacity)
-        except ValueError:
-            self.logger.error(f'Invalid number "{capacity}" for capcaity')
-            return False
-
-        if capacity < 1:
-            self.logger.error(f'Invalid number "{capacity}" for capcaity')
-            return False
-
-        osm_host = self.find_osm_host(host_name)
-        if osm_host:
-            self.logger.warning(f'Already osm host of name "{host_name}"')
-            return False
-
-        osm_host = self.find_osm_host_by_addr(ip_addr)
-        if osm_host:
-            self.logger.warning(
-                f'Already osm host "{host_name}" of addr {ip_addr}'
-            )
-            return False
-
-        osm_host = osm_host_t(self, 0, host_name, ip_addr, capacity)
-
-        if not osm_host.get_ssh():
-            return False
-
-        if not osm_host.ssh_command("ls /srv/osm-lxc/ansible/"):
-            self.logger.error("Unable to find expected ansible tools.")
-            return False
-
-        self.db.add_host(host_name, ip_addr, capacity)
-        host_id, _, host_ipaddr, _ = self.db.get_host(host_name)
-        self.logger.info(f"Generate wg config for host '{host_ipaddr}'")
-        srv_pub_key = self.db.get_wireguard_info(None).public_key
-        osm_ipaddr = f"{WG_IPADDR}{host_id + 1}"
-        osm_priv_key, osm_pub_key = self.generate_wg_keys()
-
-        self.db.add_wireguard_peer(
-            host_id, osm_pub_key, osm_priv_key, osm_ipaddr
-        )
-
-        # configure wg peer
-        ansible_vars = (
-            f"target={host_ipaddr} osm_priv_key={osm_priv_key} "
-            f"osm_pub_key={osm_pub_key} srv_key={srv_pub_key} "
-            f"srv_ip={self.ipaddr} osm_ipaddr={osm_ipaddr}"
-        )
-
-        ansible_cmd = [
-            "/usr/bin/ansible-playbook",
-            "-v",
-            f"-i {host_ipaddr},",
-            "-e",
-            ansible_vars,
-            "/srv/osm-lxc/orchestrator/env/templates/osm_wireguard.yaml",
-        ]
-
-        ansible_proc = subprocess.Popen(
-            ansible_cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-        )
-
-        try:
-            out, err = ansible_proc.communicate()
-            self.logger.info(out.decode().split("\n"))
-        except subprocess.SubprocessError as errs:
-            ansible_proc.kill()
-            self.logger.error(errs)
-
-        self.add_wg_peer(host_name, osm_pub_key, osm_ipaddr)
-        self.add_prometheus_host(host_name, osm_ipaddr)
-
-        self.add_dns_host(host_name, ip_addr)
-        return True
+        raise Exception("Not implemented")
 
     def del_osm_host(self, host_name):
-        osm_host = self.find_osm_host(host_name)
-        if not osm_host:
-            self.logger.warning(f'No osm host of name "{host_name}"')
-            return False
-
-        customers = osm_host.customers
-        if customers:
-            customers = ",".join(customers)
-            self.logger.warning(
-                f'Host of name "{host_name}" has '
-                f"active customers: {customers}"
-            )
-            return False
-
-        domain_id = self.config["pdns_domain_id"]
-        self.db.del_wireguard_peer(osm_host.id)
-        self.del_wg_peer(WG_CONF_FILE, host_name)
-        self.del_prometheus_host(PROMETHEUS_CONF_FILE, host_name)
-        self.db.del_host(osm_host.id)
-        self.pdns_db.update_record(
-            domain_id, osm_host.dns_entry, osm_host.ip_addr
-        )
-        return True
+        raise Exception("Not implemented")
 
     def get_customer_passwords(self, customer_name):
         if osm_host := self.find_osm_host_of(customer_name):
@@ -874,12 +577,15 @@ class cli_osm_orchestrator_t:
             name, uuid, email = contact
             print(f"{name:<20} | {email:<40} | {uuid:<36}")
 
+    def clone_osm_container(
+        self, src: str, target: Union[str, None] = None, pub: str = "",
+     ) -> int:
+        if target and self.test_osm_host(target) > os.EX_OK:
+            return os.EX_CONFIG
 
-    def clone_osm_container(self, src: str) -> int:
-        if self._osm_orch.clone_container(src):
-            return os.EX_OK
-        else:
-            return os.EX_UNAVAILABLE
+        return os.EX_OK if self._osm_orch.clone_container(
+            src, target, True if pub.lower() in ("yes", "y",) else False
+        ) else os.EX_UNAVAILABLE
 
     def move_osm_customer(self, customer_name: str, host_name: str) -> int:
         if self._osm_orch.move_osm_customer(customer_name, host_name):
@@ -892,10 +598,8 @@ class cli_osm_orchestrator_t:
             return os.EX_OK
         return os.EX_UNAVAILABLE
 
-    def add_osm_host(self, host_name: str, ip_addr: str, capcaity: str) -> int:
-        if self._osm_orch.add_osm_host(host_name, ip_addr, capcaity):
-            return os.EX_OK
-        return os.EX_CONFIG
+    def add_osm_host(self, host_name):
+        raise Exception("Not implemented")
 
     def del_osm_host(self, host_name):
         if self._osm_orch.del_osm_host(host_name):
@@ -1105,11 +809,6 @@ class cli_osm_orchestrator_t:
             "pull", customer_name, src, dest
         ) else os.EX_CONFIG
 
-    def upgrade_influx_inserter(self, host_name: str) -> int:
-        if self._osm_orch.upgrade_influx_inserter(host_name):
-            return os.EX_OK
-        return os.EX_UNAVAILABLE
-
     def get_mosquitto_sub_cmd(self, customer_name: str):
         osm_host = self._osm_orch.find_osm_host_of(customer_name)
         if not osm_host:
@@ -1202,8 +901,10 @@ def main():
             cli_obj.list_osm_alerts_contacts
         ),
         "clone_container": cmd_entry(
-            "clone_container <name>: "
-            "Create container <name> copy <name>-clone",
+            "clone_container <name> [<target>] [<public>]: "
+            "Create container <name> copy <name>-clone on [<target>] OSM host. "
+            "If [public] is set to '[<yes|y>]', the nginx configuration is "
+            "generated",
             cli_obj.clone_osm_container,
         ),
         "mv_customer": cmd_entry(
@@ -1257,11 +958,6 @@ def main():
             "del_dashboards <customer_name> <config> <cert>: Deletes "
             "Grafana dashboard solution for customer with optional cert",
             cli_obj.del_dashboards,
-        ),
-        "upgrade_influx_inserter": cmd_entry(
-            "upgrade_influx_inserter <host_name>: Upgrades mqtt influx "
-            "inserter for all customers on host",
-            cli_obj.upgrade_influx_inserter,
         ),
         "mqtt_listener": cmd_entry(
             "mqtt_listener <customer_name>: Get MQTT listener cmd "
