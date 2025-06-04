@@ -126,7 +126,7 @@ class PDNSHandler:
         host_name = module.params.get("host_name")
         method = module.params.get("method")
         target_host = f"{host_name}.{domain}"
-        name_parts = ("", "-chirspstack", "-influx", "-mqtt")
+        name_parts = ("", "-chirpstack", "-influx", "-mqtt")
 
         result = (
             {"customer": customer, "host": target_host}
