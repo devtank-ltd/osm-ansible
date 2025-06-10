@@ -2,7 +2,7 @@
 
 mkdir -p /srv/osm-lxc/lxc/logs
 
-containers=(/srv/osm-lxc/lxc/containers/*)
+containers=(/srv/osm-lxc/lxc/containers/*-svr)
 for container in "${containers[@]}"; do
 	name="$(basename "$container")"
 	if [ ! -e "$container/lxc.container.conf" ]
