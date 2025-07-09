@@ -4,6 +4,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+readonly BUILD_LOG="build.log"
+
 init() {
     local SRC="${BASH_SOURCE[0]}"
     local INC
@@ -35,6 +37,7 @@ init() {
 }
 
 main() {
+    exec > >(tee -a "$BUILD_LOG") 2> >(tee -a "$BUILD_LOG" >&2)
     init "$@"
 
     if [[ "${ARGS[action]}" == "setup" ]]; then

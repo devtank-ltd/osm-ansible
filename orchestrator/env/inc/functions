@@ -507,6 +507,7 @@ gen_remote_ssh() {
 	cat /root/.ssh/id_rsa.pub
 EOF
 )"
+    [[ ! -v pub_key || -z "$pub_key" ]] && die "ssh keys were not generated for the '$ipaddr' host"
     echo "$pub_key"
 }
 
