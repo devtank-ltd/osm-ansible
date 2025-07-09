@@ -278,7 +278,7 @@ do_setup() {
     for i in $(seq 2 $(( OSM_HOST_COUNT - 1 ))); do
         dest_host="${VOSM_HOST}${i}"
         clone_host "$base_host" "$dest_host"
-        OSM_HOSTS["${VOSM_HOST}${i}"]=""
+        OSM_HOSTS["$dest_host"]=""
     done
 }
 
@@ -873,6 +873,9 @@ do_start_hosts() {
         host="${host##*/}"
         run_qemu "$host" "${VOSM_HOSTBR}"
     done
+
+    warn "Reset hosts in '$ANSIBLE_HOSTS'"
+    sed -i '/\[all:vars\]/,$!d' "$ANSIBLE_HOSTS"
 
     for host in "${machines[@]}"; do
         host="${host##*/}"
