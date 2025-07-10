@@ -903,12 +903,21 @@ shutdown_vm() {
     local hostdir="$1"
     local mon="monitor.sock"
 
+    warn "Shutting down '$hostdir' host..."
+
+    if [[ ! -f "${hostdir}/qemu.pid" ]]; then
+        warn "There is no pid file in '$hostdir'. Is VM running?"
+        return
+    fi
+
     if [[ ! -S "${hostdir}/${mon}" ]]; then
         warn "There is no monitor socket in '$hostdir'"
         return
     else
         echo "system_powerdown" | socat - unix-connect:"${hostdir}/${mon}" &> /dev/null
-        pidwait -f "${hostdir}/qemu.pid"
+        if [[ -f "${hostdir}/qemu.pid" ]]; then
+            timeout 5 pidwait -f "${hostdir}/qemu.pid" || true
+        fi
         info "The host '${hostdir##*/}' powered off"
     fi
 }
