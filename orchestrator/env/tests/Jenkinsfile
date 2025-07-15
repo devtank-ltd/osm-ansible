@@ -40,6 +40,7 @@ pipeline {
                     sh '''
                     tests_dir="/srv/osm-lxc/orchestrator/env/tests"
                     test_file="customers.bats"
+                    ping -c3 -W1 "${OSM_SUBNET}.2"
                     ssh root@"${OSM_SUBNET}.2" "stdbuf -oL -eL bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
                     '''
                 }
