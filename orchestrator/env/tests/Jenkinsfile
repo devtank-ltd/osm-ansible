@@ -2,11 +2,11 @@ pipeline {
     agent none
     stages {
         stage('Get OSM sources') {
-            agent { label 'vosmhost0-incus' }
+            agent { label 'built-in' }
             steps {
-                dir('/srv/osm-lxc') {
+                dir("${WORKSPACE}/osm-ansible") {
                     checkout scmGit(
-                        branches: [[name: 'ref']],
+                        branches: [[name: 'ref2']],
                         userRemoteConfigs: [[url: 'https://git.devtank.co.uk/Devtank/osm-ansible.git']]
                         )
 
@@ -14,15 +14,34 @@ pipeline {
             }
 
         }
-        stage('Run tests') {
-            agent { label 'vosmhost0-incus' }
+
+        stage('Build environment') {
+            agent { label 'built-in' }
             steps {
-                dir('/srv/osm-lxc/orchestrator/env') {
-                    ansiColor('xterm') {
-                        sh '''
-                        stdbuf -oL -eL bats -p --print-output-on-failure --verbose-run -T tests/customers.bats
-                        '''
-                    }
+                ansiColor('xterm') {
+                    sh '''
+                    conf="${WORKSPACE}/orchestrator/env/network.cfg"
+                    sed -ri 's/(^VOSM_HOSTBR=).*/\\1"'"$BRIDGE_NAME"'"/' "$conf"
+                    sed -ri 's/(^OSM_SUBNET=).*/\\1"'"$OSM_SUBNET"'"/' "$conf"
+                    sed -ri 's/(^HTTP_PORT=).*/\\1"'"$HTTP_PORT"'"/' "$conf"
+                    sed -ri 's/(^OSM_DOMAIN=).*/\\1"'"$OSM_DOMAIN"'"/' "$conf"
+                    pushd "${WORKSPACE}/orchestrator/env" >/dev/null 2>&1
+                    stdbuf -oL -eL bash run.bash -a setup -c network.cfg
+                    '''
+                }
+            }
+        }
+
+        stage('Run tests') {
+            // agent { label 'vosmhost0-incus' }
+            agent { label 'built-in' }
+            steps {
+                ansiColor('xterm') {
+                    sh '''
+                    tests_dir="/srv/osm-lxc/orchestrator/env/tests"
+                    test_file="customers.bats"
+                    ssh root@"${OSM_SUBNET}.2" "stdbuf -oL -eL bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
+                    '''
                 }
             }
         }
@@ -31,14 +50,14 @@ pipeline {
     post {
          changed {
             script {
-                if (currentBuild.currentResult == 'FAILURE') { 
+                if (currentBuild.currentResult == 'FAILURE') {
                     emailext subject: '$DEFAULT_SUBJECT',
                         body: '$DEFAULT_CONTENT',
                         recipientProviders: [
                             [$class: 'CulpritsRecipientProvider'],
                             [$class: 'DevelopersRecipientProvider'],
-                            [$class: 'RequesterRecipientProvider'] 
-                        ], 
+                            [$class: 'RequesterRecipientProvider']
+                        ],
                         replyTo: '$DEFAULT_REPLYTO',
                         to: '$DEFAULT_RECIPIENTS'
                 }

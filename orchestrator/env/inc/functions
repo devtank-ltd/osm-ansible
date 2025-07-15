@@ -778,14 +778,19 @@ set_ssh_key() {
         (( ! ${#ssh_keys[@]} )) && die "Missing public key"
 
         if (( ${#ssh_keys[@]} > 1 )); then
-            warn "Several SSH public keys are found."
-            PS3="Which key should be used? "
-            select key in "${ssh_keys[@]}"; do
-                [[ $key ]] || continue
-                info "Set the '$key' key"
-                DEFAULT_SSH_KEY="$key"
-                break
-            done
+            if [[ "$(hostname)" =~ jenkins ]]; then
+                warn "Running on jenkins host? Use the first ssh key found"
+                DEFAULT_SSH_KEY="${ssh_keys[0]}"
+            else
+                warn "Several SSH public keys are found."
+                PS3="Which key should be used? "
+                select key in "${ssh_keys[@]}"; do
+                    [[ $key ]] || continue
+                    info "Set the '$key' key"
+                    DEFAULT_SSH_KEY="$key"
+                    break
+                done
+            fi
         else
             info "Set '${ssh_keys[0]}' public key."
             DEFAULT_SSH_KEY="${ssh_keys[0]}"

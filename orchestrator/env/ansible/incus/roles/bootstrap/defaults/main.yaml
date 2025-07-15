@@ -4,6 +4,7 @@ main:
   packages:
     - ansible
     - apt-transport-https
+    - bats
     - curl
     - default-mysql-client
     - default-mysql-server
