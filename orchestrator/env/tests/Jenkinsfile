@@ -1,18 +1,29 @@
 pipeline {
     agent none
     stages {
+        stage('Wipe out workspace') {
+            agent { label 'built-in' }
+            steps {
+                ansiColor('xterm') {
+                    sh '''
+                    for pid in $(find -name "qemu.pid" -print); do
+                        pkill -SIGTERM -F "$pid"
+                    done
+
+                    rm -rf "${WORKSPACE}/orchestrator/env/hosts"
+                    '''
+                }
+            }
+        }
+
         stage('Get OSM sources') {
             agent { label 'built-in' }
             steps {
-                dir("${WORKSPACE}/osm-ansible") {
-                    checkout scmGit(
-                        branches: [[name: 'ref2']],
-                        userRemoteConfigs: [[url: 'https://git.devtank.co.uk/Devtank/osm-ansible.git']]
-                        )
-
-                }
+                checkout scmGit(
+                    branches: [[name: 'ref2']],
+                    userRemoteConfigs: [[url: 'https://git.devtank.co.uk/Devtank/osm-ansible.git']]
+                )
             }
-
         }
 
         stage('Build environment') {
