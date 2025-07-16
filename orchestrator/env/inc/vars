@@ -16,7 +16,7 @@ readonly OVMF_CODE="/usr/share/OVMF/OVMF_CODE_4M.fd"
 # readonly OVMF_CODE=/usr/share/edk2/x64/OVMF_CODE.4m.fd
 
 readonly DISK_NAME="disk.qcow"
-readonly DISK_SIZE="16G"
+readonly DISK_SIZE="24G"
 
 declare -Ar PACKAGES=(
     ["ansible-playbook"]="ansible"
