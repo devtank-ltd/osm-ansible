@@ -42,7 +42,7 @@ pipeline {
                     tests_dir="/srv/osm-lxc/orchestrator/env/tests"
                     test_file="customers.bats"
                     ping -c3 -W1 "$ipaddr"
-                    ssh root@"$ipaddr" "stdbuf -oL -eL bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
+                    ssh root@"$ipaddr" "TERM=xterm stdbuf -oL -eL bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
                     '''
                 }
             }
