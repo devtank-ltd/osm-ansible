@@ -231,8 +231,8 @@ class osm_host_t:
     #     self.logger.error("The base container was not upgraded")
     #     return False
 
-    # def get_osm_customer_mqtt_port(self, customer_name: str):
-    #     return self.db.get_customer_port(customer_name)
+    def get_osm_customer_mqtt_port(self, customer_name: str):
+        return self.db.get_customer_port(customer_name)
 
     def get_osm_customer_domains(self, customer_name: str):
         rx = "("
