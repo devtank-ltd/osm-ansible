@@ -38,10 +38,11 @@ pipeline {
             steps {
                 ansiColor('xterm') {
                     sh '''
+                    ipaddr="$(sed -rn 's/.*\\s([0-9.]+)\\svosmhost0.*/\\1/p' /tmp/qemu.leasefile)"
                     tests_dir="/srv/osm-lxc/orchestrator/env/tests"
                     test_file="customers.bats"
-                    ping -c3 -W1 "${OSM_SUBNET}.2"
-                    ssh root@"${OSM_SUBNET}.2" "stdbuf -oL -eL bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
+                    ping -c3 -W1 "$ipaddr"
+                    ssh root@"$ipaddr" "stdbuf -oL -eL bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
                     '''
                 }
             }
