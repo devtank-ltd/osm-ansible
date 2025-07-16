@@ -6,8 +6,19 @@ pipeline {
             steps {
                 ansiColor('xterm') {
                     sh '''
-                    for pid in $(find -name "qemu.pid" -print); do
-                        pkill -SIGTERM -F "$pid"
+                    retries=3
+                    counter=0
+                    for sock in $(find -name "monitor.sock" -print); do
+                        echo "system_powerdown"| socat - unix-connect:"$sock"
+
+                        host_dir="$(dirname "$sock")"
+                        while [ -e "${host_dir}/qemu.pid" ]; do
+                            sleep 5
+                            counter=$((counter + 1))
+                            if [ $counter -ge $retries ]; then
+                                exit 1
+                            fi
+                        done
                     done
 
                     rm -rf "${WORKSPACE}/orchestrator/env/hosts"
