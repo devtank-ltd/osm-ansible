@@ -41,7 +41,10 @@ pipeline {
                     ipaddr="$(sed -rn 's/.*\\s([0-9.]+)\\svosmhost0.*/\\1/p' /tmp/qemu.leasefile)"
                     tests_dir="/srv/osm-lxc/orchestrator/env/tests"
                     test_file="customers.bats"
-                    ping -c3 -W1 "$ipaddr"
+                    if ! ping -c3 -W1 "$ipaddr" &>/dev/null 2>&1; then
+                        echo "Host '$ipaddr' unreachable"
+                        exit 1
+                    fi
                     ssh root@"$ipaddr" "TERM=xterm stdbuf -oL -eL bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
                     '''
                 }

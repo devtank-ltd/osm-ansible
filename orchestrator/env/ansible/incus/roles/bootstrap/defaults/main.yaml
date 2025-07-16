@@ -5,6 +5,8 @@ main:
     - ansible
     - apt-transport-https
     - bats
+    - bats-assert
+    - bats-support
     - curl
     - default-mysql-client
     - default-mysql-server
