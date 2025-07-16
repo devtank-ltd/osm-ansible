@@ -488,6 +488,7 @@ class osm_orchestrator_t:
             # prepare OSM host for a new customer
             ansible_cmd = [
                 "ansible-playbook",
+                "-v",
                 "-i", f"{target_ip},",
                 "-e", f"customer_name={customer_name}-clone",
                 "-e", f"mqtt_port={mqtt_port}",

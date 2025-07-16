@@ -6,14 +6,15 @@ pipeline {
             steps {
                 ansiColor('xterm') {
                     sh '''
-                    retries=3
+                    wait_for=5
+                    retries=10
                     counter=0
                     for sock in $(find -name "monitor.sock" -print); do
                         echo "system_powerdown"| socat - unix-connect:"$sock"
 
                         host_dir="$(dirname "$sock")"
                         while [ -e "${host_dir}/qemu.pid" ]; do
-                            sleep 5
+                            sleep $wait_for
                             counter=$((counter + 1))
                             if [ $counter -ge $retries ]; then
                                 exit 1
@@ -67,7 +68,7 @@ pipeline {
                         echo "Host '$ipaddr' unreachable"
                         exit 1
                     fi
-                    ssh root@"$ipaddr" "TERM=xterm stdbuf -oL -eL bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
+                    stdbuf -oL -eL ssh root@"$ipaddr" "export JENKINS_DOMAIN=$OSM_DOMAIN; TERM=xterm bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
                     '''
                 }
             }

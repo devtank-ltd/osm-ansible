@@ -5,7 +5,7 @@ setup() {
     DIR="$( cd "$( dirname "$BATS_TEST_FILENAME" )" >/dev/null 2>&1 && pwd )"
     PATH="$DIR/..:$PATH"
     CLI="/srv/osm-lxc/orchestrator/orchestrator_cli.py"
-    DOMAIN="incus-devtank.co.uk"
+    DOMAIN="${JENKINS_DOMAIN:-incus-devtank.co.uk}"
 }
 
 setup_file() {
@@ -135,27 +135,27 @@ teardown_file() {
 }
 
 @test "Clone Customer. Same OSM host. Public" {
-    run "$CLI" clone_container customer1
+    run "$CLI" clone_container customer1 vosmhost1 yes
     assert_success
     run ping -c3 customer1-clone."$DOMAIN"
     assert_success
-    assert_line --index 0 --regexp '^PING vosmhost0.'"$DOMAIN"' \([[:digit:]].+\).*$'
-    for n in "$(seq 1 3)"; do
-        assert_line --index "$n" --regexp '^[[:digit:]]+ bytes from vosmhost0 \([[:digit:]].+\): icmp_seq='"$n"''
+    assert_line --index 0 --regexp '^PING vosmhost1.'"$DOMAIN"' \([[:digit:]].+\).*$'
+    for n in $(seq 1 3); do
+        assert_line --index "$n" --regexp '^[[:digit:]]+ bytes from vosmhost1 \([[:digit:]].+\): icmp_seq='"$n"''
     done
-    assert_line --index 6 --regexp '^.*, 0% packets loss.*$'
+    assert_line --index 5 --regexp '^.*, 0% packet loss.*$'
     run "$CLI" del_customer customer1-clone
 }
 
 @test "Clone Customer. Other OSM host. Public" {
-    run "$CLI" clone_container customer1 vosmhost1 yes
+    run "$CLI" clone_container customer1 vosmhost0 yes
     assert_success
     run ping -c3 customer1-clone."$DOMAIN"
     assert_line --index 0 --regexp '^PING vosmhost1.'"$DOMAIN"' \([[:digit:]].+\).*$'
-    for n in "$(seq 1 3)"; do
-        assert_line --index "$n" --regexp '^[[:digit:]]+ bytes from vosmhost1 \([[:digit:]].+\): icmp_seq='"$n"''
+    for n in $(seq 1 3); do
+        assert_line --index "$n" --regexp '^[[:digit:]]+ bytes from vosmhost0 \([[:digit:]].+\): icmp_seq='"$n"''
     done
-    assert_line --index 6 --regexp '^.*, 0% packets loss.*$'
+    assert_line --index 5 --regexp '^.*, 0% packet loss.*$'
     run "$CLI" del_customer customer1-clone
 
 }

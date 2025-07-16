@@ -42,6 +42,12 @@
     src: /etc/nginx/devtank/customers.http.d/TEMPLATE
     dest: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
 
+- name: Append .incus to http container name
+  ansible.builtin.replace:
+    path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
+    regexp: 'CUSTOMERNAME:'
+    replace: "{{ customer_name }}.incus:"
+
 - name: Setup nginx HTTP config with customer name
   ansible.builtin.replace:
     path: /etc/nginx/devtank/customers.http.d/{{ customer_name }}.conf
@@ -64,6 +70,12 @@
   ansible.builtin.copy:
     src: /etc/nginx/devtank/customers.stream.d/TEMPLATE
     dest: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+
+- name: Append .incus to http container name
+  ansible.builtin.replace:
+    path: /etc/nginx/devtank/customers.stream.d/{{ customer_name }}.conf
+    regexp: 'CUSTOMERNAME:'
+    replace: "{{ customer_name }}.incus:"
 
 - name: Setup nginx MQTT Port config
   ansible.builtin.replace:
