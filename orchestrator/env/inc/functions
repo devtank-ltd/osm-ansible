@@ -855,6 +855,7 @@ run_ansible_incus() {
 run_ansible_postinst() {
     local args=(
         --tags postinst
+        -v
         -e osm_domain="$OSM_DOMAIN"
         -i "$ANSIBLE_HOSTS"
     )
