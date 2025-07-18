@@ -150,8 +150,9 @@ teardown_file() {
 @test "Clone Customer. Other OSM host. Public" {
     run "$CLI" clone_container customer1 vosmhost0 yes
     assert_success
+    run resolvectl flush-caches
     run ping -c3 customer1-clone."$DOMAIN"
-    assert_line --index 0 --regexp '^PING vosmhost1.'"$DOMAIN"' \([[:digit:]].+\).*$'
+    assert_line --index 0 --regexp '^PING vosmhost0.'"$DOMAIN"' \([[:digit:]].+\).*$'
     for n in $(seq 1 3); do
         assert_line --index "$n" --regexp '^[[:digit:]]+ bytes from vosmhost0 \([[:digit:]].+\): icmp_seq='"$n"''
     done
