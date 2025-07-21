@@ -99,14 +99,13 @@
       ansible.builtin.set_fact:
         le_domain: hostvars["localhost"].target_domain
 
-
     - name: Include customer service roles
       include_role:
         name: "customer_instance/{{ item }}"
       loop:
         - mosquitto
-        - influx
         - postgres
+        - timescaledb
         - chirpstack
         - grafana
         - mqtt_influx_inserter

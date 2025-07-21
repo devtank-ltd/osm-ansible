@@ -1,0 +1,403 @@
+- name: Generate passwords
+  ansible.builtin.set_fact:
+    timescaledb_passwords: "{{ timescaledb_passwords | default({}) | combine({ item: lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }) }}"
+  loop:
+    - devtank
+    - customer
+
+- name: Timescaledb operations
+  block:
+    - name: Create timescaledb users
+      community.postgresql.postgresql_user:
+        name: "{{ item.key }}"
+        password: "{{ item.value }}"
+      loop: "{{ timescaledb_passwords | dict2items }}"
+
+    - name: Create database
+      postgresql_db:
+        name: "{{ timescaledb_db }}"
+        owner: "{{ timescaledb_owner }}"
+
+    - name: Add timescaledb extension
+      postgresql_ext:
+        name: "timescaledb"
+        db: "{{ timescaledb_db }}"
+
+    - name: GRANT ALL PRIVILEGES ON DATABASE
+      community.postgresql.postgresql_privs:
+        login_db: postgres
+        privs: ALL
+        type: database
+        obj: "{{ timescaledb_db }}"
+        role: "{{ timescaledb_owner }}"
+
+    - name: GRANT ALL PRIVILEGES ON SCHEMA public TO {{ timescaledb_owner }}
+      postgresql_privs:
+        login_db: "{{ timescaledb_db }}"
+        privs: ALL
+        type: schema
+        objs: public
+        role: "{{ timescaledb_owner }}"
+
+  become: yes
+  become_user: postgres
+
+- name: Create tariff table
+  postgresql_table:
+    login_db: "{{ timescaledb_db }}"
+    login_user: "{{ timescaledb_owner }}"
+    login_password: "{{ timescaledb_passwords['devtank'] }}"
+    login_host: 127.0.0.1
+    name: tariffs
+    columns:
+    - id BIGSERIAL PRIMARY KEY
+    - rate FLOAT
+    - weekday INT
+    - valid_from TIMESTAMP NOT NULL
+    - valid_to TIMESTAMP
+    - tag TEXT
+    - start_hour FLOAT
+    - end_hour FLOAT
+
+- name: Create osm table
+  postgresql_table:
+    login_db: "{{ timescaledb_db }}"
+    login_user: "{{ timescaledb_owner }}"
+    login_password: "{{ timescaledb_passwords['devtank'] }}"
+    login_host: 127.0.0.1
+    name: osm
+    columns:
+    - id BIGSERIAL PRIMARY KEY
+    - name TEXT NOT NULL
+    - topic TEXT NOT NULL UNIQUE
+
+- name: Create measurement table
+  postgresql_table:
+    login_db: "{{ timescaledb_db }}"
+    login_user: "{{ timescaledb_owner }}"
+    login_password: "{{ timescaledb_passwords['devtank'] }}"
+    login_host: 127.0.0.1
+    name: measurement
+    columns:
+    - id BIGSERIAL PRIMARY KEY
+    - name TEXT NOT NULL UNIQUE
+
+- name: Create pg_sf table
+  postgresql_table:
+    login_db: "{{ timescaledb_db }}"
+    login_user: "{{ timescaledb_owner }}"
+    login_password: "{{ timescaledb_passwords['devtank'] }}"
+    login_host: 127.0.0.1
+    name: pg_sf
+    columns:
+    - id BIGSERIAL
+    - measurement_id INT NOT NULL
+    - _value FLOAT
+    - _value_text TEXT
+    - _time TIMESTAMPTZ NOT NULL
+    - osm_id INT NOT NULL
+    - CONSTRAINT fk_osm_id FOREIGN KEY (osm_id) REFERENCES osm(id)
+    - CONSTRAINT fk_meas_id FOREIGN KEY (measurement_id) REFERENCES measurement(id)
+
+- name: Create generic table
+  postgresql_table:
+    login_db: "{{ timescaledb_db }}"
+    login_user: "{{ timescaledb_owner }}"
+    login_password: "{{ timescaledb_passwords['devtank'] }}"
+    login_host: 127.0.0.1
+    name: generic
+    columns:
+    - id BIGSERIAL
+    - name TEXT NOT NULL
+    - value_json JSON
+
+- name: Create TimescaleDB hypertable using postgresql_query
+  community.postgresql.postgresql_query:
+    db: "{{ timescaledb_db }}"
+    query: "SELECT create_hypertable('pg_sf', by_range('_time'));"
+    login_user: "{{ timescaledb_owner }}"
+    login_password: "{{ timescaledb_passwords['devtank'] }}"
+    login_host: 127.0.0.1
+
+- name: Set SQL queries for aggregation tables
+  vars:
+    mat_sql:
+      - sql: >-
+          CREATE TABLE kwh (
+            bucket TIMESTAMPTZ NOT NULL,
+            name TEXT NOT NULL,
+            kwh_val DOUBLE PRECISION NOT NULL DEFAULT 0,
+            osm_name TEXT NOT NULL,
+            PRIMARY KEY (bucket, name, osm_name)
+          );
+
+      - sql: >-
+          CREATE TABLE scaled_current (
+            bucket TIMESTAMPTZ NOT NULL,
+            name TEXT NOT NULL,
+            scaled_cc DOUBLE PRECISION NOT NULL DEFAULT 0,
+            osm_name TEXT NOT NULL,
+            PRIMARY KEY (bucket, name, osm_name)
+          );
+
+      - sql: >-
+          CREATE TABLE plscnt (
+            bucket TIMESTAMPTZ NOT NULL,
+            name TEXT NOT NULL,
+            osm_name TEXT NOT NULL,
+            psum DOUBLE PRECISION NOT NULL DEFAULT 0,
+            PRIMARY KEY (bucket, name, osm_name)
+          );
+
+      - sql: >-
+          CREATE TABLE pg_sf_ds (
+            bucket TIMESTAMPTZ NOT NULL,
+            name TEXT NOT NULL,
+            osm_name TEXT NOT NULL,
+            ds_val DOUBLE PRECISION NOT NULL DEFAULT 0,
+            PRIMARY KEY (bucket, name, osm_name)
+          );
+
+      - sql: >-
+          CREATE TABLE pg_sf_ds_text (
+            bucket TIMESTAMPTZ NOT NULL,
+            name TEXT NOT NULL,
+            osm_name TEXT NOT NULL,
+            ds_val TEXT NOT NULL,
+            PRIMARY KEY (bucket, name, osm_name)
+          );
+
+  block:
+    - name: Create aggregation tables
+      shell: >-
+        PGPASSWORD={{ timescaledb_passwords['devtank'] }}
+        psql -U {{ timescaledb_owner }} -d {{ timescaledb_db }}
+        -h localhost -c "{{ item.sql }}"
+      loop: "{{ mat_sql }}"
+
+- name: Grant privs to customer on database
+  community.postgresql.postgresql_privs:
+    login_db: "{{ timescaledb_db }}"
+    state: present
+    privs: SELECT
+    type: table
+    objs: measurement,pg_sf,tariffs,osm,pg_sf_ds,pg_sf_ds_text,scaled_current,kwh,plscnt
+    schema: public
+    roles: customer
+    grant_option: true
+  become: yes
+  become_user: postgres
+
+- name: Convert aggregation tables to hypertables
+  vars:
+    tables:
+      - pg_sf_ds
+      - pg_sf_ds_text
+      - kwh
+      - scaled_current
+      - plscnt
+  loop: "{{ tables }}"
+  loop_control:
+    loop_var: hypertable
+  shell: >-
+    PGPASSWORD={{ timescaledb_passwords['devtank'] }}
+    psql -U {{ timescaledb_owner }} -d {{ timescaledb_db }} -h localhost
+    -c "SELECT create_hypertable('{{ hypertable }}', 'bucket', if_not_exists => TRUE);"
+
+- name: Create functions
+  vars:
+    func_trgs:
+      - sql: >-
+          CREATE OR REPLACE FUNCTION pg_sf_ds_trigger()
+          RETURNS TRIGGER AS \$\$
+          BEGIN
+
+            -- Only act if _value_text IS NOT NULL
+            IF NEW._value IS NOT NULL THEN
+              INSERT INTO pg_sf_ds (bucket, name, osm_name, ds_val)
+              VALUES (
+                time_bucket(INTERVAL '15 minutes', NEW._time),
+                (SELECT name FROM measurement WHERE id = NEW.measurement_id),
+                (SELECT name FROM osm WHERE id = NEW.osm_id),
+                NEW._value
+              )
+              ON CONFLICT (bucket, name, osm_name)
+              DO UPDATE SET ds_val = EXCLUDED.ds_val;
+            END IF;
+
+            RETURN NEW;
+          END;
+          \$\$ LANGUAGE plpgsql;
+
+      - sql: >-
+          CREATE OR REPLACE FUNCTION pg_sf_ds_text_trigger() RETURNS TRIGGER AS \$\$
+          BEGIN
+
+            -- Only act if _value_text IS NOT NULL
+            IF NEW._value_text IS NOT NULL THEN
+              INSERT INTO pg_sf_ds_text (bucket, name, osm_name, ds_val)
+              VALUES (
+                time_bucket(INTERVAL '15 minutes', NEW._time),
+                (SELECT name FROM measurement WHERE id = NEW.measurement_id),
+                (SELECT name FROM osm WHERE id = NEW.osm_id),
+                NEW._value_text
+              )
+              ON CONFLICT (bucket, name, osm_name)
+              DO UPDATE SET ds_val = EXCLUDED.ds_val;
+            END IF;
+
+            RETURN NEW;
+          END;
+          \$\$ LANGUAGE plpgsql;
+
+      - sql: >-
+          CREATE OR REPLACE FUNCTION kwh_trigger()
+          RETURNS TRIGGER AS \$\$
+          DECLARE
+            meas_name TEXT;
+          BEGIN
+            SELECT name INTO meas_name FROM measurement WHERE id = NEW.measurement_id;
+
+            IF meas_name IN ('CC1', 'CC2', 'CC3') THEN
+              INSERT INTO kwh (bucket, name, kwh_val, osm_name)
+              VALUES (
+                time_bucket(INTERVAL '15 minutes', NEW._time),
+                meas_name,
+                NEW._value / 1000000 * 240,
+                (SELECT name FROM osm WHERE id = NEW.osm_id)
+              )
+              ON CONFLICT (bucket, name, osm_name)
+              DO UPDATE SET kwh_val = EXCLUDED.kwh_val;
+            END IF;
+
+            RETURN NEW;
+          END;
+          \$\$ LANGUAGE plpgsql;
+
+      - sql: >-
+          CREATE OR REPLACE FUNCTION scaled_current_trigger()
+          RETURNS TRIGGER AS \$\$
+          DECLARE
+            meas_name TEXT;
+          BEGIN
+            SELECT name INTO meas_name FROM measurement WHERE id = NEW.measurement_id;
+
+            IF meas_name IN ('CC1', 'CC2', 'CC3') THEN
+              INSERT INTO scaled_current (bucket, name, scaled_cc, osm_name)
+              VALUES (
+                time_bucket(INTERVAL '15 minutes', NEW._time),
+                meas_name,
+                NEW._value / 1000,
+                (SELECT name FROM osm WHERE id = NEW.osm_id)
+              )
+              ON CONFLICT (bucket, name, osm_name)
+              DO UPDATE SET scaled_cc = EXCLUDED.scaled_cc;
+            END IF;
+
+            RETURN NEW;
+          END;
+          \$\$ LANGUAGE plpgsql;
+
+      - sql: >-
+          CREATE OR REPLACE FUNCTION plscnt_trigger()
+          RETURNS TRIGGER AS \$\$
+          DECLARE
+            meas_name TEXT;
+          BEGIN
+            SELECT name INTO meas_name FROM measurement WHERE id = NEW.measurement_id;
+
+            IF meas_name IN ('CNT1', 'CNT2') THEN
+              INSERT INTO plscnt (bucket, name, osm_name, psum)
+              VALUES (
+                time_bucket(INTERVAL '15 minutes', NEW._time),
+                meas_name,
+                (SELECT name FROM osm WHERE id = NEW.osm_id),
+                NEW._value
+              )
+              ON CONFLICT (bucket, name, osm_name)
+              DO UPDATE SET psum = EXCLUDED.psum;
+            END IF;
+
+            RETURN NEW;
+          END;
+          \$\$ LANGUAGE plpgsql;
+
+  block:
+    - name: Create trigger functions
+      shell: >-
+        PGPASSWORD={{ timescaledb_passwords['devtank'] }}
+        psql -U {{ timescaledb_owner }} -d {{ timescaledb_db }}
+        -h localhost -c "{{ item.sql }}"
+      loop: "{{ func_trgs }}"
+
+- name: Set attach triggers SQL
+  vars:
+    trgs:
+      - sql: >-
+          DROP TRIGGER IF EXISTS pg_sf_ds_trigger ON pg_sf;
+          CREATE TRIGGER pg_sf_ds_trigger
+          AFTER INSERT ON pg_sf
+          FOR EACH ROW EXECUTE FUNCTION pg_sf_ds_trigger();
+
+      - sql: >-
+          DROP TRIGGER IF EXISTS kwh_trigger ON pg_sf;
+          CREATE TRIGGER kwh_trigger
+          AFTER INSERT ON pg_sf
+          FOR EACH ROW EXECUTE FUNCTION kwh_trigger();
+
+      - sql: >-
+          DROP TRIGGER IF EXISTS scaled_current_trigger ON pg_sf;
+          CREATE TRIGGER scaled_current_trigger
+          AFTER INSERT ON pg_sf
+          FOR EACH ROW EXECUTE FUNCTION scaled_current_trigger();
+
+      - sql: >-
+          DROP TRIGGER IF EXISTS plscnt_trigger ON pg_sf;
+          CREATE TRIGGER plscnt_trigger
+          AFTER INSERT ON pg_sf
+          FOR EACH ROW EXECUTE FUNCTION plscnt_trigger();
+
+  block:
+    - name: Attach triggers
+      shell: >-
+        PGPASSWORD={{ timescaledb_passwords['devtank'] }}
+        psql -U {{ timescaledb_owner }} -d {{ timescaledb_db }}
+        -h localhost -c "{{ item.sql }}"
+      loop: "{{ trgs }}"
+
+# TODO: do we still need this?
+# - name: Add refresh policies
+#   shell: >-
+#     PGPASSWORD={{ timescaledb_passwords['devtank'] }}
+#     psql -U {{ timescaledb_owner }} -d {{ timescaledb_db }}
+#     -h localhost -c "SELECT add_continuous_aggregate_policy('{{ item.table }}',
+#       start_offset => INTERVAL '1 day',
+#       end_offset   => INTERVAL '0 hours',
+#       schedule_interval => INTERVAL '{{ item.interval }}');"
+#   loop:
+#     - {table: kwh, interval: '1 hour'}
+#     - {table: scaled_current, interval: '1 hour'}
+#     - {table: plscnt, interval: '1 hour'}
+#     - {table: pg_sf_ds, interval: '15 minutes'}
+
+- name: Insert schema version
+  community.postgresql.postgresql_query:
+    db: "{{ timescaledb_db }}"
+    login_user: "{{ timescaledb_owner }}"
+    login_password: "{{ timescaledb_passwords['devtank'] }}"
+    login_host: 127.0.0.1
+    query: >
+      INSERT INTO generic VALUES (DEFAULT, 'schema_version', '{"version": "1.0.0"}');
+
+- name: Insert default tariffs
+  community.postgresql.postgresql_query:
+    db: "{{ timescaledb_db }}"
+    login_user: "{{ timescaledb_owner }}"
+    login_password: "{{ timescaledb_passwords['devtank'] }}"
+    login_host: 127.0.0.1
+    query: >
+      INSERT INTO tariffs VALUES
+      (DEFAULT, 0.30, {{ item }}, '2020-01-01 00:00:00', null, 'elec', 0, 24),
+      (DEFAULT, 0.30, {{ item }}, '2020-01-01 00:00:00', null, 'gas', 0, 24),
+      (DEFAULT, 0.30, {{ item }}, '2020-01-01 00:00:00', null, 'water', 0, 24);
+  loop: "{{ range(0, 7) | list }}"

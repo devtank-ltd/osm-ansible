@@ -1,8 +1,0 @@
-influx_create_users:
-  - "grafana"
-  - "chirpstack"
-
-influx_hostname: "{{ ansible_hostname }}"
-influx_username: "devtank"
-influx_port: 8086
-influx_v1_data: "/root/influx1db"
