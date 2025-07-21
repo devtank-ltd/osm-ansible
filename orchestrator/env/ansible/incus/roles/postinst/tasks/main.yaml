@@ -85,7 +85,7 @@
 - name: Bind WG IP to PowerDNS
   when: inventory_hostname == "vosmhost0"
   ansible.builtin.shell: |
-    sed -ri 's/^local-address=.*/&{{ hostvars[inventory_hostname]["main_wg_ip"] }}/' /etc/powerdns/pdns.conf
+    sed -ri 's/^local-address=.*/&, {{ hostvars[inventory_hostname]["main_wg_ip"] }}/' /etc/powerdns/pdns.conf
 
 - name: Restart PowerDNS
   ansible.builtin.systemd_service:
