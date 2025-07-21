@@ -1824,7 +1824,6 @@ actions:
   action: |-
     #!/bin/sh
     timescaledb-tune --memory 640MB --quiet --yes
-    systemctl restart postgresql
 
 - trigger: post-files
   action: |-
