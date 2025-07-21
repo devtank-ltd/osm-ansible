@@ -77,18 +77,20 @@
     main_wg_ip: "{{ wg_output.stdout | regex_search('inet (\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})', '\\1') | first }}"
   run_once: true
 
-  # when: main_wg_ip is not defined and wg_output.stdout is defined and wg_output.stdout | length > 0 and wg_output is success
-
-- name: DEBUG MAIN WG IP
-  ansible.builtin.debug:
-    msg: "{{inventory_hostname }}: {{ hostvars[inventory_hostname]['main_wg_ip'] }}"
-  loop: "{{ groups['all'] | difference([inventory_hostname]) }}"
-  run_once: false
-
 - name: Resolve OSM domain on WireGuard interface
   ansible.builtin.shell: |
     resolvectl dns wg0 {{ hostvars[inventory_hostname]['main_wg_ip'] }}
     resolvectl domain wg0 ~{{ osm_domain }}
+
+- name: Bind WG IP to PowerDNS
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.shell: |
+    sed -ri 's/^local-address=.*/&{{ hostvars[inventory_hostname]["main_wg_ip"] }}/' /etc/powerdns/pdns.conf
+
+- name: Restart PowerDNS
+  ansible.builtin.systemd_service:
+    name: pdns
+    state: restarted
 
 - name: Setup databases
   when: inventory_hostname == "vosmhost0"
