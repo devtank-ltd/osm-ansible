@@ -88,6 +88,7 @@
     sed -ri 's/^local-address=.*/&, {{ hostvars[inventory_hostname]["main_wg_ip"] }}/' /etc/powerdns/pdns.conf
 
 - name: Restart PowerDNS
+  when: inventory_hostname == "vosmhost0"
   ansible.builtin.systemd_service:
     name: pdns
     state: restarted
