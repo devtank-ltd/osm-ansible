@@ -163,16 +163,17 @@ teardown_file() {
 
 @test "Clone Already Cloned Customer. Same OSM host. Non-public" {
     run "$CLI" clone_container customer1
+    run "$CLI" clone_container customer1
     assert_failure
 }
 
 @test "Clone Already Cloned Customer. Other OSM host. Non-public" {
-    run "$CLI" clone_container customer1 vosmhost1
+    run "$CLI" clone_container customer1 vosmhost2
     assert_failure
 }
 
 @test "Clone Already Cloned Customer. Other OSM host. Public" {
-    run "$CLI" clone_container customer1 vosmhost1 yes
+    run "$CLI" clone_container customer1 vosmhost2 yes
     assert_failure
 }
 
@@ -223,10 +224,6 @@ teardown_file() {
 }
 
 @test "Del Dashboards" {
-    skip "Not implemented"
-}
-
-@test "Upgrade Influx Inserter" {
     skip "Not implemented"
 }
 
