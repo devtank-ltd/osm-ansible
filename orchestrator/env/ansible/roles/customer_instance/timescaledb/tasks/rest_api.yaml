@@ -23,7 +23,7 @@
       set_fact:
         postgres_api_token: "{{ jwt_token_cmd.stdout }}"
 
-    - name: "Configure PostgREST"
+    - name: Configure PostgREST
       template:
         src: postgrest.conf.tpl
         dest: /etc/postgrest/postgrest.conf
@@ -31,7 +31,7 @@
         group: root
         mode: "644"
 
-    - name: "Enable and start PostgREST"
+    - name: Enable and start PostgREST
       systemd:
         name: postgrest.service
         state: restarted

@@ -1,7 +1,7 @@
 ---
 
-- name: "Setup Timescaledb"
-  include_tasks: "setup.yml"
+- name: Setup Timescaledb
+  include_tasks: setup.yaml
 
-- name: "Deploy Postgrest API"
-  include_tasks: "rest_api.yml"
+- name: Deploy Postgrest API
+  include_tasks: rest_api.yaml
