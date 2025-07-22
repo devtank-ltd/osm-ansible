@@ -93,6 +93,8 @@
 
   vars:
     overwrite_passwords: true
+    timescaledb_owner: devtank
+    timescaledb_db: osm
 
   tasks:
     - name: Set variables from previous plays
