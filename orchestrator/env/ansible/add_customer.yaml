@@ -108,7 +108,6 @@
         - timescaledb
         - chirpstack
         - grafana
-        - mqtt_influx_inserter
         - prometheus_node_exporter
         - finalization
 
