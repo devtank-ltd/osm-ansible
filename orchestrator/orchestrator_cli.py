@@ -415,6 +415,7 @@ class osm_orchestrator_t:
     def del_osm_customer(self, customer_name: str) -> bool:
         ansible_cmd = [
             "ansible-playbook",
+            "-v",
             "-i", "localhost,",
             "-e", f"customer_name={customer_name}",
             f"{DEVTANK_WD}/env/ansible/del_customer.yaml",
