@@ -1306,6 +1306,7 @@ packages:
       - python3-cryptography
       - python3-influxdb
       - python3-influxdb-client
+      - python3-jwt
       - python3-paho-mqtt
       - python3-prometheus-client
       - python3-psycopg2
