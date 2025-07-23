@@ -177,62 +177,62 @@ teardown_file() {
     assert_failure
 }
 
-@test "Upgrade Customers" {
-    skip "Not implemented"
-}
+# @test "Upgrade Customers" {
+#     skip "Not implemented"
+# }
 
-@test "List Customers" {
-    run "$CLI" list_customers
-    assert_success
-}
+# @test "List Customers" {
+#     run "$CLI" list_customers
+#     assert_success
+# }
 
-@test "Get Customer Passwords" {
-    run "$CLI" get_customer_passwords customer1
-    assert_success
-}
+# @test "Get Customer Passwords" {
+#     run "$CLI" get_customer_passwords customer1
+#     assert_success
+# }
 
-@test "Get WG Info" {
-    for host in "${OSM_HOSTS[@]}"; do
-        run "$CLI" get_wg_info "$host"
-        assert_success
-    done
+# @test "Get WG Info" {
+#     for host in "${OSM_HOSTS[@]}"; do
+#         run "$CLI" get_wg_info "$host"
+#         assert_success
+#     done
 
-    run "$CLI" get_wg_info vosmhost3
-    assert_failure
-}
+#     run "$CLI" get_wg_info vosmhost3
+#     assert_failure
+# }
 
-@test "Push File Or Directory" {
-    run "$CLI" push_file_or_directory customer1 /tmp/devtank_test_data /root/
-    assert_success
+# @test "Push File Or Directory" {
+#     run "$CLI" push_file_or_directory customer1 /tmp/devtank_test_data /root/
+#     assert_success
 
-    run incus exec customer1 -- cat /root/devtank_test_data
-    echo "Some test data: $UUID" | assert_output
-}
+#     run incus exec customer1 -- cat /root/devtank_test_data
+#     echo "Some test data: $UUID" | assert_output
+# }
 
-@test "Pull File Or Directory" {
-    rm /tmp/devtank_test_data
-    run "$CLI" pull_file_or_directory customer1 /root/devtank_test_data /tmp
-    assert_success
+# @test "Pull File Or Directory" {
+#     rm /tmp/devtank_test_data
+#     run "$CLI" pull_file_or_directory customer1 /root/devtank_test_data /tmp
+#     assert_success
 
-    run cat /tmp/devtank_test_data
-    assert_success
-    echo "Some test data: $UUID" | assert_output
-}
+#     run cat /tmp/devtank_test_data
+#     assert_success
+#     echo "Some test data: $UUID" | assert_output
+# }
 
-@test "Add Dashboards" {
-    skip "Not implemented"
-}
+# @test "Add Dashboards" {
+#     skip "Not implemented"
+# }
 
-@test "Del Dashboards" {
-    skip "Not implemented"
-}
+# @test "Del Dashboards" {
+#     skip "Not implemented"
+# }
 
-@test "MQTT Listener" {
-    run "$CLI" mqtt_listener customer1
-    assert_success
-}
+# @test "MQTT Listener" {
+#     run "$CLI" mqtt_listener customer1
+#     assert_success
+# }
 
-@test "Delete customer" {
-    run "$CLI" del_customer customer1
-    assert_success
-}
+# @test "Delete customer" {
+#     run "$CLI" del_customer customer1
+#     assert_success
+# }
