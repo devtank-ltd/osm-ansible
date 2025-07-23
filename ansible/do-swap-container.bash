@@ -39,36 +39,38 @@ do_swap() {
 
     clone_ipv4="$(lxc-ls -f ${cont}-clone-svr -F IPV4 | tail -n 1)"
 
-    echo "${clone_ipv4}${cont}-clone-svr" >> $HOSTS_CONF
+    sed -E -i "s|([0-9]{1,3}\.){3}[0-9]{1,3} ${cont}-svr|${clone_ipv4}${cont}-svr|g" "$HOSTS_CONF"
 
     echo "dhcp-host=${hwaddr},${clone_ipv4}" >> $DNSMASQ_CONF
-
-    swap_nginx_conf "$cont"
 
     lxc-stop "${cont}-svr"
 
     pushd "${CONT_DIR}" >/dev/null 2>&1
-    remove_dir "${cont}-clone-svr/.snapshots"
-
-    snapper -c "${cont}-clone-svr" create-config "${cont}-clone-svr"
 
     snapper -c "${cont}-svr" delete-config
 
     mkdir -p "${archive_dir}"
 
-    mv "${cont}-svr" "${archive_dir}"
+    mv "${cont}-svr" "${archive_dir}/${cont}-svr-old"
+
+    sed -i "s|${cont}-clone-svr/rootfs-layer|${cont}-svr/rootfs-layer|g" "$conf"
+
+    sed -i 's|lxc\.uts\.name = ${cont}-clone-svr|lxc\.uts\.name = ${cont}-svr|g' "$conf"
+
+    mv "${CONT_DIR}/${cont}-clone-svr" "${CONT_DIR}/${cont}-svr"
+
+    remove_dir "${cont}-svr/.snapshots"
+
+    /opt/devtank/restart-container.sh "${cont}-svr"
+
+    lxc-stop "${cont}-clone-svr"
+
+    snapper -c "${cont}-svr" create-config "${cont}-svr"
+
+    restart_nginx
 }
 
-swap_nginx_conf() {
-    local cont="$1"
-
-    pushd "${NGINX_DIR}/customers.http.d" >/dev/null 2>&1
-    sed -i "s|${cont}-svr|${cont}-clone-svr|g" "${cont}.conf"
-
-    pushd "${NGINX_DIR}/customers.stream.d" >/dev/null 2>&1
-    sed -i "s|${cont}-svr|${cont}-clone-svr|g" "${cont}.conf"
-    popd >/dev/null 2>&1
-
+restart_nginx() {
     if nginx -t ; then
         nginx -s reload
     else
