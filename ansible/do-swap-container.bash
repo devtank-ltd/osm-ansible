@@ -51,9 +51,7 @@ do_swap() {
 
     mv "${cont}-svr" "${archive_dir}/${cont}-svr-old"
 
-    sed -i "s|${cont}-clone-svr/rootfs-layer|${cont}-svr/rootfs-layer|g" "$conf"
-
-    sed -i 's|lxc\.uts\.name = ${cont}-clone-svr|lxc\.uts\.name = ${cont}-svr|g' "$conf"
+    sed -i -r "s|${cont}-clone-svr|${cont}-svr|" "$conf"
 
     mv "${CONT_DIR}/${cont}-clone-svr" "${CONT_DIR}/${cont}-svr"
 

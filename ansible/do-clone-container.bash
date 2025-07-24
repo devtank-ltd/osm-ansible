@@ -36,9 +36,8 @@ do_clone() {
     subvol_cmd "snapshot" "${container}-svr" "${container}-clone-svr"
 
     new_mac="$(gen_hwaddr)"
-    sed -i "s|${container}-svr/rootfs-layer|${container}-clone-svr/rootfs-layer|g" "$conf"
+    sed -i -r "s|${container}-svr|${container}-clone-svr|" "$conf"
     sed -i -r "s|([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}|$new_mac|g" "$conf"
-    sed -i 's|^lxc\.uts\.name.*$|&-clone|' "$conf"
 
     /opt/devtank/restart-container.sh "${container}-clone-svr"
 }
