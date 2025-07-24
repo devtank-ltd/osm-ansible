@@ -20,7 +20,7 @@ die() {
 }
 
 remove_dir() {
-    dirname="$1"
+    local dirname="$1"
 
     if rm -r "$dirname" ; then
         echo "${dirname} removed"
@@ -44,8 +44,6 @@ do_swap() {
     echo "dhcp-host=${hwaddr},${clone_ipv4}" >> $DNSMASQ_CONF
 
     lxc-stop "${cont}-svr"
-
-    pushd "${CONT_DIR}" >/dev/null 2>&1
 
     snapper -c "${cont}-svr" delete-config
 
