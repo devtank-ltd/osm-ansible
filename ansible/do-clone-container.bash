@@ -21,7 +21,7 @@ subvol_cmd() {
 }
 
 gen_hwaddr() {
-    local hwaddr="c1:00"
+    local hwaddr="00:c1"
 
     for _ in $(seq 4); do
         hwaddr+="$(printf ':%02x' $((RANDOM%256)) )"
@@ -31,14 +31,15 @@ gen_hwaddr() {
 
 do_clone() {
     local container="$1"
-    local conf="${container}-clone/lxc.container.conf"
+    local conf="${container}-clone-svr/lxc.container.conf"
 
-    subvol_cmd "snapshot" "${container}" "${container}-clone"
+    subvol_cmd "snapshot" "${container}-svr" "${container}-clone-svr"
 
     new_mac="$(gen_hwaddr)"
-    sed -i "s|${container}/rootfs-layer|${container}-clone/rootfs-layer|g" "$conf"
+    sed -i -r "s|${container}-svr|${container}-clone-svr|" "$conf"
     sed -i -r "s|([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}|$new_mac|g" "$conf"
-    sed -i 's|^lxc\.uts\.name.*$|&-clone|' "$conf"
+
+    /opt/devtank/restart-container.sh "${container}-clone-svr"
 }
 
 main() {
@@ -51,12 +52,12 @@ main() {
         die "Container '$src' not found."
     fi
 
-    if [[ -d "${cont}-clone" || -d "${LXC_DIR}/${cont}-clone" ]]; then
-        die "Container clone '${cont}-clone' exists."
+    if [[ -d "${src}-clone" || -d "${LXC_DIR}/${src}-clone" ]]; then
+        die "Container clone '${src}-clone' exists."
     fi
 
     pushd "$LXC_DIR" >/dev/null 2>&1
-    do_clone "${cont}"
+    do_clone "${src}"
     popd >/dev/null 2>&1
 }
 
