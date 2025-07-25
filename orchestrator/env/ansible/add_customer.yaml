@@ -1,7 +1,7 @@
 - name: Create devtank customer
   hosts: localhost
   connection: local
-  gather_facts: false
+  gather_facts: yes
 
   vars:
     main_host: localhost
@@ -100,6 +100,7 @@
     - name: Set variables from previous plays
       ansible.builtin.set_fact:
         le_domain: hostvars["localhost"].target_domain
+        main_wg_ip: "{{ hostvars['localhost']['ansible_wg0'].ipv4.address }}"
 
     - name: Include customer service roles
       include_role:
