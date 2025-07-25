@@ -128,3 +128,30 @@
       import_role:
         name: db_management
         tasks_from: add_customer_secrets.yaml
+
+- name: Add customer to prometheus
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+
+  vars:
+    prometheus_config: "/etc/prometheus/prometheus.yml"
+
+  tasks:
+    - name: Add {{ customer_name }} to Prometheus
+      ansible.builtin.blockinfile:
+        path: "{{ prometheus_config }}"
+        # append_newline: yes <--- since ansible-core v2.16
+        backup: yes
+        insertafter: EOF
+        marker: "# {mark} ORCHESTRATOR MANAGED {{ customer_name }}"
+        block: |2
+            - job_name: "{{ customer_name }}"
+              proxy_url: http://{{ ansible_wg0.ipv4.address }}:8080/
+              static_configs:
+                - targets: ["{{ customer_name }}:9100"]
+
+    - name: Restart Prometheus
+      ansible.builtin.systemd_service:
+        state: restarted
+        name: prometheus

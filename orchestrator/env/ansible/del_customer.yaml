@@ -34,3 +34,26 @@
       import_role:
         name: pdns_management
         tasks_from: remove
+
+- name: Remove customer from Prometheus
+  hosts: localhost
+  become: yes
+  connection: local
+  gather_facts: yes
+
+  vars:
+    prometheus_config: "/etc/prometheus/prometheus.yml"
+
+  tasks:
+    - name: Remove {{ customer_name }} from Prometheus
+      ansible.builtin.blockinfile:
+        path: "{{ prometheus_config }}"
+        # append_newline: yes <--- since ansible-core v2.16
+        backup: yes
+        marker: "# {mark} ORCHESTRATOR MANAGED {{ customer_name }}"
+        block: ""
+
+    - name: Restart Prometheus
+      ansible.builtin.systemd_service:
+        state: restarted
+        name: prometheus
