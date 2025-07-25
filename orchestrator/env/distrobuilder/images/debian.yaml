@@ -1303,6 +1303,7 @@ packages:
       - postgresql-client-15
       - postgresql-common
       - prometheus-node-exporter
+      - pushproxy-client
       - python3-cryptography
       - python3-influxdb
       - python3-influxdb-client
