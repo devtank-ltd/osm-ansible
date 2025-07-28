@@ -1,0 +1,9 @@
+---
+
+- name: Configure MQTT postgres inserter
+  ansible.builtin.template:
+    src: mqtt-postgres-inserter.tpl
+    dest: /etc/mqtt-postgres-inserter/mqtt-postgres-inserter.yaml
+    owner: root
+    group: root
+    mode: "644"

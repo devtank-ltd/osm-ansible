@@ -112,6 +112,7 @@
         - chirpstack
         - grafana
         - prometheus_node_exporter
+        - mqtt_postgres_inserter
         - finalization
 
 - name: Post container setup

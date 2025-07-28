@@ -1292,21 +1292,20 @@ packages:
     - bookworm
     - trixie
 
-  # devtank
+  # devtanking
   - packages:
       - chirpstack-application-server
       - chirpstack-network-server
       - grafana
       - mosquitto
       - mosquitto-clients
+      - mqtt-postgres-inserter
       - postgresql
       - postgresql-client-15
       - postgresql-common
       - prometheus-node-exporter
       - pushprox-client
       - python3-cryptography
-      - python3-influxdb
-      - python3-influxdb-client
       - python3-jwt
       - python3-paho-mqtt
       - python3-prometheus-client
