@@ -1,3 +1,0 @@
----
-exporter_default_path: "/etc/default/prometheus-node-exporter"
-exporter_systemd_args: "--collector.systemd.unit-include='(grafana|influxdb|chirpstack|mosquitto|mqtt_influx_inserter|postgres|redis).*'"

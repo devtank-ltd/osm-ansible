@@ -29,7 +29,7 @@
     -d {{ customer_name }}.{{ target_domain }},\
     {{ customer_name }}-chirpstack.{{ target_domain }},\
     {{ customer_name }}-mqtt.{{ target_domain }},\
-    {{ customer_name }}-influx.{{ target_domain }} \
+    {{ customer_name }}-db.{{ target_domain }} \
     {{ certbot_postfix }}
 
   register: certbot_result

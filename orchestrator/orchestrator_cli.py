@@ -29,7 +29,7 @@ from pyosmorch import DBConnectionOrchestrator, DBConnectionPowerDNS  # type: ig
 
 
 CONFIG_FILE = "config.yaml"
-DOMAIN_PARTS = ("", "-chirpstack", "-influx", "-mqtt")
+DOMAIN_PARTS = ("", "-chirpstack", "-db", "-mqtt")
 DEVTANK_WD = "/srv/osm-lxc/orchestrator"
 
 
@@ -135,8 +135,7 @@ class osm_host_t:
         domain_id = self.config["pdns_domain_id"]
         domain = self.config["pdns_domain"]
 
-        parts = ("", "-chirpstack", "-influx", "-mqtt")
-        for d in parts:
+        for d in DOMAIN_PARTS:
             self.pdns_db.del_customer(
                 domain_id, f"{customer_name}{d}.{domain}", self.dns_entry
             )
@@ -331,7 +330,6 @@ class osm_orchestrator_t:
             "-i", "localhost,",
             "-e", f"customer_name={customer_name}",
             f"{DEVTANK_WD}/env/ansible/del_customer.yaml",
-            f"{DEVTANK_WD}/env/ansible/container/delete.yaml",
         ]
         ansible_proc = subprocess.run(ansible_cmd)
         return ansible_proc.returncode == 0

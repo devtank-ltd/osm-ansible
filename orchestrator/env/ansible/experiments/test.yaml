@@ -1,9 +1,0 @@
----
-
-- name: Devtank DB experiments
-  hosts: localhost
-  connection: local
-
-  roles:
-    - role: devtank
-      tags: devtank
