@@ -75,10 +75,10 @@ url="redis://localhost:6379"
     # MQTT integration backend.
     [application_server.integration.mqtt]
     # Event topic template.
-    event_topic_template="application/{{ .ApplicationID }}/device/{{ .DevEUI }}/event/{{ .EventType }}"
+    event_topic_template="osm/chirpstack/{{ .DevEUI }}/measurements"
 
     # Command topic template.
-    command_topic_template="application/{{ .ApplicationID }}/device/{{ .DevEUI }}/command/{{ .CommandType }}"
+    command_topic_template="osm/chirpstack/{{ .DevEUI }}/command"
 
     # MQTT server (e.g. scheme://host:port where scheme is tcp, ssl or ws)
     server="tcp://localhost:1883"
