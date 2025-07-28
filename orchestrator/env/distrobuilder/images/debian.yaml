@@ -1312,6 +1312,7 @@ packages:
       - python3-psycopg2
       - python3-rx
       - python3-urllib3
+      - python3-yaml
       - redis
       - sudo
       - timescaledb-2-oss-postgresql-15
