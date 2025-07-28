@@ -426,6 +426,7 @@ class osm_orchestrator_t:
     def clone_container(
             self, customer_name: str, target: str = "", public: bool = False
     ) -> bool:
+        clone_success = False
         if not self.db.get_customer_id(customer_name):
             self.logger.error(
                 "ERROR: Unable to find customer '%s' in the database",
@@ -437,7 +438,9 @@ class osm_orchestrator_t:
                 cmd: str, customer_name: str, extra_args: list = []
         ) -> bool:
             if cmd not in ("start", "stop", "copy"):
-                self.logger.error("Only 'start' or 'stop' command is supported")
+                self.logger.error(
+                    "Only 'start', 'stop' or 'copy' commands is supported"
+                )
                 return False
             try:
                 proc = subprocess.run(
@@ -446,7 +449,6 @@ class osm_orchestrator_t:
             except subprocess.CalledProcessError as err:
                 self.logger.error(err)
                 return False
-
             return proc.returncode == 0
 
         # current OSM host
@@ -465,8 +467,17 @@ class osm_orchestrator_t:
         extra_args += ["--target", target]
 
         if (not instance_cmd("copy", customer_name, extra_args) or
-            not instance_cmd("start", customer_name) or
             not instance_cmd("start", f"{customer_name}-clone")):
+            self.logger.error("Clonning of '%s' customer failed", customer_name)
+        else:
+            clone_success = True
+
+        self.logger.debug("Start '%s' original instance", customer_name)
+        if not instance_cmd("start", customer_name):
+            self.logger.error("The '%s' instance was not started", customer_name)
+            return False
+
+        if not clone_success:
             return False
 
         ret = True
