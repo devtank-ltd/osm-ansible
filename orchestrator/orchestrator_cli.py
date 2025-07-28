@@ -45,10 +45,6 @@ parser.add_argument(
 )
 
 
-class SSHException(Exception):
-    pass
-
-
 class osm_host_t:
     def __init__(
         self, orchestrator, db_id, name=None, ip_addr=None, capacity=None
@@ -146,90 +142,6 @@ class osm_host_t:
             )
         self.db.del_customer_secrets(customer_id)
         self.db.del_customer_secret_key(customer_id)
-
-    # def can_ping_customer_container(self, customer_name: str) -> bool:
-    #     return self.ssh_command(f"ping -c1 {customer_name}-svr")
-
-    # def can_ping_customer_grafana(self, customer_name: str) -> bool:
-    #     domain = self.config["pdns_domain"]
-    #     return self.ssh_command(f"ping -c1 {customer_name}.{domain}")
-
-    # def clone_container(self, customer_name: str) -> bool:
-    #     cmd = "sudo /srv/osm-lxc/ansible/do-clone-container.bash"
-    #     return self.ssh_command(f"{cmd} {customer_name}")
-
-    # def move_osm_customer(
-    #     self, customer_name: str, src: "osm_host_t", dst: "osm_host_t"
-    # ) -> bool:
-    #     if not src.upgrade_osm_customers():
-    #         return False
-
-    #     if not src.ssh_command(
-    #         "sudo /srv/osm-lxc/ansible/do-move-container.bash "
-    #         f"{customer_name} {dst.ip_addr}"
-    #     ):
-    #         self.logger.error("Container moving failed")
-    #         return False
-    #     mqtt_port = self.db.get_customer_port(customer_name)
-
-    #     # get current CNAME to restore it in case of failure
-    #     domain = self.config["pdns_domain"]
-    #     parts = ("", "-chirpstack", "-influx", "-mqtt")
-    #     for d in parts:
-    #         self.pdns_db.update_record(
-    #             f"{customer_name}{d}.{domain}", dst.dns_entry
-    #         )
-
-    #     if not dst.ssh_command(
-    #         "sudo /srv/osm-lxc/ansible/do-start-new-container.bash "
-    #         f"{customer_name} {mqtt_port}"
-    #     ):
-    #         self.logger.error("Failed to start new container")
-    #         # restore records
-    #         for d in parts:
-    #             self.pdns_db.update_record(
-    #                 f"{customer_name}{d}.{domain}", src.dns_entry
-    #             )
-
-    #         return False
-    #     if not src.ssh_command(
-    #         "sudo /srv/osm-lxc/ansible/do-delete-container.sh "
-    #         f'"{customer_name}"'
-    #     ):
-    #         self.logger.error(
-    #             "Unable to delete container '%s' on the host '%s",
-    #             customer_name,
-    #             src.name,
-    #         )
-    #         return False
-
-    #     dst_id = self.db.get_host_by_customer(customer_name)
-    #     return self.db.update_customer_host(customer_name, dst_id)
-
-    # def upgrade_osm_customers(self) -> bool:
-    #     upgrade_cmd = "sudo /srv/osm-lxc/ansible/do-upgrade-container.bash"
-    #     lxc_dir = "/srv/osm-lxc/lxc/containers"
-    #     os_base_dir = "/srv/osm-lxc/lxc/os-bases"
-    #     duphash = "/root/dedup.hash"
-    #     dedup_cmd = (
-    #         "sudo /usr/local/bin/duperemove -rhd --hashfile="
-    #         f"{duphash} {lxc_dir} {os_base_dir}"
-    #     )
-    #     # upgrade base container
-    #     if self.ssh_command(f"{upgrade_cmd} 'base-os'", True):
-    #         # upgrade customers containers
-    #         for customer in self.customers:
-    #             self.logger.info("Upgrade '%s' customer container", customer)
-    #             if not self.ssh_command(f"{upgrade_cmd} {customer}", True):
-    #                 self.logger.error(
-    #                     "The customer '%s' was not upgraded", customer
-    #                 )
-    #                 return False
-    #         return self.ssh_command(dedup_cmd)
-    #         return True
-
-    #     self.logger.error("The base container was not upgraded")
-    #     return False
 
     def get_osm_customer_mqtt_port(self, customer_name: str):
         return self.db.get_customer_port(customer_name)
