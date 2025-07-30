@@ -18,6 +18,7 @@ main:
     - pebble
     - prometheus
     - prometheus-pushgateway
+    - pushprox-proxy
     - python3
     - python3-crcmod
     - python3-fastapi
@@ -49,7 +50,6 @@ osmhost:
     - libnginx-mod-stream
     - libsqlite3-dev
     - libxxhash-dev
-    - netdata
     - nginx
     - pandoc
     - prometheus-node-exporter
@@ -64,6 +64,7 @@ osmhost:
 
 devtank:
   git_repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
+  # TODO: change branch after review
   # git_branch: main
   git_branch: ref2
 
