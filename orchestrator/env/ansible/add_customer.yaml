@@ -157,3 +157,39 @@
       ansible.builtin.systemd_service:
         state: restarted
         name: prometheus
+
+- name: Verifications
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+
+  vars:
+    prometheus_config: "/etc/prometheus/prometheus.yml"
+    customer_services:
+      - chirpstack-application-server
+      - chirpstack-network-server
+      - grafana-server
+      - mosquitto
+      - mqtt-postgres-inserter
+      - postgresql@15-main
+      - prometheus-node-exporter
+      - pushprox-client
+      - redis-server
+
+  tasks:
+    - name: Set customer domain domain
+      ansible.builtin.set_fact:
+        domain: "{{ hostvars['localhost'].target_domain }}"
+
+    - name: Check systemd services
+      ansible.builtin.shell:
+        incus exec "{{ customer_name }}" -- systemctl status "{{ item }}"
+      loop: "{{ customer_services }}"
+
+    - name: Ping customer (internal)
+      ansible.builtin.shell:
+        ping -c3 -W1 "{{ customer_name }}.incus"
+
+    - name: Ping customer (external)
+      ansible.builtin.shell:
+        ping -c3 -W1 "{{ customer_name }}.{{ domain }}"
