@@ -1,4 +1,4 @@
-- name: Create devtank customer
+- name: Remove devtank customer
   hosts: localhost
   connection: local
   gather_facts: false

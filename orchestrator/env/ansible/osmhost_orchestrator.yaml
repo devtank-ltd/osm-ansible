@@ -39,6 +39,7 @@
           - pebble
           - prometheus
           - prometheus-pushgateway
+          - pushprox-proxy
           - python3
           - python3-crcmod
           - python3-fastapi
