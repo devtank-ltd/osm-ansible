@@ -244,6 +244,8 @@ get_debian_iso() {
 }
 
 do_setup() {
+    local pids="$1"
+
     get_debian_iso
 
     if ! setup_bridge; then
@@ -259,7 +261,7 @@ do_setup() {
     )
 
     # shellcheck disable=SC2153
-    prepare_base_host "${VOSM_HOST}0" "$OSM_DOMAIN" "${BASE_HOSTS[${VOSM_HOST}0]}"
+    prepare_base_host "${VOSM_HOST}0" "$OSM_DOMAIN" "${BASE_HOSTS[${VOSM_HOST}0]}" "$pids"
     clone_host "${VOSM_HOST}0" "${VOSM_HOST}1"
 
     for host in "${!OSM_HOSTS[@]}"; do
@@ -370,6 +372,7 @@ setup_bridge() {
         -t nat -A POSTROUTING ! -d "${OSM_SUBNET}.0/24"
         -s "${OSM_SUBNET}.0/24" -j SNAT --to-source "$(main_ip)"
     )
+    local helper_path="/usr/lib/qemu/qemu-bridge-helper"
 
     hosts_dir="$(readlink -f "$HOSTS_DIR")"
 
@@ -382,13 +385,13 @@ setup_bridge() {
         return 0
     fi
 
-#     c="$(stat /usr/lib/qemu/qemu-bridge-helper -c  %a%G)"
-#     if [[ "$c" != "4750netdev" ]]; then
-#         sudo -s -- <<-EOF
-# 	chgrp netdev /usr/lib/qemu/qemu-bridge-helper
-# 	chmod 4750 /usr/lib/qemu/qemu-bridge-helper
-# EOF
-#     fi
+    c="$(stat "$helper_path" -c  %a%G)"
+    if [[ "$c" != "4750netdev" ]]; then
+        sudo -s -- <<-EOF
+		chgrp netdev "$helper_path"
+		chmod 4750 "$helper_path"
+EOF
+    fi
 
     if [[ ! -e "$brconf" ]]; then
         sudo -- install -D -m 644 -o root -g netdev <(
@@ -516,6 +519,8 @@ prepare_base_host() {
     local name="$1"
     local domain="$2"
     local preseed_file="$3"
+    local pids_file="$4"
+    local no_output="${5:-}" # whatever value disables live logging
 
     local ipaddr=""
     local host_dir="${HOSTS_DIR}/${name}"
@@ -578,15 +583,15 @@ prepare_base_host() {
         sed -e 's|OSM_SUBNET|'"$OSM_SUBNET"'|g' -e 's|HTTP_PORT|'"$HTTP_PORT"'|g' "conf/${preseed_file}" > "${host_dir}/preseed.cfg"
     fi
 
-    local pids
     local websrv_cmd='echo $$ ; exec >/dev/null 2>&1 ; exec python3 -m http.server -d '"$host_dir"' -b '"${OSM_SUBNET}.1"' '"${HTTP_PORT}"''
     local log_cmd='echo $$ ; exec > '"${log_file}"' 2>&1 ; exec nc -ul '"${OSM_SUBNET}.1"' 10514'
     websrv_pid="$(/bin/sh -c "$websrv_cmd" &)"
     log_pid="$(/bin/sh -c "$log_cmd" &)"
 
-    pids="$(mktemp --suffix=-devtank)"
-    echo "$websrv_pid" > "$pids"
-    echo "$log_pid" >> "$pids"
+    [[ ! -f "$pids_file" ]] && die "The '$pids_file' file does not exist. Terminating..."
+
+    echo "$websrv_pid" > "$pids_file"
+    echo "$log_pid" >> "$pids_file"
 
     info "OSM HOST NAME: $name"
     info "OSM HOST DIR: $host_dir"
@@ -597,11 +602,18 @@ prepare_base_host() {
         local sym='-\|/'
         local -i n=0
         local stage="Unknown"
+        local -i start_time=$SECONDS
+        local -i terminate_after=120
+        local -i terminate=1
 
         while :; do
-            n=$(( (n + 1) % 4 ))
-            printf '\rPlease wait [%s]: %s\r' "${sym:$n:1}" "$stage"
+            if [[ -z "$no_output" ]]; then
+                n=$(( (n + 1) % 4 ))
+                printf '\rPlease wait [%s]: %s\r' "${sym:$n:1}" "$stage"
+            fi
+
             if read -r -u 3 -t 1 line; then
+                terminate=0
                 if [[ "$line" =~ Menu\ item ]]; then
                     stage="$(sed -rn 's|.*item (.*) .*|\1|p' <<< "$line")"
                     tput el
@@ -616,6 +628,18 @@ prepare_base_host() {
 
             else
                 sleep .25
+            fi
+
+            if ((  (SECONDS - start_time) >= terminate_after && terminate == 1)); then
+                warn "There are no any input from '$log_file'. Terminating as '$terminate_after' seconds exceeded"
+                pushd "$host_dir" &>/dev/null || die "pushd to '${host_dir}'"
+                if [[ -f qemu.pid ]];  then
+                    error "Found qemu.pid file."
+                    pkill -15 -F qemu.pid
+                else
+                    warn "qemu.pid file not found"
+                fi
+                die "Unable to proceed"
             fi
         done
         exec 3<&-
@@ -638,7 +662,6 @@ prepare_base_host() {
     # wait for qemu shuts down
     pidwait -F "${host_dir}/qemu.pid"
     info "The '$name' is powered off"
-    mrproper "$pids"
 
     run_qemu "$name" "$VOSM_HOSTBR"
     ipaddr="$(wait_for_ip "$name" "${OSM_SUBNET}.1")"
@@ -658,7 +681,7 @@ prepare_base_host() {
 
 mrproper() {
     local pids="$1"
-    warn "Cleaning..."
+    warn "Cleaning... from '$pids'"
     xargs kill -TERM < "$pids"
     rm "$pids"
 }

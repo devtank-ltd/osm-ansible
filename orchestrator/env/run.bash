@@ -4,8 +4,6 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-readonly BUILD_LOG="build.log"
-
 init() {
     local SRC="${BASH_SOURCE[0]}"
     local INC
@@ -37,12 +35,16 @@ init() {
 }
 
 main() {
-    exec > >(tee -a "$BUILD_LOG") 2> >(tee -a "$BUILD_LOG" >&2)
+    # store PIDs of nc and python webserver here
+    local pids
+    pids="$(mktemp --suffix=-devtank)"
+
     init "$@"
 
     if [[ "${ARGS[action]}" == "setup" ]]; then
         build_env "${ARGS[config]}"
-        do_setup
+        trap 'mrproper "$pids"' SIGINT EXIT SIGTERM ERR SIGHUP SIGQUIT
+        do_setup "$pids"
         do_start_hosts OSM_HOSTS
         do_post_setup
         print_status
