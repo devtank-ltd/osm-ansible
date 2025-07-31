@@ -1,5 +1,5 @@
 # OSM Host
-Each OSM host is a member of [Incus cluster](https://linuxcontainers.org/incus/docs/main/explanation/clustering/) containing customer instance (container)
+Each OSM host is a member of [Incus cluster](https://linuxcontainers.org/incus/docs/main/explanation/clustering/) containing customer instances (containers)
 
 ##
 ### Introduction

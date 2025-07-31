@@ -84,7 +84,7 @@ cd orchestrator
 ### Test environment
 
 It is possible to build OSM test environment for development/testing purposes.
-To do so, just execute ```<root of devtank sources>/orchestrator/env/run.bash -a setup -c network.cfg``` command. The script will prepare virtual machines with Devtank eco-system which is similar to the production one.
+To do so, just execute ```<root of devtank sources>/orchestrator/env/run.bash -a setup -c network.cfg``` command. The script will prepare a network of virtual machines with the Devtank OSM eco-system.
 
 The list of mandatory variables in network.cfg configuration file is the following:
 
@@ -95,7 +95,7 @@ The list of mandatory variables in network.cfg configuration file is the followi
 - *OSM_DOMAIN* - domain name
 
 #### Testing
-The [bats](https://bats-core.readthedocs.io/en/stable/) testing framework is used for testing Devtank infrastsucture functionality. The `<root of devtank sources/orchestrator/env/tests/customers.bats` contains tests suite.
+The [bats](https://bats-core.readthedocs.io/en/stable/) testing framework is used for testing Devtank OSM infrastsucture functionality. The `<root of devtank sources>/orchestrator/env/tests/customers.bats` contains tests suite.
 
 Run `export JENKINS_DOMAIN=<domain name>; TERM=xterm bats -p --print-output-on-failure --verbose-run -T <root of devtank sources>/orchestrator/env/tests/customers.bats` command to execute tests.
 
@@ -111,6 +111,6 @@ Additionally, we found customers wanted to know they were isolated from others.
 
 * **Version 2** was Docker based, behind an Apache reverse proxy and stunnel4, but we didn't want the mess/bloat of 4+ Dockers per customer, so made Docker be multiple service, and found ourselves against the grain of Docker.
 
-* **Version 3** was LXC based using NGINX. Originally only supporting a single VPS.
+* **Version 3** was LXC based using NGINX. Originally only supporting a single VPS, but interated to be multiple VPs with PDNS and the Orchestrator.
 
 * **Version 4** was migrated from LXC to Incus. Each OSM Host is a member of Incus cluster.
