@@ -13,7 +13,13 @@ init() {
     # shellcheck disable=SC1091
     source "${INC}/vars"
     # shellcheck disable=SC1091
-    source "${INC}/functions"
+    source "${INC}/functions.bash"
+    # shellcheck disable=SC1091
+    source "${INC}/print_functions.bash"
+    # shellcheck disable=SC1091
+    source "${INC}/network_functions.bash"
+    # shellcheck disable=SC1091
+    source "${INC}/ansible_functions.bash"
 
     declare -gA ARGS=([action]="" [config]="")
     process_args "$@"

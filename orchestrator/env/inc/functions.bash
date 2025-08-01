@@ -1,20 +1,5 @@
 # shellcheck disable=SC2317
-
-# TODO: fix path
-source common/vars
-
-print_usage() {
-    cat <<-EOF
-	Usage:
-	setup environment:
-	./${0##*/} -a setup|--action=setup -c <conf_file>|--config=<conf_file>
-	remove environment:
-	./${0##*/} -a shutdown|--action=shutdown -d <hosts directory>|--hosts-dir=<hosts directory>
-	run exising environment (not implemented yet):
-	./${0##*/} -a run|--action=run -d <hosts directory>|--hosts-dir=<hosts directory>
-EOF
-    exit 1
-}
+# TODO: split to files
 
 _check_osm_vars() {
     local -n ref=$1
@@ -31,28 +16,9 @@ die() {
     exit 1
 }
 
-msg() {
-    echo "[$(date '+%F %T')] $*"
-}
-
-info() {
-    msg "${GREEN}INFO:${RESET} $*"
-}
-
-warn() {
-    msg "${YELLOW}WARNING:${RESET} $*"
-}
-
 edo() {
-    echo "$@" 1>&2
+    echo "${RED}>>>${RESET} $@" 1>&2
     "$@" || exit 2
-}
-
-yesno() {
-    [[ -t 0 ]] || return 0
-    local resp
-    read -r -p "$1 [${GREEN}y${RESET}/${RED}N${RESET}] " resp
-    [[ "$resp" == [yY] ]] || exit 1
 }
 
 parse_config() {
@@ -188,7 +154,6 @@ EOF
 }
 
 build_env() {
-
     parse_config "$1"
     # check_pkgs
     if [[ -d "$HOSTS_DIR" ]]; then
@@ -234,174 +199,179 @@ get_debian_iso() {
     download "${DEB_URL}/SHA512SUMS" "$dl_dir"
 
     pushd "$dl_dir" >/dev/null 2>&1 || true
-    sha512sum -c SHA512SUMS --quiet --status --ignore-missing
+    sha512sum -c SHA512SUMS --quiet --status --ignore-missing || die "sha512sums"
     popd >/dev/null 2>&1 || true
 }
 
-# ---------- network functions ----------
-gen_hwaddr() {
-    local hwaddr="52:54:00:%02x:%02x:%02x"
-    # shellcheck disable=SC2059
-    printf "$hwaddr" $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))
-}
+do_setup() {
+    local pids="$1"
 
-main_ip() {
-    sed -rn 's|.*src\s([0-9.]+).*|\1|p' < <(command -p ip -o r get 1)
-}
+    get_debian_iso
 
-get_ip4_addr() {
-    local iface="$1"
-    local ipaddr=""
+    if ! setup_bridge; then
+        die "Bridge setup"
+    fi
 
-    ipaddr="$(ip -o -4 addr show dev "$iface" | sed -rn 's|.*inet (.*)\/.*|\1|p')"
-    [[ -z "$ipaddr" ]] && die "Unable to get IP address for '$iface' interface"
-    echo "$ipaddr"
-}
-
-setup_bridge() {
-    local osm_br_addr
-    local orch_hwaddr
-    local hosts_dir
-    local brconf="/etc/qemu/bridge.conf"
-    local iptables_args=(
-        -t nat -A POSTROUTING ! -d "${OSM_SUBNET}.0/24"
-        -s "${OSM_SUBNET}.0/24" -j SNAT --to-source "$(main_ip)"
+    # incus needs minimum 3 hosts to form a cluster.
+    # The osm host #0 acts as main host (with devtank DB and pebble ACME installed).
+    # Other osm hosts are cloned from the osm host #1
+    OSM_HOSTS=(
+        ["${VOSM_HOST}0"]=""
+        ["${VOSM_HOST}1"]=""
     )
 
-    hosts_dir="$(readlink -f "$HOSTS_DIR")"
+    # shellcheck disable=SC2153
+    prepare_base_host "${VOSM_HOST}0" "$OSM_DOMAIN" "${BASE_HOSTS[${VOSM_HOST}0]}" "$pids"
+    clone_host "${VOSM_HOST}0" "${VOSM_HOST}1"
 
-    if [[ -e "/sys/class/net/${VOSM_HOSTBR}" ]]; then
-        osm_br_addr="$(get_ip4_addr "$VOSM_HOSTBR")"
-        if [[ "${OSM_SUBNET}.1" != "$osm_br_addr" ]]; then
-            die "bridge IP address '${osm_br_addr}' doesn't match '${OSM_SUBNET}.1'"
+    for host in "${!OSM_HOSTS[@]}"; do
+        run_qemu "$host" "$VOSM_HOSTBR"
+        OSM_HOSTS["$host"]="$(wait_for_ip "$host" "${OSM_SUBNET}.1")"
+        setup_ssh "${OSM_HOSTS[$host]}"
+        add_ansible_host "$host" "${OSM_HOSTS[$host]}"
+    done
+
+    run_ansible_early "${OSM_HOSTS[${VOSM_HOST}0]}"
+    do_stop_hosts
+
+    local base_host dest_host
+    base_host="${VOSM_HOST}1"
+
+    for i in $(seq 2 $(( OSM_HOST_COUNT - 1 ))); do
+        dest_host="${VOSM_HOST}${i}"
+        clone_host "$base_host" "$dest_host"
+        OSM_HOSTS["$dest_host"]=""
+    done
+}
+
+do_post_setup() {
+    local host ipaddr main_ip main_pub main_ssh_dir
+
+    main_pub="$(gen_remote_ssh "${OSM_HOSTS[${VOSM_HOST}0]}")"
+    main_ip="${OSM_HOSTS[${VOSM_HOST}0]}"
+    main_ssh_dir="/home/osm_orchestrator/.ssh"
+
+    run_ansible_pebble "${VOSM_HOST}0"
+
+    for host in "${!OSM_HOSTS[@]}"; do
+        ipaddr="${OSM_HOSTS[$host]}"
+        # update hosts file for ansible
+        sed -ri 's/^'"$host"'.*=$/&'"$ipaddr"'/' "${HOSTS_DIR}/hosts"
+
+        if [[ "$host" != "${VOSM_HOST}0" ]]; then
+            info "Copy '${VOSM_HOST}0' SSH pub key to '${host}'[${ipaddr}]"
+            ssh root@"$ipaddr" /bin/bash <<-EOF
+		mkdir -p "$main_ssh_dir"
+		echo "$main_pub" >> "${main_ssh_dir}/authorized_keys"
+EOF
         fi
-        warn "${VOSM_HOSTBR} already open"
-        return 0
-    fi
+        request_pebble_cert "$host" "$main_ip"
+        # shellcheck disable=SC2029
+        ssh root@"$main_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts" >/dev/null 2>&1
+    done
 
-    c="$(stat /usr/lib/qemu/qemu-bridge-helper -c  %a%G)"
-    if [[ "$c" != "4750netdev" ]]; then
-        sudo -s -- <<-EOF
-	chgrp netdev /usr/lib/qemu/qemu-bridge-helper
-	chmod 4750 /usr/lib/qemu/qemu-bridge-helper
-EOF
-    fi
+    run_ansible_incus
+    run_ansible_postinst
+}
 
-    if [[ ! -e "$brconf" ]]; then
-        sudo -- install -D -m 644 -o root -g netdev <(
-            cat <<-EOF
-	allow "$VOSM_HOSTBR"
-EOF
-        ) "$brconf"
-    elif ! grep -q "$VOSM_HOSTBR" "$brconf"; then
-        echo "allow $VOSM_HOSTBR" | sudo tee -a "$brconf" >/dev/null
-    fi
-
-    sudo ip link add "$VOSM_HOSTBR" type bridge
-    sudo ip addr add "${OSM_SUBNET}.1/24" dev "$VOSM_HOSTBR"
-    sudo ip link set up dev "$VOSM_HOSTBR"
-    sudo iptables "${iptables_args[@]}"
-
-    if [[ ! -e "${HOSTS_DIR}/orchestrator/mac" ]]; then
-        install -d -m 777 "${hosts_dir}/orchestrator"
-        orch_hwaddr="$(gen_hwaddr)"
-        echo "$orch_hwaddr" > "${hosts_dir}/orchestrator/mac"
+do_shutdown_environment() {
+    hosts_dir="${ARGS[hosts_dir]}"
+    warn "shutting down '$hosts_dir' environment"
+    if [[ ! -e "${hosts_dir}/env" ]]; then
+        die "Unable to get environment settings"
     else
-        orch_hwaddr="$(<"${hosts_dir}/orchestrator")"
+        # shellcheck source=/dev/null
+        source "${hosts_dir}/env"
     fi
-
-    info "Orchestrator MAC: $orch_hwaddr"
-
-    if [[ -e "$hosts_dir/$VOSM_HOSTBR.leasefile" ]]; then
-        sudo -- sed -i '/'"$OSM_SUBNET"'.2/d' "${hosts_dir}/${VOSM_HOSTBR}.leasefile"
-    fi
-
-    local dnsmasq_args=(
-        --pid-file="${hosts_dir}/${VOSM_HOSTBR}.pid"
-        --dhcp-leasefile="${hosts_dir}/${VOSM_HOSTBR}.leasefile"
-        --interface="$VOSM_HOSTBR"
-        --except-interface=lo
-        --bind-interfaces
-        --dhcp-range="${OSM_SUBNET}.2,${OSM_SUBNET}.255"
-        --dhcp-host="${orch_hwaddr},${OSM_SUBNET}.2"
-        --server="/${OSM_DOMAIN}/${OSM_SUBNET}.2"
-    )
-
-    sudo dnsmasq "${dnsmasq_args[@]}" || return 1
-    sudo resolvectl domain "$VOSM_HOSTBR" ~"$OSM_DOMAIN" || return 1
-    sudo resolvectl dns "$VOSM_HOSTBR" "${OSM_SUBNET}.2" || return 1
+    close_bridge
+    warn "Stop all VMs in located in '$hosts_dir'"
+    find "$hosts_dir" -name "qemu.pid" -type f -print -exec pkill -15 -F {} \;
+    pkill -15 -F "${hosts_dir}/${VOSM_HOSTBR}.pid"
 }
 
-close_bridge() {
-    if [[ ! -e "/sys/class/net/$VOSM_HOSTBR" ]]; then
-        warn "$VOSM_HOSTBR already closed"
-        return
-    fi
+add_ansible_host() {
+    local name="$1"
+    local ipaddr="$2"
 
-    sudo iptables -t nat -D POSTROUTING ! -d "${OSM_SUBNET}.0/24" -s "${OSM_SUBNET}.0/24" -j SNAT --to-source "$(main_ip)"
-    sudo pkill -15 -F "${HOSTS_DIR}/${VOSM_HOSTBR}.pid"
-    sudo ip link set down dev "$VOSM_HOSTBR"
-    sudo ip addr del "${OSM_SUBNET}.1/24" dev "$VOSM_HOSTBR"
-    sudo ip link del "$VOSM_HOSTBR" type bridge
+    [[ -z "$name" ]] && die "Th host name is missing"
+    [[ -z "$ipaddr" ]] && die "The IP address is missing"
+
+    if ! grep -q "$ipaddr" "$ANSIBLE_HOSTS"; then
+        # shellcheck disable=SC1003
+        sed -i '1 i\'"${name} ansible_host=${ipaddr}"'' "$ANSIBLE_HOSTS"
+    fi
+    warn "The host '$name': $ipaddr exists in $ANSIBLE_HOSTS"
 }
+
+# ---------- VM related functions ----------
 
 get_vm_ip() {
-    # TODO
     local host="$1"
     local dns_srv="$2"
     local ipaddr name
 
-
     ipaddr="$(dig @"$dns_srv" "$host" +short)"
 
     if [[ -v ipaddr && -n "$ipaddr" ]]; then
+        info "Got '$host' IP address: $ipaddr" >&2
         if ping -c1 -W1 "$ipaddr" >/dev/null 2>&1; then
             name="$(dig @"$dns_srv" -x "$ipaddr" +short)"
-            [[ "$name" != "${host}." ]] || echo "$ipaddr"
+            if [[ "$name" == "${host}." ]]; then
+                echo "$ipaddr"
+                return 0
+            fi
+        else
+            warn "Ping '$ipaddr' failed" >&2
         fi
     fi
+    return 1
 }
 
 wait_for_ip() {
     local host="$1"
     local subnet="$2"
     local ipaddr=""
+    local -i timeout=180
 
-    while [[ -z "$ipaddr" ]]; do
-        # TODO: add timeout
-        sleep .25
+    ipaddr="$(do_until $timeout get_vm_ip "$host" "$subnet")"
+    if [[ -z "$ipaddr" ]]; then
+        error "Unable to get IP address for '$host' host"
         [[ ! -e "${HOSTS_DIR}/${host}/qemu.pid" ]] && die "The '$host' VM is down"
-        ipaddr="$(get_vm_ip "$host" "$subnet")"
-    done
+    fi
     echo "$ipaddr"
+    return 0
 }
 
 setup_ssh() {
     local ipaddr="$1"
     mkdir -p ~/.ssh
-    ssh-keygen -f ~/.ssh/known_hosts -R "$ipaddr" || true
-    ssh-keyscan -H "$ipaddr" >> ~/.ssh/known_hosts
+    ssh-keygen -q -f ~/.ssh/known_hosts -R "$ipaddr" &> /dev/null || true
+    ssh-keyscan -H "$ipaddr" 2>/dev/null >> ~/.ssh/known_hosts 2>&1
 }
 
-setup_wg() {
-    local name="$1"
-    local workdir="${HOSTS_DIR}/${name}"
-
-    pushd "$workdir" &>/dev/null 2>&1 || die "Unable to change directory '$workdir'"
-    wg genkey | (umask 0077 && tee "${name}.key") | wg pubkey > "${name}.pub"
-
-    WG_PRIV="$(<"$name".key)"
-    WG_PUB="$(<"$name".pub)"
-    export WG_PRIV
-    export WG_PUB
-    popd || die "popd"
+gen_remote_ssh() {
+    local ipaddr="$1"
+    local pub_key
+    pub_key="$(ssh root@"$ipaddr" /bin/bash <<-EOF
+	if [[ ! -e /root/.ssh/id_rsa ]]; then
+	     ssh-keygen -q  -t rsa -N '' -f /root/.ssh/id_rsa
+	fi
+	cat /root/.ssh/id_rsa.pub
+EOF
+)"
+    [[ ! -v pub_key || -z "$pub_key" ]] && die "ssh keys were not generated for the '$ipaddr' host"
+    echo "$pub_key"
 }
 
+# ---------- VM functions ----------
 prepare_base_host() {
     local name="$1"
     local domain="$2"
     local preseed_file="$3"
+    local pids_file="$4"
+    local no_output="${5:-}" # whatever value disables live logging
 
+    local ipaddr=""
     local host_dir="${HOSTS_DIR}/${name}"
     local boot_dir="${host_dir}/boot"
     local qdisk="${host_dir}/disk.qcow"
@@ -459,18 +429,18 @@ prepare_base_host() {
     qemu-img create -f qcow2 "$qdisk" "$DISK_SIZE" >/dev/null 2>&1
 
     if [[ ! -e "${host_dir}/preseed.cfg" ]]; then
-        sed -e 's|OSM_SUBNET|'"$OSM_SUBNET"'|g' -e 's|HTTP_PORT|'"$HTTP_PORT"'|g' "$preseed_file" > "${host_dir}/preseed.cfg"
+        sed -e 's|OSM_SUBNET|'"$OSM_SUBNET"'|g' -e 's|HTTP_PORT|'"$HTTP_PORT"'|g' "conf/${preseed_file}" > "${host_dir}/preseed.cfg"
     fi
 
-    local pids
     local websrv_cmd='echo $$ ; exec >/dev/null 2>&1 ; exec python3 -m http.server -d '"$host_dir"' -b '"${OSM_SUBNET}.1"' '"${HTTP_PORT}"''
     local log_cmd='echo $$ ; exec > '"${log_file}"' 2>&1 ; exec nc -ul '"${OSM_SUBNET}.1"' 10514'
     websrv_pid="$(/bin/sh -c "$websrv_cmd" &)"
     log_pid="$(/bin/sh -c "$log_cmd" &)"
 
-    pids="$(mktemp --suffix=-devtank)"
-    echo "$websrv_pid" > "$pids"
-    echo "$log_pid" >> "$pids"
+    [[ ! -f "$pids_file" ]] && die "The '$pids_file' file does not exist. Terminating..."
+
+    echo "$websrv_pid" > "$pids_file"
+    echo "$log_pid" >> "$pids_file"
 
     info "OSM HOST NAME: $name"
     info "OSM HOST DIR: $host_dir"
@@ -481,40 +451,98 @@ prepare_base_host() {
         local sym='-\|/'
         local -i n=0
         local stage="Unknown"
+        local -i start_time=$SECONDS
+        local -i terminate_after=120
+        local shutdown_pattern='init\:\ The\ system\ is\ going\ down\ NOW\!'
 
         while :; do
-            n=$(( (n + 1) % 4 ))
-            printf '\rPlease wait [%s]: %s\r' "${sym:$n:1}" "$stage"
-            if read -r -u 3 -t 1 line; then
+            if [[ -z "$no_output" ]]; then
+                n=$(( (n + 1) % 4 ))
+                printf '\rPlease wait [%s]: %s\r' "${sym:$n:1}" "$stage"
+            fi
+
+            if read -r -u 3 line; then
                 if [[ "$line" =~ Menu\ item ]]; then
                     stage="$(sed -rn 's|.*item (.*) .*|\1|p' <<< "$line")"
                     tput el
                 fi
 
-                if [[ "$line" =~ init\:\ The\ system\ is\ going\ down\ NOW\! ]]; then
+                if [[ "$line" =~ $shutdown_pattern ]]; then
                     line="$(sed -rn 's|.*: (.*)|\1|p' <<< "$line")"
                     printf '\r'
                     info "$line"
                     break
                 fi
 
-            else
-                sleep .25
+                start_time=$SECONDS
+                continue
+
+            elif (( (SECONDS - start_time) >= terminate_after )); then
+                warn "There are no any input from '$log_file'. "
+                warn "Terminating as $terminate_after seconds exceeded"
+                pushd "$host_dir" &>/dev/null || die "pushd to '${host_dir}'"
+                if [[ -f qemu.pid ]];  then
+                    error "Found qemu.pid file."
+                    if [[ ! -e /proc/$(< qemu.pid) ]]; then
+                        error "There is no PID in /proc directory"
+                    else
+                        pkill -15 -F qemu.pid
+                    fi
+                else
+                    warn "qemu.pid file not found"
+                fi
+                die "Unable to proceed"
             fi
+            sleep .2
         done
         exec 3<&-
+    else
+        # seems the VM is running
+        pushd "$host_dir" &>/dev/null || die "pushd to '${host_dir}'"
+        [[ ! -S "monitor.sock" ]] && die "There is no monitor socket. Unable to proceed"
+        local status
+        status="$(echo "info status" | socat - unix-connect:monitor.sock)"
+        status="$(sed -r 's|\r$||' <<<"$status")"
+        status="$(sed -rn 's|^VM status: (.*)|\1|p' <<<"$status")"
+        if [[ "$status" == "running" ]]; then
+            warn "The VM '$name' is $status"
+            yesno "Do you want to shutdown VM and proceed? "
+            echo "system_powerdown"| socat - unix-connect:monitor.sock >/dev/null 2>&1
+        fi
+        popd &>/dev/null || die "popd from '${host_dir}'"
     fi
+
     # wait for qemu shuts down
     pidwait -F "${host_dir}/qemu.pid"
     info "The '$name' is powered off"
-    mrproper "$pids"
+
+    run_qemu "$name" "$VOSM_HOSTBR"
+    ipaddr="$(wait_for_ip "$name" "${OSM_SUBNET}.1")"
+    setup_ssh "$ipaddr"
+
+    if ! ssh root@"$ipaddr" exit; then
+        die "SSH access to '${name}:${ipaddr} failed."
+    fi
+
+    ssh root@"$ipaddr" poweroff || true
+    pidwait -F "${host_dir}/qemu.pid"
+    info "The '$name' is powered off"
+
+    info "Backup '$qdisk'"
+    cp "$qdisk" "${qdisk}_bkp"
 }
 
 mrproper() {
-    local pids="$1"
-    warn "Cleaning..."
+    warn "Cleaning... from '$pids'"
     xargs kill -TERM < "$pids"
     rm "$pids"
+}
+
+handle_orphaned_vms() {
+    while IFS= read -r -d '' pid; do
+        warn "Killing PID: $(<"$pid")"
+        pkill -9 -F "$pid" || die "pkill error for file '$pid'"
+    done < <(find . -type f -name 'qemu.pid' -print0)
 }
 
 run_qemu() {
@@ -557,7 +585,8 @@ run_qemu() {
         -monitor "unix:${workdir}/monitor.sock,server,nowait"
         -serial "unix:${workdir}/console.sock,server,nowait"
         -device "virtio-scsi-pci,id=scsi"
-        -nic "bridge,br=${brif},model=virtio-net-pci,mac=${hwaddr}"
+        # -nic "bridge,br=${brif},model=virtio-net-pci,mac=${hwaddr}"
+        -nic "bridge,br=${brif},model=e1000,mac=${hwaddr}"
         -drive "file=${disk},format=qcow2,if=virtio"
         -device "virtio-balloon-pci,id=balloon0"
         -pidfile "${workdir}/qemu.pid"
@@ -567,11 +596,10 @@ run_qemu() {
     )
     info "Run '${workdir##*/}' QEMU Virtual machine"
     if [[ -e "${workdir}/qemu.pid" ]]; then
-        warn "'${workdir##*/}' is already running?"
+        warn "The PID file exists. Is the '${workdir##*/}' already running?"
         return 1
     fi
     qemu-system-x86_64 "${qemu_args[@]}" &
-
 
     # wait for qemu pid
     # TODO: make function
@@ -587,8 +615,7 @@ run_qemu() {
 }
 
 clone_host() {
-    # TODO: qemu snapshots
-
+    # TODO: qemu snapshots?
     local base_name="$1"
     local target_name="$2"
     local hwaddr=
@@ -607,54 +634,20 @@ clone_host() {
     info "${HOSTS_DIR}/${base_name} -> ${HOSTS_DIR}/${target_name}"
     cp "${HOSTS_DIR}/${base_name}/"{disk.qcow,ovmf_vars.fd,mac} "${HOSTS_DIR}/${target_name}/"
     run_qemu "${target_name}" "$VOSM_HOSTBR"
-    until [[ ! -v ipaddr || -n "$ipaddr" ]]; do
-        ipaddr="$(get_vm_ip "$base_name" "${OSM_SUBNET}.1")"
-        sleep .25
-    done
+    ipaddr="$(do_until 120 get_vm_ip "$base_name" "${OSM_SUBNET}.1")"
 
-    set -x
-
-    # TODO: use socat instead of ssh?
     # shellcheck disable=SC2087
-    ssh root@"$ipaddr" bash -x <<-EOF || true
-	sed -i 's|'"$base_name"'|'"$target_name"'|g' /etc/{hosts,hostname}; hostname  "$target_name"
+    ssh root@"$ipaddr" bash <<-EOF || true
+	sed -i 's|'"$base_name"'|'"$target_name"'|g' /etc/{hosts,hostname}
+	hostname  "$target_name"
 	rm /etc/ssh/ssh_host_*
-	dpkg-reconfigure openssh-server
-	poweroff
+	dpkg-reconfigure openssh-server &> /dev/null
+	# systemctl --force poweroff
+	exit
 EOF
-    pidwait -F "${HOSTS_DIR}/${target_name}/qemu.pid"
+    shutdown_vm "${HOSTS_DIR}/${target_name}"
     gen_hwaddr > "${HOSTS_DIR}/${target_name}/mac"
 }
-
-# setup_osm() {
-#     info "setup osm"
-#     local src="orchestrator"
-#     local dst
-
-#     if [[ ! -d "${HOSTS_DIR}/orchestrator" ]]; then
-#         die "The '$src' host is not set up"
-#     fi
-
-#     for n in $(seq 0 $(( OSM_HOST_COUNT - 1 )) ); do
-#         dst="${HOSTS_DIR}/${OSM_HOST}${n}"
-#         if [[ -d "$dst" ]]; then
-#             warn "The '$dst' exists. Skip"
-#         else
-#             mkdir "$dst"
-#             cp -v "${HOSTS_DIR}/${src}/"{disk.qcow,ovmf_vars.fd} "${dst}/"
-#             hwaddr="$(gen_hwaddr)"
-#             [[ ! -e "${dst}/mac" ]] && echo "$hwaddr" > "${dst}/mac"
-#         fi
-
-#         if [[ -e "${dst}/qemu.pid" ]]; then
-#             warn "Is '${dst##*/} already running?"
-#             continue
-#         else
-#             hwaddr="$(<"${dst}/mac")"
-#             run_qemu "${dst}" "$VOSM_HOSTBR" "$hwaddr" "${dst}/disk.qcow" "${dst}/ovmf_vars.fd" &
-#         fi
-#     done
-# }
 
 set_ssh_key() {
     local host_dir="$1"
@@ -667,14 +660,19 @@ set_ssh_key() {
         (( ! ${#ssh_keys[@]} )) && die "Missing public key"
 
         if (( ${#ssh_keys[@]} > 1 )); then
-            warn "Several SSH public keys are found."
-            PS3="Which key should be used?"
-            select key in "${ssh_keys[@]}"; do
-                [[ $key ]] || continue
-                info "Set the '$key' key"
-                DEFAULT_SSH_KEY="$key"
-                break
-            done
+            if [[ "$(hostname)" =~ jenkins ]]; then
+                warn "Running on jenkins host? Use the first ssh key found"
+                DEFAULT_SSH_KEY="${ssh_keys[0]}"
+            else
+                warn "Several SSH public keys are found."
+                PS3="Which key should be used? "
+                select key in "${ssh_keys[@]}"; do
+                    [[ $key ]] || continue
+                    info "Set the '$key' key"
+                    DEFAULT_SSH_KEY="$key"
+                    break
+                done
+            fi
         else
             info "Set '${ssh_keys[0]}' public key."
             DEFAULT_SSH_KEY="${ssh_keys[0]}"
@@ -686,4 +684,119 @@ set_ssh_key() {
     if [[ ! -f "${host_dir}/${ssh_key}" ]]; then
         ln -s "$DEFAULT_SSH_KEY" "${host_dir}/${ssh_key}"
     fi
+}
+
+do_start_hosts() {
+    info "Start OSM hosts"
+    declare -n hosts=$1
+    local machines ipaddr
+
+    mapfile -t machines < <(find "$HOSTS_DIR" -name "mac" -exec dirname {} \;)
+
+    for host in "${machines[@]}"; do
+        host="${host##*/}"
+        run_qemu "$host" "${VOSM_HOSTBR}"
+    done
+
+    warn "Reset hosts in '$ANSIBLE_HOSTS'"
+    sed -i '/\[all:vars\]/,$!d' "$ANSIBLE_HOSTS"
+
+    for host in "${machines[@]}"; do
+        host="${host##*/}"
+        info "Waiting for IP address assigned..."
+        # shellcheck disable=SC2034
+        hosts["$host"]="$(wait_for_ip "$host" "${OSM_SUBNET}.1")"
+        setup_ssh "${hosts[$host]}"
+        add_ansible_host "$host" "${hosts[$host]}"
+    done
+}
+
+do_stop_hosts() {
+    info "Stop OSM hosts"
+
+    declare -a hosts
+    mapfile -t hosts < <(find "$HOSTS_DIR" -name "qemu.pid" -exec dirname {} \;)
+
+    for host in "${hosts[@]}"; do
+        shutdown_vm "$host"
+    done
+}
+
+shutdown_vm() {
+    [[ -z "$1" || ! -v 1 || ! -d "$1" ]] && return
+    local hostdir="$1"
+    local mon="monitor.sock"
+
+    warn "Shutting down '$hostdir' host..."
+
+    if [[ ! -f "${hostdir}/qemu.pid" ]]; then
+        warn "There is no pid file in '$hostdir'. Is VM running?"
+        return
+    fi
+
+    if [[ ! -S "${hostdir}/${mon}" ]]; then
+        warn "There is no monitor socket in '$hostdir'"
+        return
+    else
+        echo "system_powerdown" | socat - unix-connect:"${hostdir}/${mon}" &> /dev/null
+        if [[ -f "${hostdir}/qemu.pid" ]]; then
+            timeout 5 pidwait -f "${hostdir}/qemu.pid" || true
+        fi
+        info "The host '${hostdir##*/}' powered off"
+    fi
+}
+
+request_pebble_cert() {
+    local name="$1"
+    local srvip="$2"
+    local args=(
+        certonly
+        --standalone
+        -d "${name}.${OSM_DOMAIN}"
+        --server "https://${srvip}:14000/dir"
+        --agree-tos
+        --no-verify-ssl
+        --http-01-port=5002
+        --register-unsafely-without-email
+        --quiet
+    )
+    info "Request certificate from '$srvip' for ${name}.${OSM_DOMAIN} domain."
+    # shellcheck disable=SC2029
+    ssh root@"$ipaddr" "REQUESST_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} &>/dev/null"
+}
+
+has() {
+    local want="$1"
+    local x
+    shift
+
+    for x in "$@"; do
+        [[ "$x" == "$want" ]] && return 0
+    done
+    return 1
+}
+
+hostis() {
+    [[ "$(hostname)" == "$1" ]] && return 0 || return 1
+}
+
+do_until() {
+    local -i timeout="$1"
+    local callback="$2"
+    shift 2
+    local args=("$@")
+    local ret=""
+
+    SECONDS=0
+
+    while (( SECONDS < timeout )); do
+        if ret="$("$callback" "${args[@]}")"; then
+            printf '%s' "$ret"
+            return 0
+        else
+            sleep .25
+        fi
+    done
+    error "TIME IS UP for '$callback'"
+    return 1
 }
