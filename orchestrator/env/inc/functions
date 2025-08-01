@@ -28,7 +28,7 @@ die() {
 }
 
 msg() {
-    echo "[$(date '+%F %T')] $*"
+    printf '[%(%Y-%m-%d %H:%M:%S)T] %s\n' -1 "$*"
 }
 
 info() {
