@@ -478,7 +478,7 @@ prepare_base_host() {
                 continue
 
             elif (( (SECONDS - start_time) >= terminate_after )); then
-                warn "There are no any input from '$log_file'. "
+                warn "There is no any input from '$log_file'. "
                 warn "Terminating as $terminate_after seconds exceeded"
                 pushd "$host_dir" &>/dev/null || die "pushd to '${host_dir}'"
                 if [[ -f qemu.pid ]];  then
@@ -533,9 +533,11 @@ prepare_base_host() {
 }
 
 mrproper() {
-    warn "Cleaning... from '$pids'"
-    xargs kill -TERM < "$pids"
-    rm "$pids"
+    if [[ -s "$pids" ]]; then
+        warn "Cleaning... from '$pids'"
+        xargs kill -TERM < "$pids"
+        rm "$pids"
+    fi
 }
 
 handle_orphaned_vms() {
