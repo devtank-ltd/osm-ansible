@@ -36,11 +36,11 @@ info() {
 }
 
 warn() {
-    msg "${YELLOW}WARNING:${RESET} $*"
+    msg "    ${YELLOW}* WARNING:${RESET} $*"
 }
 
 error() {
-    msg "${RED}ERROR:${RESET} $*" >&2
+    msg "    ${RED}!!! ERROR:${RESET} $*" >&2
 }
 
 edo() {
@@ -604,7 +604,7 @@ prepare_base_host() {
         local stage="Unknown"
         local -i start_time=$SECONDS
         local -i terminate_after=120
-        local -i terminate=1
+        local shutdown_pattern='init\:\ The\ system\ is\ going\ down\ NOW\!'
 
         while :; do
             if [[ -z "$no_output" ]]; then
@@ -612,35 +612,40 @@ prepare_base_host() {
                 printf '\rPlease wait [%s]: %s\r' "${sym:$n:1}" "$stage"
             fi
 
-            if read -r -u 3 -t 1 line; then
-                terminate=0
+            if read -r -u 3 line; then
+                # terminate=0
                 if [[ "$line" =~ Menu\ item ]]; then
                     stage="$(sed -rn 's|.*item (.*) .*|\1|p' <<< "$line")"
                     tput el
                 fi
 
-                if [[ "$line" =~ init\:\ The\ system\ is\ going\ down\ NOW\! ]]; then
+                if [[ "$line" =~ $shutdown_pattern ]]; then
                     line="$(sed -rn 's|.*: (.*)|\1|p' <<< "$line")"
                     printf '\r'
                     info "$line"
                     break
                 fi
 
-            else
-                sleep .25
-            fi
+                start_time=$SECONDS
+                continue
 
-            if ((  (SECONDS - start_time) >= terminate_after && terminate == 1)); then
-                warn "There are no any input from '$log_file'. Terminating as '$terminate_after' seconds exceeded"
+            elif (( (SECONDS - start_time) >= terminate_after )); then
+                warn "There are no any input from '$log_file'. "
+                warn "Terminating as $terminate_after seconds exceeded"
                 pushd "$host_dir" &>/dev/null || die "pushd to '${host_dir}'"
                 if [[ -f qemu.pid ]];  then
                     error "Found qemu.pid file."
-                    pkill -15 -F qemu.pid
+                    if [[ ! -e /proc/$(< qemu.pid) ]]; then
+                        error "There is no PID in /proc directory"
+                    else
+                        pkill -15 -F qemu.pid
+                    fi
                 else
                     warn "qemu.pid file not found"
                 fi
                 die "Unable to proceed"
             fi
+            sleep .2
         done
         exec 3<&-
     else
@@ -680,10 +685,16 @@ prepare_base_host() {
 }
 
 mrproper() {
-    local pids="$1"
     warn "Cleaning... from '$pids'"
     xargs kill -TERM < "$pids"
     rm "$pids"
+}
+
+handle_orphaned_vms() {
+    while IFS= read -r -d '' pid; do
+        warn "Killing PID: $(<"$pid")"
+        pkill -9 -F "$pid" || die "pkill error for file '$pid'"
+    done < <(find . -type f -name 'qemu.pid' -print0)
 }
 
 run_qemu() {

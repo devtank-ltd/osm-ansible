@@ -36,14 +36,14 @@ init() {
 
 main() {
     # store PIDs of nc and python webserver here
-    local pids
     pids="$(mktemp --suffix=-devtank)"
 
     init "$@"
 
     if [[ "${ARGS[action]}" == "setup" ]]; then
         build_env "${ARGS[config]}"
-        trap 'mrproper "$pids"' SIGINT EXIT SIGTERM ERR SIGHUP SIGQUIT
+        trap 'mrproper' INT TERM ERR HUP EXIT
+        trap 'handle_orphaned_vms' INT TERM ERR HUP
         do_setup "$pids"
         do_start_hosts OSM_HOSTS
         do_post_setup
