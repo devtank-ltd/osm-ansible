@@ -181,14 +181,36 @@
       ansible.builtin.set_fact:
         domain: "{{ hostvars['localhost'].target_domain }}"
 
+    - name: Get current OSM host from incus
+      ansible.builtin.shell:
+        cmd: "incus ls {{ customer_name }} -cL -fcsv"
+      register: incus_result
+
+    - name: Set current host from incus
+      ansible.builtin.set_fact:
+        osm_host: "{{ incus_result.stdout }}"
+
+    - name: Get source host info
+      devtank_db:
+        db_conf: "{{ db_conf.orchestrator }}"
+        method: get_host
+        host_name: "{{ osm_host }}"
+      register: host_info
+
     - name: Check systemd services
       ansible.builtin.shell:
         incus exec "{{ customer_name }}" -- systemctl status "{{ item }}"
       loop: "{{ customer_services }}"
 
-    - name: Ping customer (internal)
+    - name: Ping transferred instance (internal)
+      delegate_to: "{{ host_info.output.host_ip }}"
+      connection: ssh
+      retries: 3
+      delay: 3
+      register: result
+      until: result is not failed
       ansible.builtin.shell:
-        ping -c3 -W1 "{{ customer_name }}.incus"
+        ping -c3 -W1 "{{customer_name}}.incus"
 
     - name: Ping customer (external)
       ansible.builtin.shell:

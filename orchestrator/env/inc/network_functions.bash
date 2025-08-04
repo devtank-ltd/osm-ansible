@@ -12,6 +12,7 @@ main_iface() {
     sed -rn 's/.*dev\s([[:alnum:]]+)\ssrc.*/\1/p' < <(command -p ip -o -br -c=never r get 1)
 
 }
+
 dns_ip() {
     sed -rn 's/.*DNS Server: ([0-9.]+)$/\1/p' < <(command -p resolvectl status "$(main_iface)")
 }

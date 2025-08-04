@@ -1,8 +1,6 @@
 ---
 
-# TODO: merge tasks from add_customer roles
-
-- name: Move devtank customer
+- name: Move {{ customer_name }} to {{ target_host }}
   hosts: localhost
   connection: local
   gather_facts: false
@@ -13,7 +11,6 @@
         - name: Get devtank database config
           ansible.builtin.set_fact:
             db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
-
         - name: Get current OSM host from incus
           ansible.builtin.shell:
             cmd: "incus ls {{ customer_name }} -cL -fcsv"
@@ -64,18 +61,43 @@
           ansible.builtin.set_fact:
             mqtt_port: "{{ result.output.mqtt_port }}"
 
-        - name: Stop customer instance
-          ansible.builtin.shell:
-            cmd: "incus stop {{ customer_name }}"
+    - name: Transfer {{ customer_name }} instance
+      block:
+        - name: Get start time
+          ansible.builtin.set_fact:
+            start_chunk_time: ansible_date_time
 
-        - name: Move customer instances to target host
-          ansible.builtin.shell:
-            cmd: "incus move {{customer_name }} --target {{ target_host }}"
+        - name: Make {{ customer_name }} instance snapshot
+          ansible.builtin.shell: |
+            incus snapshot create {{ customer_name }} t
 
-        - name: Start customer instance
-          ansible.builtin.shell:
-            cmd: "incus start {{ customer_name }}"
+        - name: Copy snapshot to {{ target_host }} host
+          ansible.builtin.shell: |
+            incus copy {{ customer_name }}/t {{customer_name }}-t --target {{ target_host }}
 
+        - name: Rename original {{ customer_name }} instance
+          ansible.builtin.shell: |
+            incus stop {{ customer_name }}
+            incus rename {{ customer_name }} {{ customer_name}}-old
+            incus start {{ customer_name}}-old
+
+        - name: Start transferred instance
+          ansible.builtin.shell: |
+            incus rename {{ customer_name }}-t {{ customer_name }}
+            incus start {{ customer_name }}
+
+        - name: Ping transferred instance (internal)
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          retries: 3
+          delay: 3
+          register: result
+          until: result is not failed
+          ansible.builtin.shell:
+            ping -c3 -W1 "{{customer_name}}.incus"
+
+    - name: Configure OSM hosts
+      block:
         - name: Get OSM host WireGuard IP address
           delegate_to: "{{ dst_host_info.output.host_ip }}"
           connection: ssh
@@ -117,3 +139,36 @@
             customer_name: "{{ customer_name }}"
             domain: "{{ target_domain }}"
             host_name: "{{ dst_host_info.output.host_name }}"
+
+        - name: Ping transferred instance (external)
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell:
+            ping -c3 -W1 "{{customer_name}}.{{ target_domain }}"
+
+    - name: Move data to the new {{ customer_name }} instance
+      block:
+        - name: Get end time
+          ansible.builtin.set_fact:
+            end_chunk_time: ansible_date_time
+
+        - name: Backup data from old {{ customer_name }} instance
+          ansible.builtin.shell: |
+            echo "Backup data from {{ start_chunk_time }} to {{ end_chunk_time }}"
+
+        - name: Copy files from old {{ customer_name }} instance
+          ansible.builtin.shell: |
+            echo "Copy files from old instance"
+
+        - name: Copy files to {{ customer_name }} instance
+          ansible.builtin.shell: |
+            echo "Copy files to {{customer_name }} instance"
+
+        - name: Export data
+          ansible.builtin.shell: |
+            echo "Export data"
+
+    - name: Remove old {{ customer_name }} instance
+      ansible.builtin.shell: |
+        incus stop {{ customer_name }}-old
+        incus rm {{ customer_name }}-old
