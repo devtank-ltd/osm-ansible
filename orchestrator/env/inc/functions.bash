@@ -128,8 +128,8 @@ check_pkgs() {
         fi
     done
     if (( ${#missing[@]} )); then
-        warn "The following packages are missing: ${missing[*]}"
-        info "Please install them using the following command:"
+        error "The following packages are missing: ${missing[*]}"
+        error "Please install them using the following command:"
         echo "sudo apt install -y ${missing[*]}"
         exit 1
     fi
@@ -155,7 +155,7 @@ EOF
 
 build_env() {
     parse_config "$1"
-    # check_pkgs
+    check_pkgs
     if [[ -d "$HOSTS_DIR" ]]; then
         warn "The hosts directory '$HOSTS_DIR' exists"
         yesno "Do you wish to continue?"
