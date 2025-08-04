@@ -40,13 +40,9 @@ run_ansible_incus() {
     local args=(
         -i "${HOSTS_DIR}/hosts"
         -e osm_domain="$OSM_DOMAIN"
+        -e dns_ip="$(dns_ip)"
         --tags incus
     )
-
-    if [[ -n "$OSM_DNS_SERVER_IP" ]]; then
-        args+=(-e dns_server_ip="$OSM_DNS_SERVER_IP")
-    fi
-
     edo ansible-playbook "${args[@]}" ansible/incus/deploy.yaml
 }
 

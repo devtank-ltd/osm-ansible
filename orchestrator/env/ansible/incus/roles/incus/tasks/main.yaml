@@ -31,17 +31,6 @@
     dest: /etc/apt/sources.list.d/zabbly-incus-{{ incus_init["release"] }}.sources
   notify: Refresh apt
 
-- name: FIXME install systemd-resolved
-  apt:
-    name: systemd-resolved
-    install_recommends: no
-    state: present
-
-- name: FIXME dns
-  ansible.builtin.shell: |
-    systemctl stop systemd-resolved
-    resolvectl dns {{ ansible_default_ipv4.interface }} {{ devtank.dns_server_ip }}
-
 - name: FIXME Refresh apt as handler does not work
   apt:
     force_apt_get: yes
@@ -54,12 +43,12 @@
     install_recommends: no
     state: present
 
-- name: Install incus UI
-  apt:
-    name: incus-ui-canonical
-    install_recommends: no
-    state: present
-  when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
+# - name: Install incus UI
+#   apt:
+#     name: incus-ui-canonical
+#     install_recommends: no
+#     state: present
+#   when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
 
 - name: Install btrfs tools
   ansible.builtin.package:
@@ -172,6 +161,18 @@
   shell:
     cmd: "incus remote add devtank {{ incus_init['image']['url'] }} --protocol {{ incus_init['image']['protocol'] }}"
   when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
+
+- name: Install systemd-resolved
+  apt:
+    name: systemd-resolved
+    install_recommends: no
+    state: present
+
+- name: Set DNS to main interface
+  ansible.builtin.shell: |
+    systemctl stop systemd-resolved
+    resolvectl dns {{ ansible_default_ipv4.interface }} {{ dns_ip }} 8.8.8.8
+    systemctl start systemd-resolved
 
 - name: Set DNS for incus
   # TODO: use systemd config instead?

@@ -8,6 +8,14 @@ main_ip() {
     sed -rn 's|.*src\s([0-9.]+).*|\1|p' < <(command -p ip -o r get 1)
 }
 
+main_iface() {
+    sed -rn 's/.*dev\s([[:alnum:]]+)\ssrc.*/\1/p' < <(command -p ip -o -br -c=never r get 1)
+
+}
+dns_ip() {
+    sed -rn 's/.*DNS Server: ([0-9.]+)$/\1/p' < <(command -p resolvectl status "$(main_iface)")
+}
+
 get_ip4_addr() {
     local iface="$1"
     local ipaddr=""
@@ -85,6 +93,7 @@ EOF
         --dhcp-range="${OSM_SUBNET}.2,${OSM_SUBNET}.255"
         --dhcp-host="${main_hwaddr},${OSM_SUBNET}.2"
         --server="/${OSM_DOMAIN}/${OSM_SUBNET}.2"
+        --dhcp-option=6,8.8.8.8,"$(dns_ip)"
     )
 
     sudo dnsmasq "${dnsmasq_args[@]}" || return 1
