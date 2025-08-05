@@ -14,7 +14,13 @@ main_iface() {
 }
 
 dns_ip() {
-    sed -rn 's/.*DNS Server: ([0-9.]+)$/\1/p' < <(command -p resolvectl status "$(main_iface)")
+    local ipaddr=""
+    ipaddr="$(sed -rn 's/.*DNS Server: ([0-9.]+)$/\1/p' < <(command -p resolvectl status "$(main_iface)"))"
+    if [[ -z "$ipaddr" ]]; then
+        warn "Unable to get IPv4 DNS address"
+        return
+    fi
+    echo "$ipaddr"
 }
 
 get_ip4_addr() {
@@ -30,6 +36,7 @@ setup_bridge() {
     local osm_br_addr
     local main_hwaddr
     local hosts_dir
+    local dns_ip=""
     local brconf="/etc/qemu/bridge.conf"
     local iptables_args=(
         -t nat -A POSTROUTING ! -d "${OSM_SUBNET}.0/24"
@@ -94,8 +101,10 @@ EOF
         --dhcp-range="${OSM_SUBNET}.2,${OSM_SUBNET}.255"
         --dhcp-host="${main_hwaddr},${OSM_SUBNET}.2"
         --server="/${OSM_DOMAIN}/${OSM_SUBNET}.2"
-        --dhcp-option=6,8.8.8.8,"$(dns_ip)"
     )
+    dns_ip="$(dns_ip)"
+    dns_ip="${dns_ip:-8.8.4.4}"
+    dnsmasq_args+=("--dhcp-option=6,8.8.8.8,${dns_ip}")
 
     sudo dnsmasq "${dnsmasq_args[@]}" || return 1
     sudo resolvectl domain "$VOSM_HOSTBR" ~"$OSM_DOMAIN" || return 1

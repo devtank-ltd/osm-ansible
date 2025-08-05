@@ -10,15 +10,15 @@ EOF
 }
 
 msg() {
-    printf '[%(%Y-%m-%d %H:%M:%S)T] %s\n' -1 "$*"
+    printf '[%(%Y-%m-%d %H:%M:%S)T] %s\n' -1 "$*" >&2
 }
 
 info() {
-    msg "${GREEN}INFO:${RESET} $*"
+    msg "${GREEN}INFO:${RESET} $*" >&2
 }
 
 warn() {
-    msg "    ${YELLOW}* WARNING:${RESET} $*"
+    msg "    ${YELLOW}* WARNING:${RESET} $*" >&2
 }
 
 error() {
