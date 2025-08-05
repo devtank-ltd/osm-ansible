@@ -68,7 +68,7 @@ pipeline {
                         echo "Host '$ipaddr' unreachable"
                         exit 1
                     fi
-                    stdbuf -oL -eL ssh root@"$ipaddr" "export JENKINS_DOMAIN=$OSM_DOMAIN; TERM=xterm bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
+                    stdbuf -oL -eL ssh root@"$ipaddr" "export DOMAIN=$OSM_DOMAIN; TERM=xterm bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
                     '''
                 }
             }

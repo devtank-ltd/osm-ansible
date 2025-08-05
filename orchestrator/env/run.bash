@@ -21,7 +21,7 @@ init() {
     # shellcheck disable=SC1091
     source "${INC}/ansible_functions.bash"
 
-    declare -gA ARGS=([action]="" [config]="")
+    declare -gA ARGS=([action]="" [config]="" [run_test]="no")
     process_args "$@"
 
     if [[ ! -v STY || -z "$STY" ]]; then
@@ -54,6 +54,7 @@ main() {
         do_start_hosts OSM_HOSTS
         do_post_setup
         print_status
+        [[ "${ARGS[run_tests]}" == "yes" ]] && run_tests
     elif [[ "${ARGS[action]}" == "run" ]]; then
         do_run_environment
     elif [[ "${ARGS[action]}" == "shutdown" ]]; then

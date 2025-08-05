@@ -72,7 +72,7 @@ process_args() {
             -h|--help) print_usage ;;
             -a) action="${2:?action is needed}"; shift 2 ;;
             -c) config="${2:?config file is needed}"; shift 2 ;;
-            -t|--run-tests) run_tests=1; shift ;;
+            -t|--run-tests) a[run_tests]="yes"; shift ;;
             -d) hosts_dir="${2:-}"; shift 2 ;;
 
             --action=*) action="${1#*=}"; shift ;;
@@ -338,7 +338,6 @@ add_ansible_host() {
 }
 
 # ---------- VM related functions ----------
-
 get_vm_ip() {
     local host="$1"
     local dns_srv="$2"
@@ -839,5 +838,14 @@ do_until() {
     trap SIGINT
     set -o errexit
     error "TIME IS UP for '$callback'"
+    return 1
+}
+
+run_tests() {
+    yesno "Do you want to run tests? "
+    local tests_file="/srv/osm-lxc/orchestrator/env/tests/customers.bats"
+    local bats_args=(-p --print-output-on-failure --verbose-run -T)
+    local cmd=(bats "${bats_args[@]}" "${tests_file}")
+    edo ssh root@"${OSM_SUBNET}.2" "export DOMAIN=$OSM_DOMAIN; TERM=xterm " "${cmd[@]}"
     return 1
 }

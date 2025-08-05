@@ -2,7 +2,9 @@ print_usage() {
     cat <<-EOF
 	Usage:
 	setup environment:
-	./${0##*/} -a setup|--action=setup -c <conf_file>|--config=<conf_file>
+	./${0##*/} -a setup|--action=setup -c <conf_file>|--config=<conf_file> [-t|--run-tests]
+	Optional -t or --run-tests option triggers tests execustion after environment is built
+
 	shutdown environment:
 	./${0##*/} -a shutdown|--action=shutdown -d <hosts directory>|--hosts-dir=<hosts directory>
 EOF

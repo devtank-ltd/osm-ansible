@@ -5,7 +5,7 @@ setup() {
     DIR="$( cd "$( dirname "$BATS_TEST_FILENAME" )" >/dev/null 2>&1 && pwd )"
     PATH="$DIR/..:$PATH"
     CLI="/srv/osm-lxc/orchestrator/orchestrator_cli.py"
-    DOMAIN="${JENKINS_DOMAIN:-incus-devtank.co.uk}"
+    DOMAIN="${DOMAIN:-incus-devtank.co.uk}"
 }
 
 setup_file() {
