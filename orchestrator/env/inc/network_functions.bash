@@ -83,7 +83,7 @@ EOF
         main_hwaddr="$(gen_hwaddr)"
         echo "$main_hwaddr" > "${hosts_dir}/${VOSM_HOST}0/mac"
     else
-        main_hwaddr="$(<"${hosts_dir}/${VOSM_HOST}0")"
+        main_hwaddr="$(<"${hosts_dir}/${VOSM_HOST}0/mac")"
     fi
 
     info "Main host MAC: $main_hwaddr"

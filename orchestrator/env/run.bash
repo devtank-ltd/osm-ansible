@@ -54,6 +54,8 @@ main() {
         do_start_hosts OSM_HOSTS
         do_post_setup
         print_status
+    elif [[ "${ARGS[action]}" == "run" ]]; then
+        do_run_environment
     elif [[ "${ARGS[action]}" == "shutdown" ]]; then
         do_shutdown_environment
     fi

@@ -64,7 +64,7 @@ parse_config() {
 }
 
 process_args() {
-    declare -n a=ARGS           # in main
+    declare -n a=ARGS           # defined in main()
     local action config hosts_dir
 
     while (( $# > 0)); do
@@ -72,6 +72,7 @@ process_args() {
             -h|--help) print_usage ;;
             -a) action="${2:?action is needed}"; shift 2 ;;
             -c) config="${2:?config file is needed}"; shift 2 ;;
+            -t|--run-tests) run_tests=1; shift ;;
             -d) hosts_dir="${2:-}"; shift 2 ;;
 
             --action=*) action="${1#*=}"; shift ;;
@@ -85,8 +86,8 @@ process_args() {
 
     [[ ! -v action || -z "$action" ]] && print_usage
 
-    if [[ ! "$action" =~ (setup|shutdown) ]]; then
-        die "Only 'setup' and 'shutdown' actions are supported"
+    if [[ ! "$action" =~ (setup|shutdown|run) ]]; then
+        die "Only 'setup', 'run' and 'shutdown' actions are supported"
     fi
     a[action]="$action"
 
@@ -98,9 +99,9 @@ process_args() {
         a[config]="$config"
     fi
 
-    if [[ "$action" == "shutdown" ]]; then
+    if [[ "$action" =~ (shutdown|run) ]]; then
         if [[ ! -v hosts_dir || -z "$hosts_dir" ]]; then
-            die "The 'hosts-dir' should be set for 'shutdown' action"
+            die "The 'hosts-dir' should be set for '$action' action"
         fi
         [[ ! -d "$hosts_dir" ]] && die "Unable to find '$hosts_dir' directory"
         a[hosts_dir]="$hosts_dir"
@@ -273,9 +274,42 @@ EOF
     run_ansible_incus
     run_ansible_postinst
 }
+do_run_environment() {
+    # FIXME:
+    # - resolvectl has no any settings after VM boots.
+    #   Need to configure by systemd network file
+    # - WireGuard is not started.
+    #   Need to configure by systemd service
+    local hosts_dir="${ARGS[hosts_dir]}"
+    info "Run '$hosts_dir' environment"
+
+    [[ ! -d "$hosts_dir" ]] && die "There is no '$hosts_dir' directory"
+    [[ ! -e "${hosts_dir}/env" ]] && {
+        die "Unable to find 'env' file in '$host_dir' directory"
+    }
+    # shellcheck source=/dev/null
+    source "${hosts_dir}/env"
+
+    if ! setup_bridge; then
+        die "Bridge setup"
+    fi
+
+    # shellcheck disable=SC2044
+    mapfile -t hosts < <(find . -name 'vosmhost*' -type d -print)
+
+    for host in "${hosts[@]}"; do
+        run_qemu "${host##*/}" "${VOSM_HOSTBR}"
+    done
+
+    for host in "${hosts[@]}"; do
+        host="${host##*/}"
+        info "Waiting for IP address assigned for '$host' host"
+        wait_for_ip "$host" "${OSM_SUBNET}.1"
+    done
+}
 
 do_shutdown_environment() {
-    hosts_dir="${ARGS[hosts_dir]}"
+    local hosts_dir="${ARGS[hosts_dir]}"
     warn "shutting down '$hosts_dir' environment"
     if [[ ! -e "${hosts_dir}/env" ]]; then
         die "Unable to get environment settings"
@@ -587,6 +621,7 @@ run_qemu() {
         -monitor "unix:${workdir}/monitor.sock,server,nowait"
         -serial "unix:${workdir}/console.sock,server,nowait"
         -device "virtio-scsi-pci,id=scsi"
+        # TODO: https://gitlab.com/qemu-project/qemu/-/issues/2762
         # -nic "bridge,br=${brif},model=virtio-net-pci,mac=${hwaddr}"
         -nic "bridge,br=${brif},model=e1000,mac=${hwaddr}"
         -drive "file=${disk},format=qcow2,if=virtio"
@@ -791,6 +826,8 @@ do_until() {
 
     SECONDS=0
 
+    set +o errexit
+    trap 'echo "Oh, no! Wait until I finish with $callback function please" >&2' SIGINT
     while (( SECONDS < timeout )); do
         if ret="$("$callback" "${args[@]}")"; then
             printf '%s' "$ret"
@@ -799,6 +836,8 @@ do_until() {
             sleep .25
         fi
     done
+    trap SIGINT
+    set -o errexit
     error "TIME IS UP for '$callback'"
     return 1
 }
