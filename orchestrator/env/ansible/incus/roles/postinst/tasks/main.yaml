@@ -44,26 +44,23 @@
 
 - name: Setup wg0 device
   template:
-    src: systemd.netdev.tpl
+    src: wireguard_systemd.netdev.tpl
     dest: /etc/systemd/network/99-wg0.netdev
     owner: root
     group: systemd-network
     mode: 0640
-  # notify: systemd network restart
 
 - name: Setup wg0 network
   template:
-    src: systemd.network.tpl
+    src: wireguard_systemd.network.tpl
     dest: /etc/systemd/network/99-wg0.network
     owner: root
     group: systemd-network
     mode: 0640
-  # notify: systemd network restart
+  notify: systemd network restart
 
-- name: Start systemd network explicitly
-  ansible.builtin.systemd_service:
-    name: systemd-networkd
-    state: restarted
+- name: Force notified handlers to run here
+  ansible.builtin.meta: flush_handlers
 
 - name: Get WireGuard IP address of main OSM host
   ansible.builtin.shell: |
@@ -145,3 +142,71 @@
     name: ansible
     state: latest
     update_cache: yes
+
+- name: Define network interfaces list
+  ansible.builtin.set_fact:
+    network_interfaces: >-
+      {{
+        [
+          {
+            'name': "{{ ansible_default_ipv4.interface }}",
+            'dhcp': True
+          },
+          {
+            'name': "devtank",
+            'dhcp': False,
+            'address': "{{ incus_init['network']['ipaddr'] }}",
+            'dns1': "{{ incus_init['network']['ipaddr'].split('/')[0] }}",
+            'dns2': "{{ hostvars['vosmhost0']['ansible_host'] }}"
+          }
+        ]
+      }}
+
+- name: Generate .network files from template
+  ansible.builtin.template:
+    src: systemd.network.tpl
+    dest: "/etc/systemd/network/{{ item.name }}.network"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ network_interfaces }}"
+
+- name: Remove legacy networking stuff
+  ansible.builtin.shell: |
+    mv /etc/network/interfaces /etc/network/interfaces.save
+    mv /etc/network/interfaces.d /etc/network/interfaces.d.save
+
+- name: Disable networking service
+  ansible.builtin.systemd_service:
+    name: networking
+    enabled: false
+
+- name: Enable systemd-hostnamed
+  ansible.builtin.systemd_service:
+    name: systemd-hostnamed
+    state: started
+    enabled: true
+
+- name: Start systemd-networkd
+  ansible.builtin.systemd_service:
+    name: systemd-networkd
+    state: started
+    enabled: true
+  notify: systemd network restart
+
+- name: Force notified handlers to run here
+  ansible.builtin.meta: flush_handlers
+
+- name: Reset connection
+  ansible.builtin.meta: reset_connection
+
+- name: Wait for host becomes reachable
+  ansible.builtin.wait_for_connection:
+    delay: 2
+    timeout: 3
+
+- name: Start systemd-resolved
+  ansible.builtin.systemd_service:
+    name: systemd-resolved
+    state: started
+    enabled: true

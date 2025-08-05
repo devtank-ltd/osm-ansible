@@ -21,7 +21,7 @@ init() {
     # shellcheck disable=SC1091
     source "${INC}/ansible_functions.bash"
 
-    declare -gA ARGS=([action]="" [config]="" [run_test]="no")
+    declare -gA ARGS=([action]="" [config]="" [run_tests]="no")
     process_args "$@"
 
     if [[ ! -v STY || -z "$STY" ]]; then

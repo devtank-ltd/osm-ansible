@@ -1,5 +1,4 @@
 # shellcheck disable=SC2317
-# TODO: split to files
 
 _check_osm_vars() {
     local -n ref=$1
@@ -275,11 +274,6 @@ EOF
     run_ansible_postinst
 }
 do_run_environment() {
-    # FIXME:
-    # - resolvectl has no any settings after VM boots.
-    #   Need to configure by systemd network file
-    # - WireGuard is not started.
-    #   Need to configure by systemd service
     local hosts_dir="${ARGS[hosts_dir]}"
     info "Run '$hosts_dir' environment"
 
@@ -661,13 +655,8 @@ clone_host() {
         die "Unable to get '$base_name' to clone '$target_name"
     fi
 
-    if [[ -d "${HOSTS_DIR}/${target_name}" ]]; then
-        warn "The '${HOSTS_DIR}/${target_name}' directory exists. Skip"
-        return
-    fi
-
-    mkdir "${HOSTS_DIR}/${target_name}"
     info "${HOSTS_DIR}/${base_name} -> ${HOSTS_DIR}/${target_name}"
+    mv "${HOSTS_DIR}/${target_name}/"mac{,_orig}
     cp "${HOSTS_DIR}/${base_name}/"{disk.qcow,ovmf_vars.fd,mac} "${HOSTS_DIR}/${target_name}/"
     run_qemu "${target_name}" "$VOSM_HOSTBR"
     ipaddr="$(do_until 120 get_vm_ip "$base_name" "${OSM_SUBNET}.1")"
@@ -682,7 +671,7 @@ clone_host() {
 	exit
 EOF
     shutdown_vm "${HOSTS_DIR}/${target_name}"
-    gen_hwaddr > "${HOSTS_DIR}/${target_name}/mac"
+    mv "${HOSTS_DIR}/${target_name}/"mac{_orig,}
 }
 
 set_ssh_key() {
@@ -799,6 +788,60 @@ request_pebble_cert() {
     info "Request certificate from '$srvip' for ${name}.${OSM_DOMAIN} domain."
     # shellcheck disable=SC2029
     ssh root@"$ipaddr" "REQUESST_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} &>/dev/null"
+}
+
+run_dnsmasq() {
+    local hosts_dir
+    hosts_dir="$(readlink -f "$HOSTS_DIR")"
+    local conf_file="${hosts_dir}/dnsmasq.conf"
+    local lease_file="${hosts_dir}/${VOSM_HOSTBR}.leasefile"
+    local pid_file="${hosts_dir}/${VOSM_HOSTBR}.pid"
+    local dns_fbaddr="8.8.8.8"  # should be global?
+    local dns_serv
+    # generate config: base settings
+    local settings=(
+        interface="$VOSM_HOSTBR"
+        pid-file="$pid_file"
+        dhcp-leasefile="$lease_file"
+        except-interface=lo
+        bind-interfaces
+        dhcp-range="${OSM_SUBNET}.2,${OSM_SUBNET}.255"
+        server="/${OSM_DOMAIN}/${OSM_SUBNET}.2"
+    )
+    declare -A macs=()
+    local hosts=("${hosts_dir}"/vosmhost*)
+
+    # get hosts hw addresses
+    for host in "${hosts[@]}"; do
+        if [[ ! -s "${host}/mac" ]]; then
+            warn "Unable to get '$host' MAC address"
+            macs[$host]="$host"
+        else
+            macs[$host]="$(<"$host"/mac)"
+        fi
+    done
+
+    for host in "${!macs[@]}"; do
+        n=$((10#${host: -1}))
+        # the main vosmhost0 host always has ${OSM_SUBNET}.2 address
+        if (( n == 0 )); then
+            settings+=(dhcp-host="${macs[$host]},${OSM_SUBNET}.2")
+        else
+            settings+=(dhcp-host="${macs[$host]},${OSM_SUBNET}.${n}0")
+        fi
+    done
+
+    dns_serv="$(dns_ip)"
+    if [[ -n "$dns_serv" ]]; then
+        settings+=(dhcp-option="6,${dns_ip},${dns_fbaddr}")
+    else
+        settings+=(dhcp-option="6,${dns_fbaddr}")
+    fi
+
+    : > "$lease_file"
+    printf "%s\n" "${settings[@]}" > "$conf_file"
+    [[ -f "$pid_file" ]] && pkill -F "$pid_file" || true
+    sudo dnsmasq --conf-file="$conf_file" || return 1
 }
 
 has() {

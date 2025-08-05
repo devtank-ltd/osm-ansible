@@ -1,7 +1,7 @@
 ---
 
 - name: systemd network restart
-  service:
-    name: systemd-networkd
-    state: restarted
-    enabled: yes
+  ansible.builtin.shell:
+    systemctl restart systemd-networkd
+  async: 10
+  poll: 0

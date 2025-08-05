@@ -92,21 +92,16 @@ EOF
         sudo -- sed -i '/'"$OSM_SUBNET"'.2/d' "${hosts_dir}/${VOSM_HOSTBR}.leasefile"
     fi
 
-    local dnsmasq_args=(
-        --pid-file="${hosts_dir}/${VOSM_HOSTBR}.pid"
-        --dhcp-leasefile="${hosts_dir}/${VOSM_HOSTBR}.leasefile"
-        --interface="$VOSM_HOSTBR"
-        --except-interface=lo
-        --bind-interfaces
-        --dhcp-range="${OSM_SUBNET}.2,${OSM_SUBNET}.255"
-        --dhcp-host="${main_hwaddr},${OSM_SUBNET}.2"
-        --server="/${OSM_DOMAIN}/${OSM_SUBNET}.2"
-    )
-    dns_ip="$(dns_ip)"
-    dns_ip="${dns_ip:-8.8.4.4}"
-    dnsmasq_args+=("--dhcp-option=6,8.8.8.8,${dns_ip}")
+    # generate mac addresses for OSM hosts in advance to use them in
+    # dnsmasq configuration file
+    for n in $(seq 0 $((OSM_HOST_COUNT - 1)) ); do
+        mkdir -p "${HOSTS_DIR}/vosmhost${n}"
+        if [[ ! -f "${HOSTS_DIR}/vosmhost${n}/mac" ]]; then
+            gen_hwaddr > "${HOSTS_DIR}/vosmhost${n}/mac"
+        fi
+    done
 
-    sudo dnsmasq "${dnsmasq_args[@]}" || return 1
+    run_dnsmasq
     sudo resolvectl domain "$VOSM_HOSTBR" ~"$OSM_DOMAIN" || return 1
     sudo resolvectl dns "$VOSM_HOSTBR" "${OSM_SUBNET}.2" || return 1
 }

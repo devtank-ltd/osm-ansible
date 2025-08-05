@@ -17,7 +17,6 @@
   copy:
     src: zabbly.asc
     dest: /etc/apt/keyrings/ansible-zabbly.asc
-  notify: Refresh apt
 
 - name: Get architecture
   shell: dpkg --print-architecture
@@ -31,11 +30,8 @@
     dest: /etc/apt/sources.list.d/zabbly-incus-{{ incus_init["release"] }}.sources
   notify: Refresh apt
 
-- name: FIXME Refresh apt as handler does not work
-  apt:
-    force_apt_get: yes
-    update_cache: yes
-    cache_valid_time: 0
+- name: Force notified handlers to run here
+  ansible.builtin.meta: flush_handlers
 
 - name: Install incus package
   apt:
@@ -43,6 +39,7 @@
     install_recommends: no
     state: present
 
+# TODO: do we need incus Web UI?
 # - name: Install incus UI
 #   apt:
 #     name: incus-ui-canonical
@@ -175,6 +172,5 @@
     systemctl start systemd-resolved
 
 - name: Set DNS for incus
-  # TODO: use systemd config instead?
   ansible.builtin.shell: |
     resolvectl dns devtank {{ incus_init.network.ipaddr.split('/')[0] }} {{ hostvars['vosmhost0']['ansible_host'] }}

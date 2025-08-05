@@ -30,6 +30,7 @@ main:
     - python3-sqlalchemy
     - python3-venv
     - python3-yaml
+    - polkitd
     - software-properties-common
     - vim
     - wget
@@ -41,6 +42,7 @@ main:
 
 osmhost:
   packages:
+    - polkitd
     - ansible
     - btrfs-progs
     - certbot
