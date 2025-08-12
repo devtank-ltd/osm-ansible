@@ -12,8 +12,7 @@ run_ansible_early() {
         osm_domain="$OSM_DOMAIN"
     )
     local ansible_args=(
-        -e
-        "${extra_vars[*]}"
+        -e "${extra_vars[*]}"
         -i "$ANSIBLE_HOSTS"
         --skip-tags "pebble"
         --tags "bootstrap"
@@ -43,20 +42,19 @@ run_ansible_incus() {
         -e dns_ip="$(dns_ip)"
         --tags incus
     )
+
     edo ansible-playbook "${args[@]}" ansible/incus/deploy.yaml
 }
 
 run_ansible_postinst() {
     local args=(
         --tags postinst
-        -v
         -e osm_domain="$OSM_DOMAIN"
         -i "$ANSIBLE_HOSTS"
     )
+
     if hostis "debian-jenkins"; then
-        args+=(
-            -e "install_java=yes"
-        )
+        args+=(-e "install_java=yes")
     fi
 
     edo ansible-playbook "${args[@]}" ansible/incus/deploy.yaml

@@ -83,14 +83,15 @@ process_args() {
         esac
     done
 
-    [[ ! -v action || -z "$action" ]] && print_usage
+    [[ ( ! -v action || -z "$action" ) && "${a[run_tests]}" == "no" ]] && print_usage
 
-    if [[ ! "$action" =~ (setup|shutdown|run) ]]; then
+    if [[ -v action && ! "$action" =~ (setup|shutdown|run) ]]; then
         die "Only 'setup', 'run' and 'shutdown' actions are supported"
     fi
-    a[action]="$action"
 
-    if [[ "$action" == "setup" ]]; then
+    a[action]="${action:-}"
+
+    if [[ -v action && "$action" == "setup" ]]; then
         if [[ ! -v config || -z "$config" ]]; then
             die "Need a config file to proceed"
         fi
@@ -98,11 +99,20 @@ process_args() {
         a[config]="$config"
     fi
 
-    if [[ "$action" =~ (shutdown|run) ]]; then
+    if [[ -v action && "$action" =~ (shutdown|run) ]]; then
         if [[ ! -v hosts_dir || -z "$hosts_dir" ]]; then
             die "The 'hosts-dir' should be set for '$action' action"
         fi
         [[ ! -d "$hosts_dir" ]] && die "Unable to find '$hosts_dir' directory"
+        a[hosts_dir]="$hosts_dir"
+    fi
+
+    if [[ "${a[run_tests]}" == "yes" ]]; then
+        if [[ ! -v hosts_dir ]]; then
+            die "The 'hosts-dir' must be specified to run tests"
+        elif [[ ! -d "$hosts_dir" ]]; then
+            die "Unable to find '$hosts_dir' directory. Check path"
+        fi
         a[hosts_dir]="$hosts_dir"
     fi
 }
@@ -273,14 +283,27 @@ EOF
     run_ansible_incus
     run_ansible_postinst
 }
+
+_check_hosts_dir() {
+    local d="$1"
+    if [[ ! -d "$d" ]]; then
+        error "There is no '$d' directory"
+        return 1
+    fi
+    if [[ ! -e "${d}/env" ]]; then
+        error "Unable to find 'env' file in '$d' directory"
+        return 1
+    fi
+}
+
 do_run_environment() {
     local hosts_dir="${ARGS[hosts_dir]}"
     info "Run '$hosts_dir' environment"
 
-    [[ ! -d "$hosts_dir" ]] && die "There is no '$hosts_dir' directory"
-    [[ ! -e "${hosts_dir}/env" ]] && {
-        die "Unable to find 'env' file in '$host_dir' directory"
-    }
+    if ! _check_hosts_dir "$hosts_dir"; then
+        die "Unable to proceed"
+    fi
+
     # shellcheck source=/dev/null
     source "${hosts_dir}/env"
 
@@ -884,11 +907,33 @@ do_until() {
     return 1
 }
 
+is_env_running() {
+    local hosts_dir="${ARGS[hosts_dir]}"
+
+    if ! _check_hosts_dir "$hosts_dir"; then
+        return 1
+    fi
+
+    # shellcheck source=/dev/null
+    source "${hosts_dir}/env"
+
+    if [[ ! -v VOSM_HOSTBR || ! -v OSM_SUBNET || ! -v OSM_DOMAIN ]]; then
+        error "Essential environment variables are not set."
+        return 1
+    fi
+
+    if [[ $(ip -br l show "$VOSM_HOSTBR") =~ DOWN.*\<.* ]]; then
+        error "The interface '$VOSM_HOSTBR' is down"
+        return 1
+    fi
+}
+
 run_tests() {
     yesno "Do you want to run tests? "
     local tests_file="/srv/osm-lxc/orchestrator/env/tests/customers.bats"
     local bats_args=(-p --print-output-on-failure --verbose-run -T)
     local cmd=(bats "${bats_args[@]}" "${tests_file}")
+
     edo ssh root@"${OSM_SUBNET}.2" "export DOMAIN=$OSM_DOMAIN; TERM=xterm " "${cmd[@]}"
-    return 1
+    return 0
 }

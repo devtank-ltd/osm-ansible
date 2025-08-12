@@ -21,7 +21,7 @@ init() {
     # shellcheck disable=SC1091
     source "${INC}/ansible_functions.bash"
 
-    declare -gA ARGS=([action]="" [config]="" [run_tests]="no")
+    declare -gA ARGS=([action]="" [config]="" [run_tests]="no" [hosts_dir]="")
     process_args "$@"
 
     if [[ ! -v STY || -z "$STY" ]]; then
@@ -54,11 +54,18 @@ main() {
         do_start_hosts OSM_HOSTS
         do_post_setup
         print_status
-        [[ "${ARGS[run_tests]}" == "yes" ]] && run_tests
     elif [[ "${ARGS[action]}" == "run" ]]; then
         do_run_environment
     elif [[ "${ARGS[action]}" == "shutdown" ]]; then
         do_shutdown_environment
+
+    fi
+    if [[ "${ARGS[run_tests]}" == "yes" || "${ARGS[action]}" != "shutdown" ]]; then
+        if is_env_running; then
+            run_tests
+        else
+            die "The OSM environment is not running. Please start or build it."
+        fi
     fi
 }
 
