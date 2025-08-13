@@ -60,7 +60,8 @@ main() {
         do_shutdown_environment
 
     fi
-    if [[ "${ARGS[run_tests]}" == "yes" || "${ARGS[action]}" != "shutdown" ]]; then
+
+    if [[ "${ARGS[run_tests]}" == "yes" && "${ARGS[action]}" != "shutdown" ]]; then
         if is_env_running; then
             run_tests
         else

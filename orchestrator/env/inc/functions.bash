@@ -95,6 +95,7 @@ process_args() {
         if [[ ! -v config || -z "$config" ]]; then
             die "Need a config file to proceed"
         fi
+        [[ "${a[run_tests]}" == "yes" ]] && die "You need to build environment first"
         [[ ! -e "$config" ]] && die "Unable to find '$config' configuration file"
         a[config]="$config"
     fi
@@ -583,11 +584,13 @@ prepare_base_host() {
 }
 
 mrproper() {
+    set -x
     if [[ -s "$pids" ]]; then
         warn "Cleaning... from '$pids'"
         xargs kill -TERM < "$pids"
         rm "$pids"
     fi
+    set +x
 }
 
 handle_orphaned_vms() {
@@ -649,8 +652,25 @@ run_qemu() {
     )
     info "Run '${workdir##*/}' QEMU Virtual machine"
     if [[ -e "${workdir}/qemu.pid" ]]; then
-        warn "The PID file exists. Is the '${workdir##*/}' already running?"
-        return 1
+        warn "The PID file exists in '${workdir##*/}'"
+        local qemu_pid
+        qemu_pid=$(< "${workdir}/qemu.pid")
+
+        if [[ -d "/proc/${qemu_pid}" ]]; then
+            warn "Fround '$qemu_pid' in /proc directory."
+            local cmdline
+            local cmdline_regex="file=${workdir}"
+            cmdline="$(xargs -0 printf '%s ' </proc/"$qemu_pid"/cmdline)"
+            if [[
+                   "$cmdline" =~ ^qemu-system-x86_64 &&
+                   "$cmdline" =~ $cmdline_regex
+               ]]; then
+                warn "It seems that VM '${workdir##*/}' is running already"
+                return 1
+            else
+                die "Wrong PID for VM '${workdir##*/}'. Unable to proceed"
+            fi
+        fi
     fi
     qemu-system-x86_64 "${qemu_args[@]}" &
 
