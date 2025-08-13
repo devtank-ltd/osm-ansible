@@ -584,13 +584,11 @@ prepare_base_host() {
 }
 
 mrproper() {
-    set -x
     if [[ -s "$pids" ]]; then
         warn "Cleaning... from '$pids'"
         xargs kill -TERM < "$pids"
         rm "$pids"
     fi
-    set +x
 }
 
 handle_orphaned_vms() {
