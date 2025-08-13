@@ -38,6 +38,34 @@ pipeline {
             }
         }
 
+        stage('Prepare build') {
+            agent { label 'built-in' }
+            steps {
+                ansiColor('xterm') {
+                    sh '''
+                    #!/usr/bin/env bash
+                    declare -a hosts
+                    mapfile -t macs < <(sed -rn 's/dhcp-host=(.*)$/\1/p' /var/lib/jenkins/dnsmasq_incus_testing.conf)
+
+                    for record in "${macs[@]}"; do
+                        host="${record##*,}"
+                        mac="${record%%,*}"
+                        n="${host##*.}"
+
+                        if (( ${#n} == 1 )); then
+                            name="vosmhost0"
+                        else
+                            name="vosmhost${n::-1}"
+                        fi
+
+                        mkdir -p "${WORKSPACE}/orchestrator/env/hosts/${name}"
+                        echo "$mac" > "${WORKSPACE}/orchestrator/env/hosts/${name}/mac"
+                    done
+                    '''
+                }
+            }
+        }
+
         stage('Build environment') {
             agent { label 'built-in' }
             steps {
@@ -49,6 +77,7 @@ pipeline {
                     sed -ri 's/(^HTTP_PORT=).*/\\1"'"$HTTP_PORT"'"/' "$conf"
                     sed -ri 's/(^OSM_DOMAIN=).*/\\1"'"$OSM_DOMAIN"'"/' "$conf"
                     pushd "${WORKSPACE}/orchestrator/env" >/dev/null 2>&1
+                    export ANSIBLE_HOSTS="hosts/hosts"
                     JENKINS_NODE_COOKIE=dontKillMe stdbuf -oL -eL bash run.bash -a setup -c network.cfg
                     '''
                 }
