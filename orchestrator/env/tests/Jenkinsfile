@@ -61,14 +61,8 @@ pipeline {
             steps {
                 ansiColor('xterm') {
                     sh '''
-                    ipaddr="$(sed -rn 's/.*\\s([0-9.]+)\\svosmhost0.*/\\1/p' /tmp/qemu.leasefile)"
-                    tests_dir="/srv/osm-lxc/orchestrator/env/tests"
-                    test_file="customers.bats"
-                    if ! ping -c3 -W1 "$ipaddr" &>/dev/null 2>&1; then
-                        echo "Host '$ipaddr' unreachable"
-                        exit 1
-                    fi
-                    stdbuf -oL -eL ssh root@"$ipaddr" "export DOMAIN=$OSM_DOMAIN; TERM=xterm bats -p --print-output-on-failure --verbose-run -T ${tests_dir}/${test_file}"
+                    pushd "${WORKSPACE}/orchestrator/env"
+                    stdbuf -oL -eL bash run.bash --run-tests --hosts-dir=hosts
                     '''
                 }
             }
