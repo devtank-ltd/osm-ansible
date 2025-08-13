@@ -45,7 +45,11 @@ pipeline {
                     sh '''
                     #!/usr/bin/env bash
                     declare -a hosts
-                    mapfile -t macs < <(sed -rn 's/dhcp-host=(.*)$/\1/p' /var/lib/jenkins/dnsmasq_incus_testing.conf)
+                    mapfile -t macs < <(sed -rn 's/dhcp-host=(.*)$/\\1/p' /var/lib/jenkins/dnsmasq_incus_testing.conf)
+
+                    declare -p macs
+
+                    cat /var/lib/jenkins/dnsmasq_incus_testing.conf
 
                     for record in "${macs[@]}"; do
                         host="${record##*,}"
