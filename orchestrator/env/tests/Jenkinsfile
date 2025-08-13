@@ -28,16 +28,6 @@ pipeline {
             }
         }
 
-        stage('Get OSM sources') {
-            agent { label 'built-in' }
-            steps {
-                checkout scmGit(
-                    branches: [[name: 'ref2']],
-                    userRemoteConfigs: [[url: 'https://git.devtank.co.uk/Devtank/osm-ansible.git']]
-                )
-            }
-        }
-
         stage('Prepare build') {
             agent { label 'built-in' }
             steps {
