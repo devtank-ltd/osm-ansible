@@ -74,6 +74,13 @@
     main_wg_ip: "{{ wg_output.stdout | regex_search('inet (\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})', '\\1') | first }}"
   run_once: true
 
+- name: Add DNS info to systemd network file
+  ansible.builtin.blockinfile:
+    path: /etc/systemd/network/99-wg0.network
+    block: |
+      DNS={{ hostvars[inventory_hostname]['main_wg_ip'] }}
+      Domains=~{{ osm_domain }}
+
 - name: Resolve OSM domain on WireGuard interface
   ansible.builtin.shell: |
     resolvectl dns wg0 {{ hostvars[inventory_hostname]['main_wg_ip'] }}
