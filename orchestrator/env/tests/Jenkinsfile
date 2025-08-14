@@ -7,7 +7,7 @@ pipeline {
                 ansiColor('xterm') {
                     sh '''
                     wait_for=5
-                    retries=10
+                    retries=19  # systemd DefaultTimeoutStopSec=90s + 5 secs
                     counter=0
                     for sock in $(find -name "monitor.sock" -print); do
                         echo "system_powerdown"| socat - unix-connect:"$sock"
