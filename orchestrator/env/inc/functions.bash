@@ -173,6 +173,14 @@ build_env() {
         if [[ -e "$HOSTS_DIR/env" ]]; then
             # shellcheck disable=SC1091
             source "${HOSTS_DIR}/env"
+        else
+            # For Jenkins testing:
+            # dnsmasq with predefined MAC addresses is running already on jenkins hosts
+            # and MAC addresses must be the same for non-spawned VMs but environment
+            # file is not created yet
+            save_env
+            # shellcheck disable=SC1091
+            source "${HOSTS_DIR}/env"
         fi
     else
         [[ ! -d "$HOSTS_DIR" ]] && mkdir "$HOSTS_DIR"
