@@ -14,4 +14,5 @@ Hostname={{ ansible_hostname }}
 Address={{ item.address }}
 DNS={{ item.dns1 }}
 DNS={{ item.dns2 }}
+Domains=~incus
 {% endif %}
