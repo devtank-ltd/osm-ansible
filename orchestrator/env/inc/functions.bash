@@ -405,7 +405,7 @@ setup_ssh() {
     local ipaddr="$1"
     mkdir -p ~/.ssh
     ssh-keygen -q -f ~/.ssh/known_hosts -R "$ipaddr" &> /dev/null || true
-    ssh-keyscan -H "$ipaddr" 2>/dev/null >> ~/.ssh/known_hosts 2>&1
+    ssh-keyscan -H "$ipaddr" | tee -a ~/.ssh/known_hosts
 }
 
 gen_remote_ssh() {
