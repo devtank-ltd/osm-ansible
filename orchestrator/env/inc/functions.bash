@@ -348,7 +348,7 @@ add_ansible_host() {
     [[ -z "$name" ]] && die "Th host name is missing"
     [[ -z "$ipaddr" ]] && die "The IP address is missing"
 
-    if ! grep -q "$ipaddr" "$ANSIBLE_HOSTS"; then
+    if ! grep -q "${ipaddr}$" "$ANSIBLE_HOSTS"; then
         # shellcheck disable=SC1003
         sed -i '1 i\'"${name} ansible_host=${ipaddr}"'' "$ANSIBLE_HOSTS"
     fi

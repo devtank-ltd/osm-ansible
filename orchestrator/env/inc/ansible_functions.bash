@@ -25,6 +25,7 @@ run_ansible_pebble() {
     local host="$1"
     local playbook="ansible/incus/deploy.yaml"
     local args=(
+        -vvv
         --tags "pebble"
         -u root
         -i "$ANSIBLE_HOSTS"
@@ -37,6 +38,7 @@ run_ansible_pebble() {
 
 run_ansible_incus() {
     local args=(
+        -vvv
         -i "${HOSTS_DIR}/hosts"
         -e osm_domain="$OSM_DOMAIN"
         -e dns_ip="$(dns_ip)"
