@@ -706,16 +706,24 @@ class cli_osm_orchestrator_t:
 
         if cmd == "pull":
             tmp = src
-            src = dst
+            if dst.startswith("/"):
+                src = Path(dst).resolve().as_posix()
+            else:
+                p = Path(os.getenv("PWD", ""))
+                if not p:
+                    self.logger.error("Unable to get current directory")
+                    return False
+                src = p.resolve().as_posix()
             dst = tmp
+
 
         flags = ["-p", "-r"]
         incus_cmd = ["incus", "file", cmd]
-        target = [src, f"{customer_name}/{dst}"]
+        target = [src, f"{customer_name}{dst}"]
         incus_cmd += target if cmd == "push" else target[::-1]
         incus_cmd += flags
+        incus_proc = subprocess.run(incus_cmd, capture_output=True)
 
-        incus_proc = subprocess.run(incus_cmd)
         return incus_proc.returncode == 0
 
     def push_file_or_directory(
