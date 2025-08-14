@@ -157,7 +157,7 @@
         [
           {
             'name': "{{ ansible_default_ipv4.interface }}",
-            'dhcp': True
+            'dhcp': True,
             'dns': "{{ hostvars['vosmhost0']['ansible_host'] }}"
           },
           {
