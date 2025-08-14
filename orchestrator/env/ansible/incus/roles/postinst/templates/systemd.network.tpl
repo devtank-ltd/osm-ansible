@@ -4,6 +4,7 @@ Name={{ item.name }}
 [Network]
 {% if item.dhcp %}
 DHCP=yes
+DNS={{ item.dns }}
 
 [DHCP]
 ClientIdentifier=mac
