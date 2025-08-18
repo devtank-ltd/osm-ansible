@@ -1,7 +1,8 @@
 # -*- mode: sh; sh-shell: bash; -*-
 
 readonly DEB_ISO_ARCH="amd64"
-readonly DEB_URL="https://cdimage.debian.org/debian-cd/current/${DEB_ISO_ARCH}/iso-cd"
+readonly VER="12.11.0"          # last archived version
+readonly DEB_URL="https://get.debian.org/cdimage/archive/${VER}/${DEB_ISO_ARCH}/iso-cd"
 readonly CHECKSUM_FILE="SHA512SUMS"
 
 source functions.sh
