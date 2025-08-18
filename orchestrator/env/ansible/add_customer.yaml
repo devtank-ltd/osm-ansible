@@ -14,6 +14,7 @@
         tasks_from: add
       vars:
         customer_name: "{{ customer_name }}"
+        target_host: "{{ target_host }}"
 
     - name: Get devtank database config
       ansible.builtin.set_fact:

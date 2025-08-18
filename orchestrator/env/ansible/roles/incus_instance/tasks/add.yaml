@@ -12,7 +12,7 @@
 
 - name: Init customer instance
   ansible.builtin.shell:
-    cmd: "incus init {{ base_image }} {{ customer_name }}"
+    cmd: "incus init {{ base_image }} {{ customer_name }} --target {{ target_host }}"
 
 - name: Start customer instance
   ansible.builtin.shell:

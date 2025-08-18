@@ -300,6 +300,14 @@ class osm_orchestrator_t:
         row = self.db.get_host(name)
         return osm_host_t(self, row[0]) if row else None
 
+    def find_free_osm_host(self) -> Union[osm_host_t, None]:
+        if row := self.db.find_free_osm_host():
+            if osm_host := osm_host_t(self, row[0]):
+                utilization = row[1]
+                used = int(utilization * osm_host.capacity)
+                return osm_host if used < osm_host.capacity else None
+        return None
+
     def find_osm_host_by_addr(self, ip_addr):
         return self.db.get_host_by_ip(ip_addr)
 
@@ -308,10 +316,23 @@ class osm_orchestrator_t:
         return [osm_host_t(self, row[0]) for row in rows]
 
     def add_osm_customer(self, customer_name: str) -> bool:
+        if not (osm_host := self.find_free_osm_host()):
+            self.logger.error(
+                "No free OSM host for customer '%s'", customer_name
+            )
+            return False
+
+        if len(osm_host.customers) >= osm_host.capacity:
+            self.logger.error(
+                "There is no space for '%' customer on '%s' host",
+                customer_name, osm_host.name
+            )
+
         ansible_cmd = [
             "ansible-playbook",
             "-i", f"localhost,{customer_name},",
             "-e", f"customer_name={customer_name}",
+            "-e", f"target_host={osm_host.name}",
             f"{DEVTANK_WD}/env/ansible/add_customer.yaml",
         ]
         ansible_proc = subprocess.run(ansible_cmd)
