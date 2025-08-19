@@ -295,7 +295,7 @@ EOF
 
         while (( count < retries )); do
             # shellcheck disable=SC2029
-            if ! ssh root@"$main_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts >/dev/null 2>&1"; then
+            if ! ssh root@"$main_ip" "ssh-keyscan -H $ipaddr | tee -a /root/.ssh/known_hosts &>/dev/null 2>&1"; then
                 warn "Attempt $(( count + 1)) failed, retrying in ${delay} seconds..."
                 sleep $delay
                 (( count++ ))
@@ -423,8 +423,8 @@ wait_for_ip() {
 setup_ssh() {
     local ipaddr="$1"
     mkdir -p ~/.ssh
-    ssh-keygen -q -f ~/.ssh/known_hosts -R "$ipaddr" &> /dev/null || true
-    ssh-keyscan -H "$ipaddr" | tee -a ~/.ssh/known_hosts
+    ssh-keygen -q -f ~/.ssh/known_hosts -R "$ipaddr" &> /dev/null 2>&1
+    ssh-keyscan -H "$ipaddr" | tee -a ~/.ssh/known_hosts &> /dev/null 2>&1
 }
 
 gen_remote_ssh() {
