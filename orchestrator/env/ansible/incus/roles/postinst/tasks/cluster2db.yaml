@@ -26,7 +26,7 @@
     login_user: "{{ db_conf.orchestrator.user }}"
     query: >
       INSERT INTO osm_hosts (name, ip_addr, capacity, active_since)
-      VALUES (%s, %s, 0, "{{ ansible_date_time['epoch']|int }}")
+      VALUES (%s, %s, 5, "{{ ansible_date_time['epoch']|int }}")
     positional_args:
       - "{{ item.key }}"
       - "{{ item.value | regex_replace('https://([^:]+):.*', '\\1') }}"
