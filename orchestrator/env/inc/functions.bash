@@ -265,6 +265,9 @@ do_setup() {
 
 do_post_setup() {
     local host ipaddr main_ip main_pub main_ssh_dir
+    local -i retries=3
+    local -i delay=3
+    local -i count=0
 
     main_pub="$(gen_remote_ssh "${OSM_HOSTS[${VOSM_HOST}0]}")"
     main_ip="${OSM_HOSTS[${VOSM_HOST}0]}"
@@ -273,6 +276,7 @@ do_post_setup() {
     run_ansible_pebble "${VOSM_HOST}0"
 
     for host in "${!OSM_HOSTS[@]}"; do
+        count=0
         ipaddr="${OSM_HOSTS[$host]}"
         # update hosts file for ansible
         sed -ri 's/^'"$host"'.*=$/&'"$ipaddr"'/' "${HOSTS_DIR}/hosts"
@@ -284,9 +288,24 @@ do_post_setup() {
 		echo "$main_pub" >> "${main_ssh_dir}/authorized_keys"
 EOF
         fi
+
         request_pebble_cert "$host" "$main_ip"
-        # shellcheck disable=SC2029
-        ssh root@"$main_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts" >/dev/null 2>&1
+
+        info "Populate known_hosts of ${main_ip} by ${ipaddr}"
+
+        while (( count < retries )); do
+            # shellcheck disable=SC2029
+            if ! ssh root@"$main_ip" "timeout $delay ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts >/dev/null 2>&1"; then
+                warn "Attempt $(( count + 1)) failed, retryint in ${delay} seconds..."
+                sleep $delay
+                (( count++ ))
+            else
+                break
+            fi
+        done
+
+        (( count == retries )) && die "Failed to add '$ipaddr' to known_hosts on '${main_ip}'"
+
     done
 
     run_ansible_incus
