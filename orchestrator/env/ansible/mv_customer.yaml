@@ -4,6 +4,20 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    db_name: osm
+    db_user: devtank
+    db_host: localhost
+    db_port: 5432
+    data_dir: /tmp/data
+
+    tables:
+      - { name: "pg_sf", column: "_time", keys: "_time, osm_id" }
+      - { name: "pg_sf_ds", column: "bucket", keys: "bucket, name, osm_name" }
+      - { name: "pg_sf_ds_text", column: "bucket", keys: "bucket, name, osm_name" }
+      - { name: "kwh", column: "bucket", keys: "bucket, name, osm_name" }
+      - { name: "plscnt", column: "bucket", keys: "bucket, name, osm_name" }
+      - { name: "scaled_current", column: "bucket", keys: "bucket, name, osm_name" }
 
   tasks:
     - name: Get customer instance info
@@ -65,7 +79,7 @@
       block:
         - name: Get start time
           ansible.builtin.set_fact:
-            start_chunk_time: ansible_date_time
+            start_chunk_time: "{{ lookup('pipe', 'date -u +%Y-%m-%d\\ %H:%M:%S%z') }}"
 
         - name: Make {{ customer_name }} instance snapshot
           ansible.builtin.shell: |
@@ -148,27 +162,103 @@
 
     - name: Move data to the new {{ customer_name }} instance
       block:
+
         - name: Get end time
           ansible.builtin.set_fact:
-            end_chunk_time: ansible_date_time
+            end_chunk_time: "{{ lookup('pipe', 'date -u +%Y-%m-%d\\ %H:%M:%S%z') }}"
+
+        - name: Ensure data directory exists inside container
+          ansible.builtin.file:
+            path: /tmp/data
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: '0755'
+          vars:
+            ansible_connection: community.general.incus
+            ansible_host: "{{ customer_name }}-old"
 
         - name: Backup data from old {{ customer_name }} instance
           ansible.builtin.shell: |
-            echo "Backup data from {{ start_chunk_time }} to {{ end_chunk_time }}"
+            su - postgres -c "psql -d {{ db_name }} -c \"\COPY (
+              SELECT * FROM {{ item.name }}
+              WHERE {{ item.column }} >= '{{ start_chunk_time }}'::timestamptz
+                AND {{ item.column }} < '{{ end_chunk_time }}'::timestamptz
+            ) TO '/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv' WITH CSV HEADER\""
+          args:
+            executable: /bin/bash
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
+          vars:
+            ansible_connection: community.general.incus
+            ansible_host: "{{ customer_name }}-old"
 
-        - name: Copy files from old {{ customer_name }} instance
+        - name: Pull CSVs from {{ customer_name }}-old instance
           ansible.builtin.shell: |
-            echo "Copy files from old instance"
+            incus file pull {{ customer_name }}-old/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv /tmp/{{ customer_name }}/{{ item.name }}/
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
 
-        - name: Copy files to {{ customer_name }} instance
+        - name: Push CSVs to {{ customer_name }} instance
           ansible.builtin.shell: |
-            echo "Copy files to {{customer_name }} instance"
+            incus file push /tmp/{{ customer_name }}/{{ item.name }}/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv {{ customer_name }}/tmp/data/ -p -r
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
 
-        - name: Export data
+        - name: Set data directory permissions
+          ansible.builtin.file:
+            path: /tmp/data
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: '0755'
+          vars:
+            ansible_connection: community.general.incus
+            ansible_host: "{{ customer_name }}"
+
+        - name: Ensure staging tables exist and are truncated
           ansible.builtin.shell: |
-            echo "Export data"
+            incus exec {{ customer_name }} -- su - postgres -c "psql -d {{ db_name }} -c 'CREATE TABLE IF NOT EXISTS {{ item.name }}_staging (LIKE {{ item.name }} INCLUDING ALL); TRUNCATE {{ item.name }}_staging;'"
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
 
-    - name: Remove old {{ customer_name }} instance
-      ansible.builtin.shell: |
-        incus stop {{ customer_name }}-old
-        incus rm {{ customer_name }}-old
+        - name: Import CSVs into staging tables
+          ansible.builtin.shell: |
+            incus exec {{ customer_name }} -- su - postgres -c "psql -d {{ db_name }} -c \"\COPY {{ item.name }}_staging FROM '/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv' WITH CSV HEADER\""
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        - name: Insert data from staging into main tables
+          ansible.builtin.shell: |
+            incus exec {{ customer_name }} -- su - postgres -c "
+              psql -d {{ db_name }} -c \"
+                INSERT INTO {{ item.name }}
+                SELECT * FROM {{ item.name }}_staging;
+              \"
+            "
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+    - name: Clean up
+      block:
+        - name: Clean up staging tables
+          ansible.builtin.shell: |
+            incus exec {{ customer_name }} -- su - postgres -c "
+              psql -d {{ db_name }} -c \"
+                TRUNCATE {{ item.name }}_staging;
+              \"
+            "
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        - name: Remove old {{ customer_name }} instance
+          ansible.builtin.shell: |
+            incus stop {{ customer_name }}-old
+            incus rm {{ customer_name }}-old
