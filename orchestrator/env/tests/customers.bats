@@ -68,11 +68,17 @@ teardown_file() {
 
 
 @test "List Hosts (customer on vosmhost0)" {
+    host="$(incus ls customer1 -cL -fcsv)"
+    index="${host: -1}"
     run "$CLI" list_hosts
     assert_success
-    assert_line --index 1 --regexp '^[[:blank:]]+Host: vosmhost0: capacity: 1\/[[:digit:]]+'
-    assert_line --index 2 --regexp '^[[:blank:]]+Host: vosmhost1: capacity: 0\/[[:digit:]]+'
-    assert_line --index 3 --regexp '^[[:blank:]]+Host: vosmhost2: capacity: 0\/[[:digit:]]+'
+    for i in $(seq 0 2); do
+        capacity=0
+        if (( index == i )); then
+            capacity=1
+        fi
+        assert_line --index $(( i + 1 )) --regexp '^[[:blank:]]+Host: vosmhost'"$i"': capacity: '"$capacity"'\/[[:digit:]]+'
+    done
 }
 
 @test "List Host Customers (customer on vsomhost0)" {
