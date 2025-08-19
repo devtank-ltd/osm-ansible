@@ -295,8 +295,8 @@ EOF
 
         while (( count < retries )); do
             # shellcheck disable=SC2029
-            if ! ssh root@"$main_ip" "timeout $delay ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts >/dev/null 2>&1"; then
-                warn "Attempt $(( count + 1)) failed, retryint in ${delay} seconds..."
+            if ! ssh root@"$main_ip" "ssh-keyscan -H $ipaddr >> /root/.ssh/known_hosts >/dev/null 2>&1"; then
+                warn "Attempt $(( count + 1)) failed, retrying in ${delay} seconds..."
                 sleep $delay
                 (( count++ ))
             else
