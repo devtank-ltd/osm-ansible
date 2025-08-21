@@ -907,8 +907,8 @@ run_dnsmasq() {
     done
 
     dns_serv="$(dns_ip)"
-    if [[ -n "$dns_serv" ]]; then
-        settings+=(dhcp-option="6,${dns_ip},${dns_fbaddr}")
+    if [[ -n "$dns_serv" && "$dns_serv" != "$dns_fbaddr" ]]; then
+        settings+=(dhcp-option="6,${dns_serv},${dns_fbaddr}")
     else
         settings+=(dhcp-option="6,${dns_fbaddr}")
     fi
