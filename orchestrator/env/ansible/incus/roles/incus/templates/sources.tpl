@@ -5,4 +5,4 @@ URIs: https://pkgs.zabbly.com/incus/{{ incus_init["release"] }}/
 Suites: {{ ansible_distribution_release }}
 Components: main
 Architectures: {{ dpkg_architecture.stdout }}
-Signed-By: /etc/apt/keyrings/ansible-zabbly.asc
+Signed-By: /etc/apt/keyrings/zabbly.asc

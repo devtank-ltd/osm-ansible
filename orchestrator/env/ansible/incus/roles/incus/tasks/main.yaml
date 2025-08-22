@@ -13,10 +13,11 @@
     mode: 0755
     state: directory
 
-- name: Add Zabbly repo key
-  copy:
-    src: zabbly.asc
-    dest: /etc/apt/keyrings/ansible-zabbly.asc
+- name: Download Zabbly public key
+  ansible.builtin.shell:
+    curl -fsSL https://pkgs.zabbly.com/key.asc -o /etc/apt/keyrings/zabbly.asc
+  args:
+    creates: /etc/apt/keyrings/zabbly.asc
 
 - name: Get architecture
   shell: dpkg --print-architecture
