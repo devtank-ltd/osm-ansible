@@ -46,6 +46,7 @@ osmhost:
     - ansible
     - btrfs-progs
     - certbot
+    - curl
     - git
     - libbsd-dev
     - libglib2.0-dev
