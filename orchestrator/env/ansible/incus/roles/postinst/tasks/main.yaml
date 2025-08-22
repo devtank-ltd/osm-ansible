@@ -158,7 +158,9 @@
           {
             'name': "{{ ansible_default_ipv4.interface }}",
             'dhcp': True,
-            'dns': "{{ hostvars['vosmhost0']['ansible_host'] }}"
+            'dns1': "{{ hostvars['vosmhost0']['ansible_host'] }}",
+            'dns2': "8.8.8.8",
+            'dns3': "9.9.9.9"
           },
           {
             'name': "devtank",
