@@ -36,7 +36,7 @@
         repo: "{{ devtank.git_repo }}"
         dest: "{{ devtank.dir }}"
         single_branch: yes
-        version: "{{ devtank.git_branch }}"
+        version: "{{ git_branch }}"
 
     - name: Generate master encryption data
       # TODO: use ansible module
@@ -95,7 +95,7 @@
         repo: "{{ devtank.git_repo }}"
         dest: "{{ devtank.dir }}"
         single_branch: yes
-        version: "{{ devtank.git_branch }}"
+        version: "{{ git_branch }}"
       when: inventory_hostname != "vosmhost0"
 
     # TODO: do we still need it?

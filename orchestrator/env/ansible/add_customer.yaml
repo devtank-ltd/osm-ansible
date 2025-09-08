@@ -56,10 +56,6 @@
             ansible_connection: local
           delegate_to: "{{ main_host }}"
 
-        # - name: Simulate failure
-        #   ansible.builtin.fail:
-        #     msg: "OOPS :("
-
       rescue:
         - name: Rollback devtank database entries (if exist)
           import_role:

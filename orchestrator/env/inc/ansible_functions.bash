@@ -10,6 +10,8 @@ run_ansible_early() {
         smtp_password="${MAIL_SMTP_PASSWORD}"
         mail_recipients="${MAIL_RECIPIENTS}"
         osm_domain="$OSM_DOMAIN"
+        # alternative branch name is set by DEVTANK_BRANCH environmet variable
+        git_branch="${DEVTANK_BRANCH:-main}"
     )
     local ansible_args=(
         -e "${extra_vars[*]}"

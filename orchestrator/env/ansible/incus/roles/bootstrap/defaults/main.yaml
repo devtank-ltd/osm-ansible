@@ -67,9 +67,6 @@ osmhost:
 
 devtank:
   git_repo: https://git.devtank.co.uk/Devtank/osm-ansible.git
-  # TODO: change branch after review
-  # git_branch: main
-  git_branch: ref2
 
   gpg_key: devtank.gpg
   apt_repo: https://dak.devtank.co.uk/debian
