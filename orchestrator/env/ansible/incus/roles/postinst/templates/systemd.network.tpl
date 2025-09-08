@@ -6,7 +6,6 @@ Name={{ item.name }}
 DHCP=yes
 DNS={{ item.dns1 }}
 DNS={{ item.dns2 }}
-DNS={{ item.dns3 }}
 
 [DHCP]
 ClientIdentifier=mac
