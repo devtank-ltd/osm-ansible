@@ -196,26 +196,16 @@
     state: started
     enabled: true
 
-- name: Start systemd-networkd
+- name: Enable systemd-networkd
   ansible.builtin.systemd_service:
     name: systemd-networkd
-    state: started
     enabled: true
-  notify: systemd network restart
 
-- name: Force notified handlers to run here
-  ansible.builtin.meta: flush_handlers
-
-- name: Reset connection
-  ansible.builtin.meta: reset_connection
-
-- name: Wait for host becomes reachable
-  ansible.builtin.wait_for_connection:
-    delay: 2
-    timeout: 3
-
-- name: Start systemd-resolved
+- name: Enable systemd-resolved
   ansible.builtin.systemd_service:
     name: systemd-resolved
-    state: started
     enabled: true
+
+- name: Reboot to apply new network changes
+  ansible.builtin.reboot:
+    test_command: hostnamectl
