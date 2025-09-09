@@ -83,11 +83,11 @@
 
         - name: Make {{ customer_name }} instance snapshot
           ansible.builtin.shell: |
-            incus snapshot create {{ customer_name }} t
+            incus snapshot create {{ customer_name }} temp
 
         - name: Copy snapshot to {{ target_host }} host
           ansible.builtin.shell: |
-            incus copy {{ customer_name }}/t {{customer_name }}-t --target {{ target_host }}
+            incus copy {{ customer_name }}/temp {{customer_name }}-temp --target {{ target_host }}
 
         - name: Rename original {{ customer_name }} instance
           ansible.builtin.shell: |
@@ -97,7 +97,7 @@
 
         - name: Start transferred instance
           ansible.builtin.shell: |
-            incus rename {{ customer_name }}-t {{ customer_name }}
+            incus rename {{ customer_name }}-temp {{ customer_name }}
             incus start {{ customer_name }}
 
         - name: Ping transferred instance (internal)
