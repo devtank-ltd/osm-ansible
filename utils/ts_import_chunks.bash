@@ -88,15 +88,38 @@ import_csv_to_staging() {
 insert_into_main_tables() {
     for table in "${!TABLE_KEYS[@]}"; do
         local staging="${table}_staging"
+        local keys="${TABLE_KEYS[$table]}"
 
-        echo "Inserting from $staging into $table"
+        # convert CSV keys into SQL conditions for WHERE NOT EXISTS
+        local conditions=""
+        local distinct_cols=""
+        IFS=',' read -ra cols <<< "$keys"
+        for col in "${cols[@]}"; do
+            col=$(echo "$col" | xargs)  # trim spaces
+            if [[ -n "$conditions" ]]; then
+                conditions+=" AND "
+                distinct_cols+=", "
+            else
+                distinct_cols+=""
+            fi
+            conditions+="m.$col = s.$col"
+            distinct_cols+="$col"
+        done
+
+        echo "Inserting from $staging into $table (deduplicated, skip existing)"
         psql "${PG_ARGS[@]}" -c "
             INSERT INTO $table
-            SELECT * FROM $staging;
+            SELECT DISTINCT ON ($distinct_cols) *
+            FROM $staging s
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM $table m
+                WHERE $conditions
+            )
+            ORDER BY $distinct_cols;
         "
     done
 }
-
 
 cleanup_staging() {
     for table in "${!TABLE_KEYS[@]}"; do
