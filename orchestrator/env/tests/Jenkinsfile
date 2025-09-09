@@ -63,7 +63,7 @@ pipeline {
         stage('Build environment') {
             agent { label 'built-in' }
             environment {
-                DEVTANK_BRANCH = "{params.DEVTANK_BRANCH}"
+                DEVTANK_BRANCH = "${params.DEVTANK_BRANCH}"
 }
             steps {
                 ansiColor('xterm') {
