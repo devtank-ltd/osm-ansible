@@ -152,9 +152,7 @@
 
 - name: Define network interfaces list
   ansible.builtin.set_fact:
-    network_interfaces: >-
-      {{
-        [
+    network_interfaces: [
           {
             'name': "{{ ansible_default_ipv4.interface }}",
             'dhcp': True,
@@ -169,7 +167,6 @@
             'dns2': "{{ hostvars['vosmhost0']['ansible_host'] }}"
           }
         ]
-      }}
 
 - name: Generate .network files from template
   ansible.builtin.template:
