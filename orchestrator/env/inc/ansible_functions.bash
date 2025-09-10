@@ -11,7 +11,7 @@ run_ansible_early() {
         mail_recipients="${MAIL_RECIPIENTS}"
         osm_domain="$OSM_DOMAIN"
         # alternative branch name is set by DEVTANK_BRANCH environmet variable
-        git_branch="${DEVTANK_BRANCH:-main}"
+        git_branch="${DEVTANK_BRANCH:-$(git rev-parse --abbrev-ref @ | sed -n 's/HEAD/main/p;t;p')}"
     )
     local ansible_args=(
         -e "${extra_vars[*]}"
