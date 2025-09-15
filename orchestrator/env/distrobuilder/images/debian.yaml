@@ -1305,6 +1305,7 @@ packages:
       - postgresql
       - postgresql-client-15
       - postgresql-common
+      - postgrest
       - prometheus-node-exporter
       - pushprox-client
       - python3-cryptography
