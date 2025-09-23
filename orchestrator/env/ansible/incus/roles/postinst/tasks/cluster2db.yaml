@@ -1,0 +1,48 @@
+---
+
+- name: Get DB config
+  command: cat /srv/osm-lxc/orchestrator/config.yaml
+  register: db_conf
+
+- name: Set DB config
+  set_fact:
+    db_conf: "{{ db_conf.stdout | from_yaml }}"
+
+- name: Get members from incus cluster
+  ansible.builtin.command: "incus cluster ls -c nu -fcsv"
+  register: cluster_members
+
+- name: Create hosts dictionary
+  ansible.builtin.set_fact:
+    osm_hosts: >-
+      {{
+      dict(cluster_members.stdout_lines | map( 'split', ','))
+      }}
+
+- name: Add cluster members to Devtank DB
+  community.mysql.mysql_query:
+    login_db: "{{ db_conf.orchestrator.database }}"
+    login_password: "{{ db_conf.orchestrator.password }}"
+    login_user: "{{ db_conf.orchestrator.user }}"
+    query: >
+      INSERT INTO osm_hosts (name, ip_addr, capacity, active_since)
+      VALUES (%s, %s, 5, "{{ ansible_date_time['epoch']|int }}")
+    positional_args:
+      - "{{ item.key }}"
+      - "{{ item.value | regex_replace('https://([^:]+):.*', '\\1') }}"
+  loop:
+    "{{ osm_hosts | dict2items }}"
+
+- name: Add cluster members to PowerDNS DB
+  community.mysql.mysql_query:
+    login_db: "{{ db_conf.pdns.database }}"
+    login_password: "{{ db_conf.pdns.password }}"
+    login_user: "{{ db_conf.pdns.user }}"
+    query: >
+      INSERT INTO records (domain_id, name, type, prio, content, ttl)
+      VALUES (1, %s, "A", 0, %s, 10800)
+    positional_args:
+      - "{{ item.key }}.{{ osm_domain }}"
+      - "{{ item.value | regex_replace('https://([^:]+):.*', '\\1') }}"
+  loop:
+    "{{ osm_hosts | dict2items }}"

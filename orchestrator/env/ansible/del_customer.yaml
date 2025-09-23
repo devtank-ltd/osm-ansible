@@ -1,0 +1,59 @@
+- name: Remove devtank customer
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Set devtank db conf
+      ansible.builtin.set_fact:
+        db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
+
+    - name: Remove customer from devtank database
+      import_role:
+        name: db_management
+        tasks_from: remove
+
+    - name: Set OSM IP address
+      ansible.builtin.set_fact:
+        osm_ip: "{{ customer_info.output.host_ipaddr }}"
+
+    - name: Remove incus instance
+      import_role:
+        name: incus_instance
+        tasks_from: remove
+
+    - name: Remove customer configuration from OSM host
+      import_role:
+        name: osm_host
+        tasks_from: remove
+      vars:
+        ansible_connection: ssh
+      delegate_to: "{{ osm_ip }}"
+
+    - name: Remove customer ailases from PDNS database
+      import_role:
+        name: pdns_management
+        tasks_from: remove
+
+- name: Remove customer from Prometheus
+  hosts: localhost
+  become: yes
+  connection: local
+  gather_facts: yes
+
+  vars:
+    prometheus_config: "/etc/prometheus/prometheus.yml"
+
+  tasks:
+    - name: Remove {{ customer_name }} from Prometheus
+      ansible.builtin.blockinfile:
+        path: "{{ prometheus_config }}"
+        # append_newline: yes <--- since ansible-core v2.16
+        backup: yes
+        marker: "# {mark} ORCHESTRATOR MANAGED {{ customer_name }}"
+        block: ""
+
+    - name: Restart Prometheus
+      ansible.builtin.systemd_service:
+        state: restarted
+        name: prometheus

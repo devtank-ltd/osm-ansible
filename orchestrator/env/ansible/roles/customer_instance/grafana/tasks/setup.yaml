@@ -1,0 +1,62 @@
+---
+
+- name: Configure Grafana
+  template:
+    src: grafana.ini.tpl
+    dest: /etc/grafana/grafana.ini
+    owner: root
+    group: grafana
+    mode: "640"
+
+- name: Create Grafana Admin Password
+  ansible.builtin.set_fact:
+    grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
+
+- name: Set Grafana Admin Password
+  command: "grafana-cli admin reset-admin-password {{ grafana_admin_password }}; chown grafana: /var/lib/grafana/grafana.db;"
+
+
+- name: Start and enable Grafana
+  systemd:
+    name: "grafana-server"
+    state: restarted
+    enabled: yes
+    daemon_reload: yes
+
+- name: Wait for 3000 to become open
+  wait_for:
+    port: 3000
+    connect_timeout: 10
+
+- name: "Add Postgres data source to Grafana"
+  community.grafana.grafana_datasource:
+    name: "postgresql"
+    grafana_url: "http://localhost:3000"
+    grafana_user: "admin"
+    grafana_password: "{{ grafana_admin_password }}"
+    org_id: "1"
+    ds_type: "postgres"
+    ds_url: "localhost:5432"
+    database: "osm"
+    user: "{{ timescaledb_owner }}"
+    additional_json_data:
+      postgresVersion: 15
+      timescaledb: true
+    additional_secure_json_data:
+      password: "{{ timescaledb_passwords['devtank'] }}"
+
+- name: Create Grafana Viewer Password
+  ansible.builtin.set_fact:
+    grafana_viewer_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
+
+- name: Create or update a Grafana user
+  community.grafana.grafana_user:
+    url: "http://localhost:3000"
+    url_username: "admin"
+    url_password: "{{ grafana_admin_password }}"
+    name: viewer
+    email: viewer
+    login: viewer
+    password: "{{ grafana_viewer_password }}"
+    is_admin: false
+    state: present

@@ -1,0 +1,10 @@
+---
+
+- name: Add customer to devtank database
+  devtank_db:
+    db_conf: "{{ db_conf.orchestrator }}"
+    method: add_customer
+    customer_name: "{{ customer_name }}"
+    osm_host_id: "{{ osm_id }}"
+    mqtt_port: "{{ mqtt_port }}"
+  register: customer_info

@@ -1,0 +1,40 @@
+- name: Deploy PostgREST as a service
+  block:
+    - name: Install Devtank debian packages
+      apt:
+        name: postgrest
+        update_cache: yes
+
+    - name: Generate JWT secret (a random 32-byte key)
+      set_fact:
+        jwt_secret: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+
+    - name: Generate JWT token
+      vars:
+        jwt_code: |
+          import jwt
+          token = jwt.encode({"role": "customer"}, "{{ jwt_secret }}", algorithm="HS256")
+          print(token)
+      command: >
+        python3 -c '{{ jwt_code }}'
+      register: jwt_token_cmd
+
+    - name: Set JWT token
+      set_fact:
+        postgres_api_token: "{{ jwt_token_cmd.stdout }}"
+
+    - name: Configure PostgREST
+      template:
+        src: postgrest.conf.tpl
+        dest: /etc/postgrest/postgrest.conf
+        owner: root
+        group: root
+        mode: "644"
+
+    - name: Enable and start PostgREST
+      systemd:
+        name: postgrest.service
+        state: restarted
+        enabled: yes
+
+  become: yes

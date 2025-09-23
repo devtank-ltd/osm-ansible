@@ -1,0 +1,43 @@
+# shellcheck disable=SC2034
+
+readonly DEB_ISO_VER="12.11.0"
+readonly DEB_ISO_ARCH="amd64"
+# readonly DEB_URL="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd"
+readonly DEB_URL="https://get.debian.org/cdimage/archive/${DEB_ISO_VER}/${DEB_ISO_ARCH}/iso-cd"
+
+readonly ISO_NAME="debian-${DEB_ISO_VER}-${DEB_ISO_ARCH}-netinst.iso"
+readonly DEB_ISO_URL="${DEB_URL}/${ISO_NAME}"
+readonly CHECKSUM_FILE="SHA512SUMS"
+
+# debian path
+readonly OVMF_VARS="/usr/share/OVMF/OVMF_VARS_4M.fd"
+readonly OVMF_CODE="/usr/share/OVMF/OVMF_CODE_4M.fd"
+
+# archlinux path
+# readonly OVMF_VARS=/usr/share/edk2/x64/OVMF_VARS.4m.fd
+# readonly OVMF_CODE=/usr/share/edk2/x64/OVMF_CODE.4m.fd
+
+readonly DISK_NAME="disk.qcow"
+readonly DISK_SIZE="24G"
+
+declare -Ar PACKAGES=(
+    ["ansible-playbook"]="ansible"
+    ["qemu-system-x86_64"]="qemu-system-x86"
+    ["/usr/share/OVMF/OVMF_CODE_4M.fd"]="ovmf"
+    ["isoinfo"]="genisoimage"
+    ["resolvectl"]="systemd-resolved"
+    ["dig"]="bind9-dnsutils"
+    ["ssh-keygen"]="openssh"
+    ["dnsmasq"]=""
+    ["iptables"]=""
+)
+
+# MUTABLE GLOBALS
+DEFAULT_SSH_KEY=""
+VOSM_HOST="vosmhost"
+
+# COLOURS
+RED="$(tput setaf 1)"
+GREEN="$(tput setaf 2)"
+YELLOW="$(tput setaf 3)"
+RESET="$(tput sgr0)"

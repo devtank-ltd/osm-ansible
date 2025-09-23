@@ -1,0 +1,10 @@
+---
+
+- name: Add customer alias to PDNS records
+  devtank_db:
+    db_conf: "{{ db_conf.pdns }}"
+    method: add_customer
+    customer_name: "{{ customer_name }}"
+    domain: "{{ db_conf.pdns_domain }}"
+    domain_id: "{{ db_conf.pdns_domain_id }}"
+    host_name: "{{ osm_host }}"

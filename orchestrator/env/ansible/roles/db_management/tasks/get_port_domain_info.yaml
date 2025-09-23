@@ -1,0 +1,57 @@
+---
+
+- name: Get OSM host info from devtank database
+  devtank_db:
+    db_conf: "{{ db_conf.orchestrator }}"
+    method: get_host
+    host_name: "{{ osm_host }}"
+  register: osm_info
+
+- name: Set OSM host info
+  ansible.builtin.set_fact:
+    osm_id: "{{ osm_info.output.host_id}}"
+    osm_ip: "{{ osm_info.output.host_ip }}"
+
+- name: Fail on OSM IP mismatch
+  when: osm_host_ip != osm_ip
+  ansible.builtin.fail:
+    msg: "incus cluster member IP != osm host IP from devtank database"
+
+# TODO: pyosmorch adjust
+- name: Get list of ports from the devtank DB
+  community.mysql.mysql_query:
+    login_db: "{{ db_conf.orchestrator.database }}"
+    login_password: "{{ db_conf.orchestrator.password }}"
+    login_user: "{{ db_conf.orchestrator.user }}"
+    query:
+      SELECT host_mqtt_port FROM osm_customers ORDER BY host_mqtt_port ASC
+  register: mqtt_ports
+
+- name: Set list of ports
+  ansible.builtin.set_fact:
+    mqtt_ports: "{{ mqtt_ports.query_result[0] | map(attribute='host_mqtt_port') | list | sort }}"
+
+- name: Get first missing or next available MQTT port
+  ansible.builtin.set_fact:
+    mqtt_port: >-
+      {% set ports = mqtt_ports | list %}
+      {{
+      (
+        (
+          (range(mqtt_ports[0], mqtt_ports[-1] + 1) | difference(mqtt_ports)) | sort | first | default(ports[-1] + 1)
+        )
+      ) if mqtt_ports | length > 0 else mqtt_init_port
+      }}
+
+- name: Get OSM host domain
+  delegate_to: "{{ osm_ip }}"
+  connection: ssh
+  ansible.builtin.shell: |
+    domain="$(find /etc/letsencrypt/live/ -maxdepth 1 -mindepth 1 -type d -printf '%P' -quit)"
+    domain="${domain#*.}"
+    echo "$domain"
+  register: osm_domain
+
+- name: Set target domain
+  ansible.builtin.set_fact:
+    target_domain: "{{ osm_domain.stdout }}"

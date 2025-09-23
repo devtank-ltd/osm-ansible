@@ -2,7 +2,7 @@
 
 ## Overview
 
-A OpenSmartMonitor (OSM) device sends data to a OSM customers container. The data is sent over MQTT over SSL encryption.
+An OpenSmartMonitor (OSM) device sends data to a OSM customers container. The data is sent over MQTT over SSL encryption.
 
 Different OSM customers containers are running on different servers. We call these servers OSM Hosts.
 The domains of the address of the OSM customers is handled by a Devtank DNS server.
@@ -11,13 +11,13 @@ This will return the right server for the customer.
 Each customer container may multiple domains to access different services.
 Generally, these are:
 
-- customer.opensmartmonitor.devtank.co.uk
-- customer-influx.opensmartmonitor.devtank.co.uk
-- customer-chirpstack.opensmartmonitor.devtank.co.uk
+- customer.osmm.devtank.co.uk
+- customer-db.osmm.devtank.co.uk
+- customer-chirpstack.osmm.devtank.co.uk
 
 Where *customer* is the chosen customer name.
-These domains correspond to the Grafana, InfluxDB2 and Chirpstack web interfaces respectively.
-The convention is to use a dash where a space would naturally be.
+These domains correspond to the Grafana, database and Chirpstack web interfaces respectively.
+The convention is to use a dash (-) where a space would naturally be.
 
 So first there is a DNS lookup for which OSM Host the *customer* container is on.
 
@@ -81,16 +81,36 @@ cd orchestrator
 ./orchestrator_cli.py del_customer somecustomer
 ```
 
+### Test environment
+
+It is possible to build OSM test environment for development/testing purposes.
+To do so, just execute ```<root of devtank sources>/orchestrator/env/run.bash -a setup -c network.cfg``` command. The script will prepare a network of virtual machines with the Devtank OSM eco-system.
+
+The list of mandatory variables in network.cfg configuration file is the following:
+
+- *HOSTS_DIR* - directory in Devtank sources directory where VMs configuration files are saved
+- *VOSM_HOSTBR* - bridge network interface for VMs communication
+- *OSM_SUBNET* - 3 octets of IPv4 address which will be used for environment network
+- *HTTP_PORT* - port for temporary spawned web serves which is needed for installation of Debian OS
+- *OSM_DOMAIN* - domain name
+
+#### Testing
+The [bats](https://bats-core.readthedocs.io/en/stable/) testing framework is used for testing Devtank OSM infrastsucture functionality. The `<root of devtank sources>/orchestrator/env/tests/customers.bats` contains tests suite.
+
+Run `export JENKINS_DOMAIN=<domain name>; TERM=xterm bats -p --print-output-on-failure --verbose-run -T <root of devtank sources>/orchestrator/env/tests/customers.bats` command to execute tests.
+
 ## History
 
 This is an evolution of the third iteration of this kind of hosting.
 
-Version 1 was everyone on the same Grafana, Influx, Mosquitto and ChirpStack.
+* **Version 1** was everyone on the same Grafana, Influx, Mosquitto and ChirpStack.
 This had a few issues.
 It was too scary to have all the eggs in one big basket.
 We found we wanted to update the stack of some customers, but not others. Also, we found ourselves needing to do custom Grafana plugins for some but not others.
 Additionally, we found customers wanted to know they were isolated from others.
 
-Version 2 was Docker based, behind an Apache reverse proxy and stunnel4, but we didn't want the mess/bloat of 4+ Dockers per customer, so made Docker be multiple service, and found ourselves against the grain of Docker.
+* **Version 2** was Docker based, behind an Apache reverse proxy and stunnel4, but we didn't want the mess/bloat of 4+ Dockers per customer, so made Docker be multiple service, and found ourselves against the grain of Docker.
 
-Version 3 was LXC based using NGINX. It's basically what we have now but originally only supporting a single VPS.
+* **Version 3** was LXC based using NGINX. Originally only supporting a single VPS, but interated to be multiple VPs with PDNS and the Orchestrator.
+
+* **Version 4** was migrated from LXC to Incus. Each OSM Host is a member of Incus cluster.

@@ -1,0 +1,20 @@
+ansible_ssh_user: root
+
+devtank:
+  hostname: "{{ ansible_facts['hostname'] }}"
+
+incus_init:
+  release: stable
+
+  network:
+    type: bridge
+    ipaddr: "10.0.5.1/24"
+    iface: eth0
+
+  storage:
+    driver: btrfs
+    source: "/srv/osm-lxc/storage"
+
+  image:
+    url: https://incus-remote.devtank.co.uk
+    protocol: simplestreams

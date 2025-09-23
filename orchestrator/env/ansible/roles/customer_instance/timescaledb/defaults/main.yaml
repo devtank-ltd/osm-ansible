@@ -1,0 +1,5 @@
+timescaledb_version: "2"
+postgres_version: "15"
+timescaledb_owner: devtank
+timescaledb_db: osm
+available_mb: "640"

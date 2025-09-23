@@ -1,0 +1,31 @@
+- name: Generate WireGuard private and public keys
+  shell: |
+    umask 077
+    wg genkey | tee priv.key | wg pubkey > pub.key
+  args:
+    chdir: /etc/wireguard
+    creates: /etc/wireguard/pub.key
+
+- name: Get WireGuard private key
+  command: "cat /etc/wireguard/priv.key"
+  register: wg_priv_key
+
+- name: Get WireGuard public key
+  command: "cat /etc/wireguard/pub.key"
+  register: wg_pub_key
+
+- name: Populate OSM WireGuard table with initial data
+  shell: |
+    echo "INSERT INTO osm_wireguard (id, osm_hosts_id, public_key, private_key, ip_addr) VALUES \
+    (1, NULL, '{{ wg_pub_key.stdout }}', '{{ wg_priv_key.stdout }}', '{{ main.wireguard.ipaddr }}');" | mysql -uroot "{{ devtank.db }}"
+
+- name: Apply WireGuard configuration
+  template:
+    src: main_wg.tpl
+    dest: "/etc/wireguard/wg0.conf"
+
+- name: Restart WireGuard
+  systemd_service:
+    name: wg-quick@wg0.service
+    state: restarted
+    enabled: true

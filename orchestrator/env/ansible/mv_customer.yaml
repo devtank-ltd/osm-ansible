@@ -1,0 +1,264 @@
+---
+
+- name: Move {{ customer_name }} to {{ target_host }}
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    db_name: osm
+    db_user: devtank
+    db_host: localhost
+    db_port: 5432
+    data_dir: /tmp/data
+
+    tables:
+      - { name: "pg_sf", column: "_time", keys: "_time, osm_id" }
+      - { name: "pg_sf_ds", column: "bucket", keys: "bucket, name, osm_name" }
+      - { name: "pg_sf_ds_text", column: "bucket", keys: "bucket, name, osm_name" }
+      - { name: "kwh", column: "bucket", keys: "bucket, name, osm_name" }
+      - { name: "plscnt", column: "bucket", keys: "bucket, name, osm_name" }
+      - { name: "scaled_current", column: "bucket", keys: "bucket, name, osm_name" }
+
+  tasks:
+    - name: Get customer instance info
+      block:
+        - name: Get devtank database config
+          ansible.builtin.set_fact:
+            db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
+        - name: Get current OSM host from incus
+          ansible.builtin.shell:
+            cmd: "incus ls {{ customer_name }} -cL -fcsv"
+          register: incus_result
+
+        - name: Set current host from incus
+          ansible.builtin.set_fact:
+            osm_host: "{{ incus_result.stdout }}"
+
+        - name: Get source host info
+          devtank_db:
+            db_conf: "{{ db_conf.orchestrator }}"
+            method: get_host
+            host_name: "{{ osm_host }}"
+          register: src_host_info
+
+        - name: Get destination host info
+          devtank_db:
+            db_conf: "{{ db_conf.orchestrator }}"
+            method: get_host
+            host_name: "{{ target_host }}"
+          register: dst_host_info
+
+        - name: Get OSM host domain
+          # TODO: which host to use, or DB?
+          #       is it possible to have different domains on different hosts?
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            domain="$(find /etc/letsencrypt/live/ -maxdepth 1 -mindepth 1 -type d -printf '%P' -quit)"
+            domain="${domain#*.}"
+            echo "$domain"
+          register: osm_domain
+
+        - name: Set target domain
+          ansible.builtin.set_fact:
+            target_domain: "{{ osm_domain.stdout }}"
+
+        - name: Get customer MQTT port
+          devtank_db:
+            db_conf: "{{ db_conf.orchestrator }}"
+            method: get_customer_port
+            customer_name: "{{ customer_name }}"
+          register: result
+
+        # TODO: use get_port_domain role (rework port task)
+        - name: Set mqtt port
+          ansible.builtin.set_fact:
+            mqtt_port: "{{ result.output.mqtt_port }}"
+
+    - name: Transfer {{ customer_name }} instance
+      block:
+        - name: Get start time
+          ansible.builtin.set_fact:
+            start_chunk_time: "{{ lookup('pipe', 'date -u +%Y-%m-%d\\ %H:%M:%S%z') }}"
+
+        - name: Make {{ customer_name }} instance snapshot
+          ansible.builtin.shell: |
+            incus snapshot create {{ customer_name }} temp
+
+        - name: Copy snapshot to {{ target_host }} host
+          ansible.builtin.shell: |
+            incus copy {{ customer_name }}/temp {{customer_name }}-temp --target {{ target_host }}
+
+        - name: Rename original {{ customer_name }} instance
+          ansible.builtin.shell: |
+            incus stop {{ customer_name }}
+            incus rename {{ customer_name }} {{ customer_name}}-old
+            incus start {{ customer_name}}-old
+
+        - name: Start transferred instance
+          ansible.builtin.shell: |
+            incus rename {{ customer_name }}-temp {{ customer_name }}
+            incus start {{ customer_name }}
+
+        - name: Ping transferred instance (internal)
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          retries: 3
+          delay: 3
+          register: result
+          until: result is not failed
+          ansible.builtin.shell:
+            ping -c3 -W1 "{{customer_name}}.incus"
+
+    - name: Configure OSM hosts
+      block:
+        - name: Get OSM host WireGuard IP address
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell:
+            cmd: "ip -o a s dev wg0 | sed -rn 's|.*inet\\s([0-9.]+).*|\\1|p'"
+          register: osm_host_wg_ipaddr
+
+        - name: Set OSM host Wireguard IP address
+          ansible.builtin.set_fact:
+            wg_ipaddr: "{{ osm_host_wg_ipaddr.stdout }}"
+
+        - name: Configure target OSM host
+          import_role:
+            name: osm_host
+            tasks_from: add
+          vars:
+            ansible_connection: ssh
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+
+        - name: Remove nginx configuration from the source host
+          import_role:
+            name: osm_host
+            tasks_from: remove
+          vars:
+            ansible_connection: ssh
+          delegate_to: "{{ src_host_info.output.host_ip }}"
+
+        - name: Update customer host in devtank database
+          devtank_db:
+            db_conf: "{{ db_conf.orchestrator }}"
+            method: update_customer_host
+            customer_name: "{{ customer_name }}"
+            osm_host_id: "{{ dst_host_info.output.host_id }}"
+
+        - name: Update alias in PoweDNS database
+          devtank_db:
+            db_conf: "{{ db_conf.pdns }}"
+            method: update_record
+            customer_name: "{{ customer_name }}"
+            domain: "{{ target_domain }}"
+            host_name: "{{ dst_host_info.output.host_name }}"
+
+        - name: Ping transferred instance (external)
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell:
+            ping -c3 -W1 "{{customer_name}}.{{ target_domain }}"
+
+    - name: Move data to the new {{ customer_name }} instance
+      block:
+
+        - name: Get end time
+          ansible.builtin.set_fact:
+            end_chunk_time: "{{ lookup('pipe', 'date -u +%Y-%m-%d\\ %H:%M:%S%z') }}"
+
+        - name: Ensure data directory exists inside container
+          ansible.builtin.file:
+            path: /tmp/data
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: '0755'
+          vars:
+            ansible_connection: community.general.incus
+            ansible_host: "{{ customer_name }}-old"
+
+        - name: Backup data from old {{ customer_name }} instance
+          ansible.builtin.shell: |
+            su - postgres -c "psql -d {{ db_name }} -c \"\COPY (
+              SELECT * FROM {{ item.name }}
+              WHERE {{ item.column }} >= '{{ start_chunk_time }}'::timestamptz
+                AND {{ item.column }} < '{{ end_chunk_time }}'::timestamptz
+            ) TO '/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv' WITH CSV HEADER\""
+          args:
+            executable: /bin/bash
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
+          vars:
+            ansible_connection: community.general.incus
+            ansible_host: "{{ customer_name }}-old"
+
+        - name: Pull CSVs from {{ customer_name }}-old instance
+          ansible.builtin.shell: |
+            incus file pull {{ customer_name }}-old/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv /tmp/{{ customer_name }}/{{ item.name }}/
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        - name: Push CSVs to {{ customer_name }} instance
+          ansible.builtin.shell: |
+            incus file push /tmp/{{ customer_name }}/{{ item.name }}/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv {{ customer_name }}/tmp/data/ -p -r
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        - name: Set data directory permissions
+          ansible.builtin.file:
+            path: /tmp/data
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: '0755'
+          vars:
+            ansible_connection: community.general.incus
+            ansible_host: "{{ customer_name }}"
+
+        - name: Ensure staging tables exist and are truncated
+          ansible.builtin.shell: |
+            incus exec {{ customer_name }} -- su - postgres -c "psql -d {{ db_name }} -c 'CREATE TABLE IF NOT EXISTS {{ item.name }}_staging (LIKE {{ item.name }} INCLUDING ALL); TRUNCATE {{ item.name }}_staging;'"
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        - name: Import CSVs into staging tables
+          ansible.builtin.shell: |
+            incus exec {{ customer_name }} -- su - postgres -c "psql -d {{ db_name }} -c \"\COPY {{ item.name }}_staging FROM '/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv' WITH CSV HEADER\""
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        - name: Insert data from staging into main tables
+          ansible.builtin.shell: |
+            incus exec {{ customer_name }} -- su - postgres -c "
+              psql -d {{ db_name }} -c \"
+                INSERT INTO {{ item.name }}
+                SELECT * FROM {{ item.name }}_staging;
+              \"
+            "
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+    - name: Clean up
+      block:
+        - name: Clean up staging tables
+          ansible.builtin.shell: |
+            incus exec {{ customer_name }} -- su - postgres -c "
+              psql -d {{ db_name }} -c \"
+                TRUNCATE {{ item.name }}_staging;
+              \"
+            "
+          loop: "{{ tables }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        - name: Remove old {{ customer_name }} instance
+          ansible.builtin.shell: |
+            incus stop {{ customer_name }}-old
+            incus rm {{ customer_name }}-old

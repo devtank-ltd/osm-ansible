@@ -1,0 +1,24 @@
+---
+
+- name: Get customer nginx configs
+  ansible.builtin.find:
+    paths: "/etc/nginx/devtank/"
+    patterns: "{{ customer_name }}.conf"
+    recurse: yes
+  register: customer_nginx_files
+
+- name: Remove nginx configs
+  ansible.builtin.file:
+    state: absent
+    path: "{{ item }}"
+  loop: "{{ customer_nginx_files.files | map(attribute='path') | list }}"
+
+- name: Reload nginx
+  command: "{{ item }}"
+  with_items:
+    - "nginx -t"
+    - "nginx -s reload"
+
+- name: Delete customer certificate
+  ansible.builtin.shell:
+    cmd: "certbot delete --cert-name {{ customer_name }}.{{ db_conf.pdns_domain }} --non-interactive"

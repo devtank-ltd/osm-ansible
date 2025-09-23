@@ -1,0 +1,116 @@
+#!/usr/bin/expect
+
+set timeout 5
+exp_log_user 0
+
+array set OPTS {
+    name   ""
+    token  ""
+    root   ""
+    server ""
+}
+
+proc usage {code} {
+    global OPTS
+    puts [expr {$code ? "stderr" : "stdout"}] \
+    "$::argv0 -name <container name> -root <rootfs path> -server <server url> -token <incus server token>
+    -root   <rootfs path>      (rootfs path. Deufault: /)
+    -server <server url>
+    -token  <token string>     (incus config trust list-tokens)
+    -name   <container name>   (customer container name to migrate)
+    -log    bool               (display expect log info {[exp_log_user]})
+    -help                      (print out this message)"
+    exit $code
+}
+
+
+proc parseargs {argc argv} {
+    global OPTS
+    foreach {key val} $argv {
+    switch -exact -- $key {
+        "-root"   { set OPTS(root)  $val }
+        "-server" { set OPTS(server) $val }
+        "-token"  { set OPTS(token) $val }
+        "-name"   { set OPTS(name)  $val }
+        "-log"    { exp_log_user $val }
+        "-help"   { usage 0 }
+        }
+    }
+}
+
+parseargs $argc $argv
+
+if {$OPTS(name) == "" } {
+   puts "! Container name required."
+   usage 1
+}
+
+if {$OPTS(root) == "" } {
+   puts "! rootfs path is missing. The default path \"/\" will be used"
+   set rootfs /
+}
+
+if {$OPTS(server) == "" } {
+   puts "! incus server URL is missing."
+   usage 1
+}
+
+if {$OPTS(token) == "" } {
+   puts "! incus token is missing."
+   usage 1
+}
+
+spawn /home/int/Downloads/bin.linux.incus-migrate.x86_64
+;# exp_internal 1
+
+expect {
+    -ex "The local Incus server is the target \[default=yes\]: " {
+        send "no\r"
+        exp_continue
+    }
+
+    -ex "Please provide Incus server URL: " {
+        send "$OPTS(server)\r"
+        exp_continue
+    }
+
+    -ex "ok (y/n)? " {
+        send "y\r"
+        exp_continue
+    }
+
+    -ex "Please pick an authentication mechanism above: " {
+        send "1\r"
+        exp_continue
+    }
+
+    -ex "Please provide the certificate token: " {
+        send "$OPTS(token)\r"
+        exp_continue
+    }
+
+    -ex "Would you like to create a container (1) or virtual-machine (2)?: " {
+        send "1\r"
+        exp_continue
+    }
+
+    -ex "Name of the new instance: " {
+        send "$OPTS(name)\r"
+        exp_continue
+    }
+
+    -ex "Please provide the path to a root filesystem: " {
+        send "$rootfs\r"
+        exp_continue
+    }
+
+    -ex "Do you want to add additional filesystem mounts? \[default=no\]: " {
+        send "no\r"
+        exp_continue
+    }
+
+    -ex "Please pick one of the options above \[default=1\]: " {
+       send "1\r"
+       exp_continue
+    }
+}

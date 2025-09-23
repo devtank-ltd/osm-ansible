@@ -1,0 +1,43 @@
+- name: Create pebble configuration directory
+  ansible.builtin.file:
+    path: "{{ devtank.dir }}/configs/pebble/"
+    state: directory
+  register: pebble
+
+- name: Create pebble configuration file
+  ansible.builtin.template:
+    src: pebble-config.tpl
+    dest: "{{ pebble.path }}/pebble-config.json"
+
+- name: Copy MiniCA certificate and key to pebble configuration directory
+  ansible.builtin.shell: |
+    cp devtank.minica.pem {{ pebble.path }}
+    cp devtank.minica.key.pem {{ pebble.path }}
+    cp -r localhost {{ pebble.path }}
+  args:
+    chdir: "{{ devtank.dir }}/utils/minica"
+
+- name: Install pebble systemd service
+  ansible.builtin.copy:
+    src: pebble.service
+    dest: /etc/systemd/system/
+
+- name: Install pebble-challtestsrv systemd service
+  ansible.builtin.copy:
+    src: pebble-challtestsrv.service
+    dest: /etc/systemd/system/
+
+- name: Start pebble-challtestsrv
+  ansible.builtin.systemd_service:
+    name: pebble-challtestsrv
+    state: started
+    daemon_reload: true
+    enabled: true
+  tags: pebble
+
+- name: Start pebble ACME
+  ansible.builtin.systemd_service:
+    name: pebble
+    state: started
+    enabled: true
+  tags: pebble

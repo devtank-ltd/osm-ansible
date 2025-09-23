@@ -1,0 +1,208 @@
+---
+
+- name: Initialize dictionary to store WireGuard info
+  ansible.builtin.set_fact:
+    wireguard_data: "{{ wireguard_data | default( {} ) }}"
+
+- name: Generate WireGuard keypair
+  shell: |
+    umask 077
+    wg genkey | tee /etc/wireguard/priv.key | wg pubkey | tee /etc/wireguard/pub.key
+  args:
+    creates: /etc/wireguard/priv.key
+
+- name: Register private key
+  shell: cat /etc/wireguard/priv.key
+  register: wireguard_priv_key
+
+- name: Register public key
+  shell: cat /etc/wireguard/pub.key
+  register: wireguard_pub_key
+
+- name: Set WireGuard IP address
+  ansible.builtin.set_fact:
+    wg_ip: "{{ '.'.join(wireguard.ipaddr.split('.')[:3]) + '.' + ansible_default_ipv4.address.split('.')[-1] }}"
+
+- name: Store WireGuard info to dictionary
+  ansible.builtin.set_fact:
+    wireguard_data:
+      "{{ wireguard_data | combine(
+          {
+              inventory_hostname: {
+                  'pub_key': wireguard_pub_key.stdout,
+                  'priv_key': wireguard_priv_key.stdout,
+                  'ipaddr': wg_ip
+              }
+          }
+        )
+      }}"
+
+- name: Generate WireGuard config
+  template:
+    src: wg.conf.tpl
+    dest: /etc/wireguard/wg0.conf
+
+- name: Setup wg0 device
+  template:
+    src: wireguard_systemd.netdev.tpl
+    dest: /etc/systemd/network/99-wg0.netdev
+    owner: root
+    group: systemd-network
+    mode: 0640
+
+- name: Setup wg0 network
+  template:
+    src: wireguard_systemd.network.tpl
+    dest: /etc/systemd/network/99-wg0.network
+    owner: root
+    group: systemd-network
+    mode: 0640
+  notify: systemd network restart
+
+- name: Force notified handlers to run here
+  ansible.builtin.meta: flush_handlers
+
+- name: Get WireGuard IP address of main OSM host
+  ansible.builtin.shell: |
+    ip -4 -o a s dev wg0
+  register: wg_output
+  delegate_to: vosmhost0
+  ignore_errors: true
+
+- name: Set WireGuard IP address of main OSM host
+  ansible.builtin.set_fact:
+    main_wg_ip: "{{ wg_output.stdout | regex_search('inet (\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})', '\\1') | first }}"
+  run_once: true
+
+- name: Add DNS info to systemd network file
+  ansible.builtin.blockinfile:
+    path: /etc/systemd/network/99-wg0.network
+    block: |
+      DNS={{ hostvars[inventory_hostname]['main_wg_ip'] }}
+      Domains=~{{ osm_domain }}
+
+- name: Resolve OSM domain on WireGuard interface
+  ansible.builtin.shell: |
+    resolvectl dns wg0 {{ hostvars[inventory_hostname]['main_wg_ip'] }}
+    resolvectl domain wg0 ~{{ osm_domain }}
+
+- name: Bind WG IP to PowerDNS
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.shell: |
+    sed -ri 's/^local-address=.*/&, {{ hostvars[inventory_hostname]["main_wg_ip"] }}/' /etc/powerdns/pdns.conf
+
+- name: Restart PowerDNS
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.systemd_service:
+    name: pdns
+    state: restarted
+
+- name: Setup databases
+  when: inventory_hostname == "vosmhost0"
+  include_tasks: cluster2db.yaml
+
+- name: Add OSM host WiregGuard info to Devtank DB
+  include_tasks: wireguard2db.yaml
+  args:
+    apply:
+      delegate_to: "vosmhost0"
+
+- name: Put main host SSH key to authorized keys
+  block:
+    - name: Get main host SSH key
+      when: inventory_hostname == "vosmhost0"
+      ansible.builtin.shell:
+        cat /root/.ssh/id_rsa.pub
+      register: ssh_key
+
+    - name: Copy main host SSH key
+      ansible.builtin.shell:
+        echo "{{ hostvars.vosmhost0.ssh_key.stdout }}" >> /root/.ssh/authorized_keys
+
+- name: Add prometheus node
+  delegate_to: "vosmhost0"
+  ansible.builtin.blockinfile:
+    dest: /etc/prometheus/prometheus.yml
+    block: "{{ lookup('template', 'prometheus.tpl') }}"
+    marker: "# {mark} ANSIBLE MANAGED block for {{ inventory_hostname }}"
+
+- name: Restart prometheus
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.systemd_service:
+    name: prometheus
+    state: restarted
+    enabled: true
+
+# TODO: remove me on dist-upgrade
+# incus connection type is a part of community collection since version 10.6.0 which requires ansible >= 2.15.0 version.
+# Hence, we need to use testing bookworm repository as current version of ansible is 2.14.18
+# 2025-05-19 16:50:36
+- name: Add testing repository
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.apt_repository:
+    repo: deb http://deb.debian.org/debian/ testing main
+    state: present
+
+- name: Upgrade ansible
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.apt:
+    name: ansible
+    state: latest
+    update_cache: yes
+
+- name: Define network interfaces list
+  ansible.builtin.set_fact:
+    network_interfaces: [
+          {
+            'name': "{{ ansible_default_ipv4.interface }}",
+            'dhcp': True,
+            'dns1': "{{ hostvars['vosmhost0']['ansible_host'] }}",
+            'dns2': "8.8.8.8"
+          },
+          {
+            'name': "devtank",
+            'dhcp': False,
+            'address': "{{ incus_init['network']['ipaddr'] }}",
+            'dns1': "{{ incus_init['network']['ipaddr'].split('/')[0] }}",
+            'dns2': "{{ hostvars['vosmhost0']['ansible_host'] }}"
+          }
+        ]
+
+- name: Generate .network files from template
+  ansible.builtin.template:
+    src: systemd.network.tpl
+    dest: "/etc/systemd/network/{{ item.name }}.network"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ network_interfaces }}"
+
+- name: Remove legacy networking stuff
+  ansible.builtin.shell: |
+    mv /etc/network/interfaces /etc/network/interfaces.save
+    mv /etc/network/interfaces.d /etc/network/interfaces.d.save
+
+- name: Disable networking service
+  ansible.builtin.systemd_service:
+    name: networking
+    enabled: false
+
+- name: Enable systemd-hostnamed
+  ansible.builtin.systemd_service:
+    name: systemd-hostnamed
+    state: started
+    enabled: true
+
+- name: Enable systemd-networkd
+  ansible.builtin.systemd_service:
+    name: systemd-networkd
+    enabled: true
+
+- name: Enable systemd-resolved
+  ansible.builtin.systemd_service:
+    name: systemd-resolved
+    enabled: true
+
+- name: Reboot to apply new network changes
+  ansible.builtin.reboot:
+    test_command: hostnamectl

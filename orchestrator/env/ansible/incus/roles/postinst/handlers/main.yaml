@@ -1,0 +1,7 @@
+---
+
+- name: systemd network restart
+  ansible.builtin.shell:
+    systemctl restart systemd-networkd
+  async: 10
+  poll: 0

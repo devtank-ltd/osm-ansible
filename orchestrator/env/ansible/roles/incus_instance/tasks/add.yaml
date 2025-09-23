@@ -1,0 +1,45 @@
+---
+
+- name: Check customer instance
+  ansible.builtin.shell:
+    cmd: "incus ls {{ customer_name }} -cn -fcsv"
+  register: instance
+
+- name: Fail customer instance init (if exists)
+  when: instance.stdout != ""
+  ansible.builtin.fail:
+    msg: "Customer instance already exists"
+
+- name: Init customer instance
+  ansible.builtin.shell:
+    cmd: "incus init {{ base_image }} {{ customer_name }} --target {{ target_host }}"
+
+- name: Start customer instance
+  ansible.builtin.shell:
+    cmd: "incus start {{ customer_name }}"
+
+- name: Get customer intance OSM host name
+  ansible.builtin.shell:
+    cmd: "incus ls {{ customer_name }} -cL -fcsv"
+  register: osm_host
+
+- name: Get customer instance OSM host IP address
+  ansible.builtin.shell:
+    cmd: "incus cluster show {{ osm_host.stdout }} | sed -rn 's|^url:\\shttp[s]?://(.*):.*$|\\1|p'"
+  register: osm_host_ip
+
+- name: Set customer instance OSM host info
+  ansible.builtin.set_fact:
+    osm_host: "{{ osm_host.stdout }}"
+    osm_host_ip: "{{ osm_host_ip.stdout }}"
+
+- name: Get OSM host WireGuard IP address
+  delegate_to: "{{ osm_host_ip }}"
+  connection: ssh
+  ansible.builtin.shell:
+    cmd: "ip -o a s dev wg0 | sed -rn 's|.*inet\\s([0-9.]+).*|\\1|p'"
+  register: osm_host_wg_ipaddr
+
+- name: Set OSM host Wireguard IP address
+  ansible.builtin.set_fact:
+    wg_ipaddr: "{{ osm_host_wg_ipaddr.stdout }}"

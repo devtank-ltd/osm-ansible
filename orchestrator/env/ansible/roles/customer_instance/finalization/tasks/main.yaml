@@ -1,0 +1,13 @@
+---
+
+- name: Print passwords
+  include_tasks: print_passwords.yaml
+
+- name: Encrypt passwords
+  include_tasks: encrypt_passwords.yaml
+
+- name: Write passwords to JSON files
+  include_tasks: write_passwords.yaml
+
+- name: Set IP address of pushprox proxy
+  include_tasks: configure_pushprox.yaml

@@ -1,0 +1,7 @@
+---
+
+- name: Refresh apt
+  apt:
+    force_apt_get: yes
+    update_cache: yes
+    cache_valid_time: 0
