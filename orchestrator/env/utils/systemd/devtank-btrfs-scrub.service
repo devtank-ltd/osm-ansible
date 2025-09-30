@@ -1,0 +1,8 @@
+[Unit]
+Description=Run BTRFS scrub weekly on /srv/incus
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/btrfs scrub start -B /srv/incus
