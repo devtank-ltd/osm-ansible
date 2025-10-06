@@ -212,3 +212,46 @@
     - name: Ping customer (external)
       ansible.builtin.shell:
         ping -c3 -W1 "{{ customer_name }}.{{ domain }}"
+
+    - name: Extract pool name for container
+      delegate_to: "{{ host_info.output.host_ip }}"
+      ansible.builtin.shell: |
+        incus config show {{ customer_name }} --expanded | sed -rn 's|.*pool: (.*)$|\1|p'
+      register: pool_name_result
+      changed_when: false
+
+    - name: Create snapper configuration for {{ customer_name }} customer
+      delegate_to: "{{ host_info.output.host_ip}}"
+      connection: ssh
+      ansible.builtin.shell: |
+        snapper -c {{ customer_name }} create-config /var/lib/incus/storage-pools/{{ pool_name_result.stdout }}/containers/{{ customer_name }}
+      args:
+        executable: /bin/bash
+
+    # - name: Ensure /etc/snapper/backup-configs directory exists
+    #   delegate_to: "{{ host_info.output.host_ip}}"
+    #   ansible.builtin.file:
+    #     path: /etc/snapper/backup-configs
+    #     state: directory
+    #     owner: root
+    #     group: root
+    #     mode: '0755'
+
+    - name: Create snapper-backup configuration for {{ customer_name }} customer
+      delegate_to: "{{ host_info.output.host_ip}}"
+      ansible.builtin.copy:
+        dest: /etc/snapper/backup-configs/{{ customer_name }}.json
+        content: |
+          {
+              "config": "{{ customer_name }}",
+              "target-mode": "ssh-push",
+              "automatic": false,
+              "source-path": "/srv/incus/containers/{{ customer_name }}",
+              "target-path": "/srv/backups/incus/{{ customer_name }}",
+              "ssh-host": "osmbackup",
+              "ssh-user": "root",
+              "ssh-identity": "/root/.ssh/id_ed25519"
+          }
+        mode: '0644'
+        owner: root
+        group: root
