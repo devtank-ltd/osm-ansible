@@ -17,6 +17,21 @@
       ansible.builtin.set_fact:
         osm_ip: "{{ customer_info.output.host_ipaddr }}"
 
+    - name: Remove snapper config for {{ customer_name }} customer
+      delegate_to: "{{ osm_ip }}"
+      connection: ssh
+      ansible.builtin.shell:
+        snapper -c "{{ customer_name }}" delete-config
+      ignore_errors: true
+
+    - name: Remove snapper-backup config for {{ customer_name }} customer
+      delegate_to: "{{ osm_ip }}"
+      connection: ssh
+      ansible.builtin.file:
+        path: /etc/snapper/backup-configs/{{ customer_name }}.json
+        state: absent
+      ignore_errors: true
+
     - name: Remove incus instance
       import_role:
         name: incus_instance
