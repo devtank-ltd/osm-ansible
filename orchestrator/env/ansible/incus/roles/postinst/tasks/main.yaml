@@ -119,6 +119,45 @@
       ansible.builtin.shell:
         echo "{{ hostvars.vosmhost0.ssh_key.stdout }}" >> /root/.ssh/authorized_keys
 
+# Temporary workaround for snapper-backup bug
+- name: Create backup directory
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.file:
+    path: /srv/backups
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create BTRF subvolume for containers backups
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.shell:
+    btrfs subvolume create /srv/backups/incus
+
+# # TASK [postinst : Mount backup btrfs subvolume] ***************************************************************************************************************************
+# skipping: [vosmhost2]
+# skipping: [vosmhost1]
+# fatal: [vosmhost0]: FAILED! => {"changed": false, "msg": "Error mounting /srv/backups/incus: umount: /srv/backups/incus: not mounted.\n"}
+# - name: Mount backup btrfs subvolume
+#   when: inventory_hostname == "vosmhost0"
+#   ansible.builtin.mount:
+#     path: /srv/backups/incus
+#     src: /dev/vda3
+#     fstype: btrfs
+#     opts: subvol=/@rootfs/srv/backups/incus,relatime,space_cache=v2,user_subvol_rm_allowed
+#     state: mounted
+
+- name: Create BTRF subvolume for containers backups
+  when: inventory_hostname == "vosmhost0"
+  ansible.builtin.shell: |
+    dev="$(btrfs device scan | sed -rn 's|^registered: (.*)$|\1|p')"
+    mkdir /srv/backups
+    btrfs subvolume create /srv/backups/incus
+    mount -o subvol=@rootfs/srv/backups/incus "$dev" /srv/backups/incus
+    echo "${dev} /srv/backups/incus btrfs subvol=@rootfs/srv/backups/incus 0 0" >> /etc/fstab
+  args:
+    executable: /bin/bash
+
 - name: Add prometheus node
   delegate_to: "vosmhost0"
   ansible.builtin.blockinfile:
