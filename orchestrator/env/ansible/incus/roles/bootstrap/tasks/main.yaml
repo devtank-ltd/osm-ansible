@@ -25,6 +25,10 @@
             src: devtank.tpl
             dest: /etc/apt/sources.list.d/devtank.sources
 
+
+    - name: Include Snapper repo setup
+      ansible.builtin.include_tasks: add_snapper_repo.yaml
+
     - name: Install packages
       apt:
         pkg: "{{ main.packages }}"
@@ -83,6 +87,9 @@
         fi
       args:
         executable: /bin/bash
+
+    - name: Include Snapper repo setup
+      ansible.builtin.include_tasks: add_snapper_repo.yaml
 
     - name: Install packages
       apt:

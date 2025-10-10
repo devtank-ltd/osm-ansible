@@ -264,7 +264,7 @@ do_setup() {
 }
 
 do_post_setup() {
-    local host ipaddr main_ip main_pub main_ssh_dir
+    local host ipaddr main_ip main_pub main_ssh_dir pub_key
     local -i retries=3
     local -i delay=3
     local -i count=0
@@ -288,6 +288,11 @@ do_post_setup() {
 		echo "$main_pub" >> "${main_ssh_dir}/authorized_keys"
 EOF
         fi
+
+        info "Put '${host}' SSH key to orchestrator"
+        ssh root@"$ipaddr" "ssh-keygen -t ed25519 -C 'OSM dev env' -q -N '' -f ~/.ssh/id_ed25519"
+        pub_key="$(ssh root@"$ipaddr" "cat ~/.ssh/id_ed25519.pub")"
+        ssh root@"$main_ip" "echo $pub_key >> /root/.ssh/authorized_keys"
 
         request_pebble_cert "$host" "$main_ip"
 

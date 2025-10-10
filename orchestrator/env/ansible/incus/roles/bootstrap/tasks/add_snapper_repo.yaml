@@ -1,0 +1,24 @@
+---
+
+- name: Download snapper GPG key
+  ansible.builtin.get_url:
+    url: "https://download.opensuse.org/repositories/filesystems:/snapper/Debian_12/Release.key"
+    dest: "/tmp/snapper.key"
+    mode: '0644'
+
+- name: Convert key to dearmored format
+  ansible.builtin.command: >
+    gpg --dearmor -o /etc/apt/keyrings/filesystems_snapper.gpg /tmp/snapper.key
+  args:
+    creates: /etc/apt/keyrings/filesystems_snapper.gpg
+
+- name: Add snapper repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/filesystems_snapper.gpg] http://download.opensuse.org/repositories/filesystems:/snapper/Debian_12/ /"
+    filename: "filesystems_snapper"
+    state: present
+
+- name: Remove temporary Snapper key file
+  ansible.builtin.file:
+    path: /tmp/snapper.key
+    state: absent
