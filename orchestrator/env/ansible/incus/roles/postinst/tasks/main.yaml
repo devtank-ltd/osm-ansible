@@ -134,19 +134,6 @@
   ansible.builtin.shell:
     btrfs subvolume create /srv/backups/incus
 
-# # TASK [postinst : Mount backup btrfs subvolume] ***************************************************************************************************************************
-# skipping: [vosmhost2]
-# skipping: [vosmhost1]
-# fatal: [vosmhost0]: FAILED! => {"changed": false, "msg": "Error mounting /srv/backups/incus: umount: /srv/backups/incus: not mounted.\n"}
-# - name: Mount backup btrfs subvolume
-#   when: inventory_hostname == "vosmhost0"
-#   ansible.builtin.mount:
-#     path: /srv/backups/incus
-#     src: /dev/vda3
-#     fstype: btrfs
-#     opts: subvol=/@rootfs/srv/backups/incus,relatime,space_cache=v2,user_subvol_rm_allowed
-#     state: mounted
-
 - name: Create BTRF subvolume for containers backups
   when: inventory_hostname == "vosmhost0"
   ansible.builtin.shell: |
