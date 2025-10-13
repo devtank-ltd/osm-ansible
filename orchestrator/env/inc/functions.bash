@@ -236,6 +236,8 @@ get_debian_iso() {
     download "${url}/${name}"
     echo "$checksum" | sha512sum "${sha_args[@]}" || die "SHA512 check"
     popd >/dev/null 2>&1 || true
+
+    ISO_NAME="$name"
 }
 
 do_setup() {
