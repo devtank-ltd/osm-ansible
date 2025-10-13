@@ -199,8 +199,10 @@ EOF
 }
 
 download() {
+    # download "src" to optional "dst"
+    # if "dst" omitted then download to current dirctory
     local src="$1"
-    local dst="$2"
+    local dst="${2:-.}"
     local file="${src##*/}"
 
     if [[ -e "${dst}/${file}" ]]; then
@@ -212,13 +214,27 @@ download() {
 }
 
 get_debian_iso() {
+    # download dibian iso file and check SHA512 checksum
+    # download bookworm iso instead of current if enviroment CODE_NAME variable
+    # is set to "bookworm"
     local dl_dir="$HOSTS_DIR/downloads"
+    local url="$DEB_URL"
+    local sha_args=(--check --quiet --status --ignore-missing)
 
-    download "$DEB_ISO_URL" "$dl_dir"
-    download "${DEB_URL}/SHA512SUMS" "$dl_dir"
+    local checksum name ver
 
+    # Use fixed bookworm version 12.11.0 for old environment
+    if [[ -v CODE_NAME && "$CODE_NAME" == "bookworm" ]]; then
+        ver="12.11.0"
+        url="https://get.debian.org/cdimage/archive/${ver}/${DEB_ISO_ARCH}/iso-cd"
+    fi
+
+    download "${url}/SHA512SUMS" "$dl_dir"
     pushd "$dl_dir" >/dev/null 2>&1 || true
-    sha512sum -c SHA512SUMS --quiet --status --ignore-missing || die "sha512sums"
+    checksum="$(sed -rn '/debian-([0-9.]+).*/p' SHA512SUMS)"
+    name="${checksum##* }"
+    download "${url}/${name}"
+    echo "$checksum" | sha512sum "${sha_args[@]}" || die "SHA512 check"
     popd >/dev/null 2>&1 || true
 }
 
