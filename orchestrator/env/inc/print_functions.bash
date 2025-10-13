@@ -37,9 +37,7 @@ yesno() {
 }
 
 git_branch() {
-    # git rev-parse --abbrev-ref HEAD | sed -n 's/HEAD/main/p;t;p'
-    # TODO: remove after merge
-    echo "main"
+    git rev-parse --abbrev-ref HEAD | sed -n 's/HEAD/main/p;t;p'
 }
 
 col() {
