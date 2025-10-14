@@ -38,6 +38,8 @@ init() {
 
     export BASE_HOSTS
     export OSM_HOSTS
+
+    check_pkgs
 }
 
 main() {

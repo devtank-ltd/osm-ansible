@@ -130,8 +130,28 @@ check_pkgs() {
             fi
         fi
 
+        # On Debian Trixie /usr/sbin is not included to the PATH
+        # and /sbin points to /usr/sbin
+        # int@beast:~$ file /sbin
+        # /sbin: symbolic link to usr/sbin
+        #
+        # but
+        # int@beast:~$ whereis iptables
+        # iptables: /usr/sbin/iptables /usr/share/iptables /usr/share/man/man8/iptables.8.gz
+        #
+        # int@beast:~$ lsb_release -a
+        # No LSB modules are available.
+        # Distributor ID:	Debian
+        # Description:	Debian GNU/Linux 13 (trixie)
+        # Release:	13
+        # Codename:	trixie
+        #
+        # int@beast:~$ echo $PATH
+        # /usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+        PATH="$PATH:/usr/sbin:/sbin"
+
         if ! command -v "$bin" >/dev/null 2>&1; then
-            if [[ -v bins[$bin] && -n "${PACKAGES[$bin]}" ]]; then
+            if [[ -v PACKAGES[$bin] && -n "${PACKAGES[$bin]}" ]]; then
                 missing+=("${PACKAGES[$bin]}")
             else
                 missing+=("$bin")
@@ -166,7 +186,7 @@ EOF
 
 build_env() {
     parse_config "$1"
-    check_pkgs
+
     if [[ -d "$HOSTS_DIR" ]]; then
         warn "The hosts directory '$HOSTS_DIR' exists"
         yesno "Do you wish to continue?"

@@ -30,6 +30,8 @@ declare -Ar PACKAGES=(
     ["ssh-keygen"]="openssh"
     ["dnsmasq"]=""
     ["iptables"]=""
+    ["curl"]=""
+
 )
 
 # MUTABLE GLOBALS
