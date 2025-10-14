@@ -121,6 +121,26 @@ process_args() {
 check_pkgs() {
     local -a missing=()
 
+    # On Debian Trixie /usr/sbin is not included to the PATH
+    # and /sbin points to /usr/sbin
+    # int@beast:~$ file /sbin
+    # /sbin: symbolic link to usr/sbin
+    #
+    # but
+    # int@beast:~$ whereis iptables
+    # iptables: /usr/sbin/iptables /usr/share/iptables /usr/share/man/man8/iptables.8.gz
+    #
+    # int@beast:~$ lsb_release -a
+    # No LSB modules are available.
+    # Distributor ID:	Debian
+    # Description:	Debian GNU/Linux 13 (trixie)
+    # Release:	13
+    # Codename:	trixie
+    #
+    # int@beast:~$ echo $PATH
+    # /usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+    PATH="$PATH:/usr/sbin:/sbin"
+
     for bin in "${!PACKAGES[@]}"; do
         # sepcial case
         if [[ "$bin" =~ OVMF_CODE_4M.fd ]]; then
@@ -128,27 +148,8 @@ check_pkgs() {
                 missing+=("${PACKAGES[$bin]}")
                 continue
             fi
+            continue
         fi
-
-        # On Debian Trixie /usr/sbin is not included to the PATH
-        # and /sbin points to /usr/sbin
-        # int@beast:~$ file /sbin
-        # /sbin: symbolic link to usr/sbin
-        #
-        # but
-        # int@beast:~$ whereis iptables
-        # iptables: /usr/sbin/iptables /usr/share/iptables /usr/share/man/man8/iptables.8.gz
-        #
-        # int@beast:~$ lsb_release -a
-        # No LSB modules are available.
-        # Distributor ID:	Debian
-        # Description:	Debian GNU/Linux 13 (trixie)
-        # Release:	13
-        # Codename:	trixie
-        #
-        # int@beast:~$ echo $PATH
-        # /usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
-        PATH="$PATH:/usr/sbin:/sbin"
 
         if ! command -v "$bin" >/dev/null 2>&1; then
             if [[ -v PACKAGES[$bin] && -n "${PACKAGES[$bin]}" ]]; then
