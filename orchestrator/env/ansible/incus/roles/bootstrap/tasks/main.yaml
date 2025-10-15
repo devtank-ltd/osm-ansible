@@ -25,15 +25,23 @@
             src: devtank.tpl
             dest: /etc/apt/sources.list.d/devtank.sources
 
-
-    - name: Include Snapper repo setup
-      ansible.builtin.include_tasks: add_snapper_repo.yaml
+    - name: Add packages for bookworm codename
+      ansible.builtin.set_fact:
+        main.packages: "{{ main.packages + bookworm_packages }}"
+      when: ansible_distribution_release == 'bookworm' and inventory_hostname == 'orchestrator'
+      vars:
+        bookworm_packages:
+          - software-properties-common
 
     - name: Install packages
       apt:
         pkg: "{{ main.packages }}"
         state: latest
         update_cache: yes
+
+    - name: Install snapper
+      ansible.builtin.include_tasks: add_snapper_repo.yaml
+      when: inventory_hostname == 'orchestrator'
 
     - name: Clone OSM Ansible git repository
       git:
@@ -88,14 +96,15 @@
       args:
         executable: /bin/bash
 
-    - name: Include Snapper repo setup
-      ansible.builtin.include_tasks: add_snapper_repo.yaml
-
     - name: Install packages
       apt:
         pkg: "{{ osmhost.packages }}"
         state: latest
         update_cache: yes
+
+    - name: Include Snapper repo setup
+      ansible.builtin.include_tasks: add_snapper_repo.yaml
+      when: inventory_hostname != 'orchestrator'
 
     - name: Clone OSM Ansible git repository
       git:

@@ -11,6 +11,7 @@ main:
     - default-mysql-client
     - default-mysql-server
     - git
+    - gpg
     - golang-go
     - iproute2
     - iptables
@@ -31,9 +32,6 @@ main:
     - python3-venv
     - python3-yaml
     - polkitd
-    - snapper
-    - snapper-backup
-    - software-properties-common
     - vim
     - wget
     - wireguard
@@ -50,6 +48,7 @@ osmhost:
     - certbot
     - curl
     - git
+    - gpg
     - libbsd-dev
     - libglib2.0-dev
     - libnginx-mod-stream
@@ -61,8 +60,6 @@ osmhost:
     - python3-certbot-nginx
     - python3-lxc
     - rsync
-    - snapper
-    - snapper-backup
     - sudo
     - ufw
     - vim
