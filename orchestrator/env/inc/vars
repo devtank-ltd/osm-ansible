@@ -25,6 +25,7 @@ declare -Ar PACKAGES=(
     ["dnsmasq"]=""
     ["iptables"]=""
     ["curl"]=""
+    ["socat"]=""
 
 )
 

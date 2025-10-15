@@ -1,8 +1,18 @@
 ---
 
+- name: Set snapper repo version
+  ansible.builtin.set_fact:
+    snapper_repo_versions:
+      bookworm: 12
+      trixie: 13
+
+- name: Determine snapper version for codename
+  ansible.builtin.set_fact:
+    snapper_repo_version: "{{ snapper_repo_versions[ansible_distribution_release] | default('13') }}"
+
 - name: Download snapper GPG key
   ansible.builtin.get_url:
-    url: "https://download.opensuse.org/repositories/filesystems:/snapper/Debian_12/Release.key"
+    url: "https://download.opensuse.org/repositories/filesystems:/snapper/Debian_{{ snapper_repo_version }}/Release.key"
     dest: "/tmp/snapper.key"
     mode: '0644'
 
@@ -14,7 +24,7 @@
 
 - name: Add snapper repository
   ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/filesystems_snapper.gpg] http://download.opensuse.org/repositories/filesystems:/snapper/Debian_12/ /"
+    repo: "deb [signed-by=/etc/apt/keyrings/filesystems_snapper.gpg] http://download.opensuse.org/repositories/filesystems:/snapper/Debian_{{ snapper_repo_version }}/ /"
     filename: "filesystems_snapper"
     state: present
 
@@ -22,3 +32,9 @@
   ansible.builtin.file:
     path: /tmp/snapper.key
     state: absent
+
+- name: Install snapper
+  ansible.builtin.apt:
+    pkg:
+      - snapper
+      - snapper-backup

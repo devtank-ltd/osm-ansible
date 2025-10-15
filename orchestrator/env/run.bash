@@ -38,6 +38,7 @@ init() {
 
     export BASE_HOSTS
     export OSM_HOSTS
+    export ANSIBLE_NOCOWS=1
 
     check_pkgs
 }
