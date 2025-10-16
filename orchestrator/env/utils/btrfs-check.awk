@@ -2,13 +2,38 @@
 
 # Send BTRFS scrub, device and filesystem usage statistics to recipients if there are problems
 
+function err(msg, print_help) {
+    print("!!! ERROR: " msg)
+    if (print_help) {
+        usage()
+    }
+    exit 1
+}
+
+function usage() {
+    print
+    print "Example usage:"
+    print "./btrfs-check.awk -v MOUNT_POINT='</mount/point>' -v THRESHOLD=<num> -v RECIPIENTS='<name@domain>,[name@domain],...'"
+    print
+}
+
 BEGIN {
-    MOUNT_POINT = "/srv/incus"
-    THRESHOLD = 50              # at least 50 gigabytes must be free
-    RECIPIENTS = "<recipient>@<mail host>"
     SUBJ = "BTRFS health report: problems detected"
     HAS_PROBLEMS = 0
     BODY = ""
+
+    if (!MOUNT_POINT) {
+        err("mount point must be set", 1)
+    }
+
+    if (!THRESHOLD) {
+        err("threshould must be set", 1)
+    }
+
+    if (!RECIPIENTS) {
+        err("email recipients must be set", 1)
+    }
+
 
     # check unallocated space
     cmd = "btrfs filesystem usage --gbytes \"" MOUNT_POINT "\""
