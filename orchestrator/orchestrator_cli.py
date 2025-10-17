@@ -331,6 +331,7 @@ class osm_orchestrator_t:
         ansible_cmd = [
             "ansible-playbook",
             "-i", f"localhost,{customer_name},",
+            "-i", "production.ini",
             "-e", f"customer_name={customer_name}",
             "-e", f"target_host={osm_host.name}",
             f"{DEVTANK_WD}/env/ansible/add_customer.yaml",
@@ -466,6 +467,7 @@ class osm_orchestrator_t:
         ansible_cmd = [
             "ansible-playbook",
             "-i", "localhost,",
+            "-i", "production.ini",
             "-e", f"customer_name={customer_name}",
             "-e", f"target_host={target_host}",
             f"{DEVTANK_WD}/env/ansible/mv_customer.yaml"

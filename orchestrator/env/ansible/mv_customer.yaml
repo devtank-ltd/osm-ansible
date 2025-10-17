@@ -10,6 +10,7 @@
     db_host: localhost
     db_port: 5432
     data_dir: /tmp/data
+    ansible_python_interpreter: python3
 
     tables:
       - { name: "pg_sf", column: "_time", keys: "_time, osm_id" }
@@ -80,6 +81,14 @@
         - name: Get start time
           ansible.builtin.set_fact:
             start_chunk_time: "{{ lookup('pipe', 'date -u +%Y-%m-%d\\ %H:%M:%S%z') }}"
+
+        - name: Remove snapper
+          delegate_to: "{{ src_host_info.output.host_ip }}"
+          ansible.builtin.shell:
+            snapper -c {{ customer_name }} delete-config
+            rm /etc/snapper/backup-configs/{{ customer_name }}.json
+          vars:
+            ansible_connection: ssh
 
         - name: Make {{ customer_name }} instance snapshot
           ansible.builtin.shell: |
@@ -159,6 +168,45 @@
           connection: ssh
           ansible.builtin.shell:
             ping -c3 -W1 "{{customer_name}}.{{ target_domain }}"
+
+        - name: Extract pool name for container
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          ansible.builtin.shell: |
+            incus config show {{ customer_name }} --expanded | sed -rn 's|.*pool: (.*)$|\1|p'
+          register: pool_name
+          changed_when: false
+
+        - name: Create snapper config
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell:
+            snapper --debug -v -c {{ customer_name }} create-config /var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}
+          args:
+            executable: /bin/bash
+
+        - name: Get backup host IP address
+          ansible.builtin.set_fact:
+            backup_host: "{{ osmbackup | default(ansible_default_ipv4.address) }}"
+
+        - name: Create snapper-backup configuration
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell:
+            dest: /etc/snapper/backup-configs/{{ customer_name }}.json
+            content: |
+              {
+                  "config": "{{ customer_name }}",
+                  "target-mode": "ssh-push",
+                  "automatic": true,
+                  "source-path": "/var/lib/incus/storage-pools/{{ pool_name_result.stdout }}/containers/{{ customer_name }}",
+                  "target-path": "/srv/backups/incus/{{ customer_name }}",
+                  "ssh-host": "{{ backup_host }}",
+                  "ssh-user": "root",
+                  "ssh-identity": "/root/.ssh/id_ed25519"
+              }
+            mode: '0644'
+            owner: root
+            group: root
 
     - name: Move data to the new {{ customer_name }} instance
       block:
