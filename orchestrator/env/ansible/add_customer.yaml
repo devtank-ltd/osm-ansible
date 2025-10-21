@@ -215,7 +215,7 @@
 
     - name: Get orchestrator IP address
       ansible.builtin.set_fact:
-        orchestrator_ipaddr: "{{ ansible_default_ipv4.address }}"
+        backup_host: "{{ osmbackup | default(ansible_default_ipv4.address) }}"
 
     - name: Extract pool name for container
       delegate_to: "{{ host_info.output.host_ip }}"
@@ -244,7 +244,7 @@
               "automatic": true,
               "source-path": "/var/lib/incus/storage-pools/{{ pool_name_result.stdout }}/containers/{{ customer_name }}",
               "target-path": "/srv/backups/incus/{{ customer_name }}",
-              "ssh-host": "{{ orchestrator_ipaddr }}",
+              "ssh-host": "{{ backup_host }}",
               "ssh-user": "root",
               "ssh-identity": "/root/.ssh/id_ed25519"
           }
