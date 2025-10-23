@@ -84,7 +84,7 @@
 
         - name: Remove snapper
           delegate_to: "{{ src_host_info.output.host_ip }}"
-          ansible.builtin.shell:
+          ansible.builtin.shell: |
             snapper -c {{ customer_name }} delete-config
             rm /etc/snapper/backup-configs/{{ customer_name }}.json
           vars:
@@ -191,14 +191,14 @@
         - name: Create snapper-backup configuration
           delegate_to: "{{ dst_host_info.output.host_ip }}"
           connection: ssh
-          ansible.builtin.shell:
+          ansible.builtin.copy:
             dest: /etc/snapper/backup-configs/{{ customer_name }}.json
             content: |
               {
                   "config": "{{ customer_name }}",
                   "target-mode": "ssh-push",
                   "automatic": true,
-                  "source-path": "/var/lib/incus/storage-pools/{{ pool_name_result.stdout }}/containers/{{ customer_name }}",
+                  "source-path": "/var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}",
                   "target-path": "/srv/backups/incus/{{ customer_name }}",
                   "ssh-host": "{{ backup_host }}",
                   "ssh-user": "root",
