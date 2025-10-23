@@ -3,7 +3,7 @@
 - name: Move {{ customer_name }} to {{ target_host }}
   hosts: localhost
   connection: local
-  gather_facts: false
+  gather_facts: true
   vars:
     db_name: osm
     db_user: devtank

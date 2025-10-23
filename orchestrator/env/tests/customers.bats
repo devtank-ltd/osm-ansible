@@ -6,10 +6,12 @@ setup() {
     PATH="$DIR/..:$PATH"
     CLI="/srv/osm-lxc/orchestrator/orchestrator_cli.py"
     DOMAIN="${DOMAIN:-incus-devtank.co.uk}"
+    CUSTOMER_NAME="test-customer"
+    CUSTOMER_MAIL="test-customer@mail.me"
+    mapfile -t OSM_HOSTS < <("$CLI" list_hosts | sed -rn 's/.*Host: (.*): capacity.*/\1/p')
 }
 
 setup_file() {
-    OSM_HOSTS=("vosmhost0" "vosmhost1" "vosmhost2")
     UUID="$(uuidgen)"
     echo "Some test data: $UUID" > /tmp/devtank_test_data
 }
@@ -21,12 +23,12 @@ teardown_file() {
 }
 
 @test "Add customer" {
-    run "$CLI" add_customer customer1
+    run "$CLI" add_customer "$CUSTOMER_NAME"
     assert_success
 }
 
 @test "Add same customer" {
-    run "$CLI" add_customer customer1
+    run "$CLI" add_customer "$CUSTOMER_NAME"
     assert_failure
 }
 
@@ -38,16 +40,12 @@ teardown_file() {
     skip "Not implemented"
 }
 
-@test "Find Host" {
-    run "$CLI" find_host customer1
-    assert_success
-}
-
-@test "Test Host" {
-    for h in "${OSM_HOSTS[@]}"; do
-        run "$CLI" test_host vosmhost0
-        assert_line --index 0 --regexp ''"$h"' \[[[:digit:]].+\]: Online \(Fully operational\)'
+@test "Test Hosts" {
+    for i in "${!OSM_HOSTS[@]}"; do
+        host="${OSM_HOSTS[$i]}"
+        run "$CLI" test_host "$host"
         assert_success
+        assert_line --index 0 --regexp ''"$host"' \[[[:digit:]].+\]: Online \(Fully operational\)'
     done
 
     run "$CLI" test_host vosmhost3
@@ -56,38 +54,40 @@ teardown_file() {
 }
 
 @test "Add Alerts Contact" {
-    run "$CLI" add_alerts_contact customer1 customer1@mail.xyz
+    run "$CLI" add_alerts_contact "$CUSTOMER_NAME" "$CUSTOMER_MAIL"
     assert_success
 }
 
 @test "List Alerts Contacts" {
     run "$CLI" list_alerts_contacts
     assert_success
-    assert_output --regexp '.*^customer1[[:blank:]]+\| customer1@mail.xyz[[:blank:]]+\| [[:alnum:]]{8}\-([[:alnum:]]{4}\-){3}[[:alnum:]]{12}'
+    assert_output --regexp '.*^'"$CUSTOMER_NAME"'[[:blank:]]+\| '"$CUSTOMER_MAIL"'[[:blank:]]+\| [[:alnum:]]{8}\-([[:alnum:]]{4}\-){3}[[:alnum:]]{12}'
 }
 
+@test "List Hosts" {
+    customer_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
+    host_idx="${customer_host: -1}"
 
-@test "List Hosts (customer on vosmhost0)" {
-    host="$(incus ls customer1 -cL -fcsv)"
-    index="${host: -1}"
     run "$CLI" list_hosts
     assert_success
-    for i in $(seq 0 2); do
+
+    for i in "${!OSM_HOSTS[@]}"; do
         capacity=0
-        if (( index == i )); then
-            capacity=1
-        fi
+        (( host_idx == i )) && capacity=1
         assert_line --index $(( i + 1 )) --regexp '^[[:blank:]]+Host: vosmhost'"$i"': capacity: '"$capacity"'\/[[:digit:]]+'
     done
 }
 
-@test "List Host Customers (customer on vsomhost0)" {
+@test "List Host Customers" {
+    customer_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
+
     for host in "${OSM_HOSTS[@]}"; do
         run "$CLI" list_host_customers "$host"
         assert_success
-        if [[ "$host" == "vosmhost0" ]]; then
+
+        if [[ "$host" == "$customer_host" ]]; then
             assert_line --index 0 --regexp '^Host: '"$host"': capacity: 1\/[[:digit:]]+'
-            assert_line --index 1 --regexp '^[[:blank:]]+Customer: customer1 \(MQTT:[[:digit:]]+\)$'
+            assert_line --index 1 --regexp '^[[:blank:]]+Customer: '"$CUSTOMER_NAME"' \(MQTT:[[:digit:]]+\)$'
         else
             assert_line --index 0 --regexp '^Host: '"$host"': capacity: 0\/[[:digit:]]+'
             assert_line --index 1 'Command: list_host_customers : Result: SUCCESS'
@@ -96,25 +96,40 @@ teardown_file() {
 }
 
 @test "Move Customer" {
-    run "$CLI" mv_customer customer1 vosmhost1
-    assert_success
-}
+    current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
+    target_host=
+    target_host_idx=
 
-@test "List Hosts (customer on vosmhost1)" {
+    for i in "${!OSM_HOSTS[@]}"; do
+        target_host="${OSM_HOSTS[$i]}"
+        if [[ "$target_host" != "$current_host" ]]; then
+            target_host_idx=$i
+            break
+        fi
+    done
+
+    run "$CLI" mv_customer "$CUSTOMER_NAME" "$target_host"
+    assert_success
+
     run "$CLI" list_hosts
     assert_success
-    assert_line --index 1 --regexp '^[[:blank:]]+Host: vosmhost0: capacity: 0\/[[:digit:]]+'
-    assert_line --index 2 --regexp '^[[:blank:]]+Host: vosmhost1: capacity: 1\/[[:digit:]]+'
-    assert_line --index 3 --regexp '^[[:blank:]]+Host: vosmhost2: capacity: 0\/[[:digit:]]+'
-}
 
-@test "List Host Customers (customer on vosmhost1)" {
+    for i in "${!OSM_HOSTS[@]}"; do
+        capacity=0
+        (( target_host_idx == i )) && capacity=1
+        assert_line --index $(( i + 1 )) --regexp '^[[:blank:]]+Host: vosmhost'"$i"': capacity: '"$capacity"'\/[[:digit:]]+'
+    done
+
+    run "$CLI" list_host_customers "$target_host"
+    assert_success
+
     for host in "${OSM_HOSTS[@]}"; do
         run "$CLI" list_host_customers "$host"
         assert_success
-        if [[ "$host" == "vosmhost1" ]]; then
+
+        if [[ "$host" == "$target_host" ]]; then
             assert_line --index 0 --regexp '^Host: '"$host"': capacity: 1\/[[:digit:]]+'
-            assert_line --index 1 --regexp '^[[:blank:]]+Customer: customer1 \(MQTT:[[:digit:]]+\)$'
+            assert_line --index 1 --regexp '^[[:blank:]]+Customer: '"$CUSTOMER_NAME"' \(MQTT:[[:digit:]]+\)$'
         else
             assert_line --index 0 --regexp '^Host: '"$host"': capacity: 0\/[[:digit:]]+'
             assert_line --index 1 'Command: list_host_customers : Result: SUCCESS'
@@ -123,67 +138,102 @@ teardown_file() {
 }
 
 @test "Clone Customer. Same OSM host. Non-public" {
-    run "$CLI" clone_container customer1
+    current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
+    run "$CLI" clone_container "$CUSTOMER_NAME"
     assert_success
-    run incus ls customer1-clone -cnL -fcsv
-    assert_output 'customer1-clone,vosmhost1'
-    run incus stop customer1-clone
-    run incus rm customer1-clone
+
+    run incus ls "$CUSTOMER_NAME"-clone -cnL -fcsv
+    assert_output ''"$CUSTOMER_NAME"'-clone,'"$current_host"''
+
+    run incus stop "$CUSTOMER_NAME"-clone
+    run incus rm "$CUSTOMER_NAME"-clone
 }
 
 @test "Clone Customer. Other OSM host. Non-public" {
-    run "$CLI" clone_container customer1 vosmhost0
-    assert_success
-    run incus ls customer1-clone -cnL -fcsv
-    assert_output 'customer1-clone,vosmhost0'
-    run incus stop customer1-clone
-    run incus rm customer1-clone
-}
+    current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
+    target_host=
 
-@test "Clone Customer. Same OSM host. Public" {
-    run "$CLI" clone_container customer1 vosmhost1 yes
-    assert_success
-    run ping -c3 customer1-clone."$DOMAIN"
-    assert_success
-    assert_line --index 0 --regexp '^PING vosmhost1.'"$DOMAIN"' \([[:digit:]].+\).*$'
-    for n in $(seq 1 3); do
-        assert_line --index "$n" --regexp '^[[:digit:]]+ bytes from vosmhost1 \([[:digit:]].+\): icmp_seq='"$n"''
+    for i in "${!OSM_HOSTS[@]}"; do
+        target_host="${OSM_HOSTS[$i]}"
+        [[ "$target_host" != "$current_host" ]] && break
     done
-    assert_line --index 5 --regexp '^.*, 0% packet loss.*$'
-    run "$CLI" del_customer customer1-clone
+
+    run "$CLI" clone_container "$CUSTOMER_NAME" "$target_host"
+    assert_success
+
+    run incus ls "$CUSTOMER_NAME"-clone -cnL -fcsv
+    assert_output ''"$CUSTOMER_NAME"'-clone,'"$target_host"''
+
+    run incus stop "$CUSTOMER_NAME"-clone
+    run incus rm "$CUSTOMER_NAME"-clone
 }
 
 @test "Clone Customer. Other OSM host. Public" {
-    run "$CLI" clone_container customer1 vosmhost0 yes
+    current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
+    target_host=
+    target_host_idx=
+
+    for i in "${!OSM_HOSTS[@]}"; do
+        target_host="${OSM_HOSTS[$i]}"
+        if [[ "$target_host" != "$current_host" ]]; then
+            target_host_idx=$i
+            break
+        fi
+    done
+
+    run "$CLI" clone_container "$CUSTOMER_NAME" "$target_host" yes
     assert_success
     run resolvectl flush-caches
-    run ping -c3 customer1-clone."$DOMAIN"
-    assert_line --index 0 --regexp '^PING vosmhost0.'"$DOMAIN"' \([[:digit:]].+\).*$'
+    run ping -c3 "$CUSTOMER_NAME"-clone."$DOMAIN"
+    assert_line --index 0 --regexp '^PING '"$target_host"'.'"$DOMAIN"' \([[:digit:]].+\).*$'
     for n in $(seq 1 3); do
-        assert_line --index "$n" --regexp '^[[:digit:]]+ bytes from vosmhost0 \([[:digit:]].+\): icmp_seq='"$n"''
+        assert_line --index "$n" --regexp '^[[:digit:]]+ bytes from '"$target_host"' \([[:digit:]].+\): icmp_seq='"$n"''
     done
     assert_line --index 5 --regexp '^.*, 0% packet loss.*$'
-    run "$CLI" del_customer customer1-clone
+    run bash -c 'printf "Y\n" | '"$CLI"' del_customer '"$CUSTOMER_NAME"'-clone'
+    assert_success
 
 }
 
 @test "Clone Already Cloned Customer. Same OSM host. Non-public" {
-    run "$CLI" clone_container customer1
-    run "$CLI" clone_container customer1
+    run "$CLI" clone_container "$CUSTOMER_NAME"
+    run "$CLI" clone_container "$CUSTOMER_NAME"
     assert_failure
 }
 
 @test "Clone Already Cloned Customer. Other OSM host. Non-public" {
-    run "$CLI" clone_container customer1 vosmhost2
+    current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
+    target_host=
+
+    for i in "${!OSM_HOSTS[@]}"; do
+        target_host="${OSM_HOSTS[$i]}"
+        if [[ "$target_host" != "$current_host" ]]; then
+            break
+        fi
+    done
+
+    run "$CLI" clone_container "$CUSTOMER_NAME"  "$target_host"
     assert_failure
 }
 
 @test "Clone Already Cloned Customer. Other OSM host. Public" {
-    run "$CLI" clone_container customer1 vosmhost2 yes
+    current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
+    target_host=
+
+    for i in "${!OSM_HOSTS[@]}"; do
+        target_host="${OSM_HOSTS[$i]}"
+        if [[ "$target_host" != "$current_host" ]]; then
+            break
+        fi
+    done
+
+    run "$CLI" clone_container "$CUSTOMER_NAME" "$target_host" yes
     assert_failure
+
+    incus rm -f "${CUSTOMER_NAME}-clone"
 }
 
-@test "Upgrade Customers" {
+@test "Upgrade Customer" {
     skip "Not implemented"
 }
 
@@ -193,7 +243,7 @@ teardown_file() {
 }
 
 @test "Get Customer Passwords" {
-    run "$CLI" get_customer_passwords customer1
+    run "$CLI" get_customer_passwords "$CUSTOMER_NAME"
     assert_success
 }
 
@@ -203,21 +253,21 @@ teardown_file() {
         assert_success
     done
 
-    run "$CLI" get_wg_info vosmhost3
+    run "$CLI" get_wg_info nonexistent_host
     assert_failure
 }
 
 @test "Push File Or Directory" {
-    run "$CLI" push_file_or_directory customer1 /tmp/devtank_test_data /root/
+    run "$CLI" push_file_or_directory "$CUSTOMER_NAME" /tmp/devtank_test_data /root/
     assert_success
 
-    run incus exec customer1 -- cat /root/devtank_test_data
+    run incus exec "$CUSTOMER_NAME" -- cat /root/devtank_test_data
     echo "Some test data: $UUID" | assert_output
 }
 
 @test "Pull File Or Directory" {
     rm /tmp/devtank_test_data
-    run "$CLI" pull_file_or_directory customer1 /root/devtank_test_data /tmp
+    run "$CLI" pull_file_or_directory "$CUSTOMER_NAME" /root/devtank_test_data /tmp
     assert_success
 
     run cat /tmp/devtank_test_data
@@ -234,11 +284,11 @@ teardown_file() {
 }
 
 @test "MQTT Listener" {
-    run "$CLI" mqtt_listener customer1
+    run "$CLI" mqtt_listener "$CUSTOMER_NAME"
     assert_success
 }
 
 @test "Delete customer" {
-    run "$CLI" del_customer customer1
+    run bash -c 'printf "Y\n" | '"$CLI"' del_customer '"$CUSTOMER_NAME"''
     assert_success
 }
