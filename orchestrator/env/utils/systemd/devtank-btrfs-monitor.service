@@ -1,0 +1,9 @@
+[Unit]
+Description=Run BTRFS monitor on /srv/incus
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+EnvironmentFile=/opt/devtank/btrfs-check.env
+Type=oneshot
+ExecStart=/opt/devtank/btrfs-check.awk -v MOUNT_POINT=${MOUNT_POINT} -v THRESHOLD=${THRESHOLD} -v RECIPIENTS=${RECIPIENTS}
