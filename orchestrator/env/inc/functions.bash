@@ -900,7 +900,7 @@ request_pebble_cert() {
     info "Request certificate from '$srvip' for ${name}.${OSM_DOMAIN} domain."
     for (( i=0; i<3; i++ )); do
         # shellcheck disable=SC2029
-        if ! ssh -v root@"$ipaddr" "REQUESST_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} &>/dev/null"; then
+        if ! ssh root@"$ipaddr" "REQUESST_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} &>/dev/null"; then
             warn "Request certificate failed. Re-trying one more time... [$(( i + 1))]"
         else
             return 0
