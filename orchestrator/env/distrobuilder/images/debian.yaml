@@ -1338,10 +1338,11 @@ packages:
 
   - packages:
       - chirpstack
+      - grpcurl
       - postgresql
       - postgresql-client-17
-      - timescaledb-toolkit-postgresql-17
       - timescaledb-2-oss-postgresql-17
+      - timescaledb-toolkit-postgresql-17
     action: install
     releases:
       - trixie
@@ -1496,21 +1497,6 @@ actions:
   action: |-
     #!/bin/sh
     timescaledb-tune --memory 640MB --quiet --yes
-
-# install grpcurl
-- trigger: post-packages
-  action: |-
-    #!/bin/bash
-    set -eux
-
-    repo="https://api.github.com/repos/fullstorydev/grpcurl/releases/latest"
-    url="$(curl -s "$repo" | jq -r '.assets[] | select(.name | match("_linux_amd64.deb")).browser_download_url')"
-    pkg="/tmp/grpcurl_linux_amd64.deb"
-    curl -L -s -o "$pkg" "$url"
-    dpkg -i "$pkg" || apt-get install -f -y
-    rm -f "$pkg"
-  releases:
-  - trixie
 
 # bind chirpstack API to localhost
 - trigger: post-packages
