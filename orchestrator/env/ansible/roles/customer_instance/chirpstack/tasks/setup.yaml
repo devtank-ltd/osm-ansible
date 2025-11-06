@@ -107,3 +107,15 @@
       - '{"user_id": "{{ admin_uuid }}", "password": "{{ chirpstack_admin_password }}"}'
       - 127.0.0.1:8080
       - api.UserService/UpdatePassword
+
+- name: Bind API to 0.0.0.0
+  ansible.builtin.replace:
+    path: /etc/chirpstack/chirpstack.toml
+    regexp: '(^\s+bind\s*=\s*")[0-9.]+(:8080")'
+    replace: '\g<1>0.0.0.0\g<2>'
+
+- name: Start and enable chirpstack services
+  ansible.builtin.systemd:
+    name: chirpstack
+    state: restarted
+    enabled: yes

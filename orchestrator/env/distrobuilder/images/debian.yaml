@@ -1512,6 +1512,17 @@ actions:
   releases:
   - trixie
 
+# bind chirpstack API to localhost
+- trigger: post-packages
+  action: |-
+    #!/bin/bash
+    set -eux
+
+    conf="/etc/chirpstack/chirpstack.toml"
+    sed -ri 's/(^\s+bind\s*=\s*")[0-9.]+(:8080")/\1127.0.0.1\2/' "$conf"
+  releases:
+    - trixie
+
 - trigger: post-files
   action: |-
     #!/bin/sh
