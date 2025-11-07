@@ -1,7 +1,7 @@
 ---
 
 - name: Configure mosquitto
-  template:
+  ansible.builtin.template:
     src: "{{ mosquitto_conf.key }}"
     dest: "{{ mosquitto_conf.value }}"
   loop:
@@ -13,20 +13,32 @@
 
 
 - name: Generate random password
-  set_fact:
+  ansible.builtin.set_fact:
     mosquitto_passwd: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
   when: mosquitto_passwd is undefined
 
 - name: Print password
-  debug:
+  ansible.builtin.debug:
     msg: "Moquitto password is: {{ mosquitto_passwd }}"
 
 - name: Set password
-  command: "mosquitto_passwd -c -b /etc/mosquitto/passwd {{ customer_name }} '{{ mosquitto_passwd }}'"
- # creates: /etc/mosquitto/passwd
+  ansible.builtin.command: "mosquitto_passwd -c -b /etc/mosquitto/passwd {{ customer_name }} '{{ mosquitto_passwd }}'"
+  # creates: /etc/mosquitto/passwd
+
+- name: Set mode for mosquitto configuration files
+  ansible.builtin.file:
+    path: "{{ conf }}"
+    owner: mosquitto
+    group: mosquitto
+    mode: '0700'
+  loop:
+    - /etc/mosquitto/passwd
+    - /etc/mosquitto/acl
+  loop_control:
+    loop_var: conf
 
 - name: Start and enable mosquitto
-  systemd:
+  ansible.builtin.systemd:
     name: mosquitto.service
     state: restarted
     enabled: yes

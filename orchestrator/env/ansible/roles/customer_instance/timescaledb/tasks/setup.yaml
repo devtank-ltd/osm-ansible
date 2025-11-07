@@ -19,9 +19,9 @@
         owner: "{{ timescaledb_owner }}"
 
     - name: Add timescaledb extension
-      postgresql_ext:
+      community.postgresql.postgresql_ext:
         name: "timescaledb"
-        db: "{{ timescaledb_db }}"
+        login_db: "{{ timescaledb_db }}"
 
     - name: GRANT ALL PRIVILEGES ON DATABASE
       community.postgresql.postgresql_privs:

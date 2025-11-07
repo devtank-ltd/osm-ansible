@@ -5,7 +5,7 @@
 
   vars:
     main_host: localhost
-    base_image: "devtank:debian/bookworm/default"
+    base_image: "devtank:debian/trixie/default"
 
   tasks:
     - name: Init customer instance
@@ -96,7 +96,7 @@
   tasks:
     - name: Set variables from previous plays
       ansible.builtin.set_fact:
-        le_domain: hostvars["localhost"].target_domain
+        le_domain: "{{ hostvars['localhost'].target_domain }}"
         main_wg_ip: "{{ hostvars['localhost']['ansible_wg0'].ipv4.address }}"
 
     - name: Include customer service roles
@@ -163,12 +163,11 @@
   vars:
     prometheus_config: "/etc/prometheus/prometheus.yml"
     customer_services:
-      - chirpstack-application-server
-      - chirpstack-network-server
+      - chirpstack
       - grafana-server
       - mosquitto
       - mqtt-postgres-inserter
-      - postgresql@15-main
+      - postgresql@17-main
       - prometheus-node-exporter
       - pushprox-client
       - redis-server

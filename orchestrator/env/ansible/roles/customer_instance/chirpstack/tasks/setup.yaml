@@ -1,30 +1,47 @@
 ---
 
-# These started as a loop, but ownership added complication.
-- name: Rollout application config file
-  template:
-    src: "chirpstack-application-server.toml.tpl"
-    dest: "/etc/chirpstack-application-server/chirpstack-application-server.toml"
-    owner: "appserver"
-    group: "appserver"
-    mode: "0640"
+- name: Find all chirpstack configuration files
+  ansible.builtin.find:
+    path: /etc/chirpstack
+    patterns: '*.toml'
+    excludes: 'chirpstack'
+  register: region
 
-- name: Rollout network config file
-  template:
-    src: "chirpstack-network-server.toml.tpl"
-    dest: "/etc/chirpstack-network-server/chirpstack-network-server.toml"
-    owner: "networkserver"
-    group: "networkserver"
-    mode: "0640"
+- name: Update PostgreSQL DSN
+  ansible.builtin.replace:
+    path: /etc/chirpstack/chirpstack.toml
+    regexp: '(.*\/\/.*:).*(@.*)'
+    replace: '\g<1>{{ chirpstack_password }}\g<2>'
+
+- name: Add MQTT credentials to chirpstack configuration file
+  ansible.builtin.lineinfile:
+    path: /etc/chirpstack/chirpstack.toml
+    search_string: '^\s+\[integration\.mqtt\]$'
+    insertafter: "{{ item.after_re }}"
+    line: "{{ item.line }}"
+  loop:
+    - { after_re: '\s+server\s*=', line: '    username = "{{ customer_name }}"'}
+    - { after_re: '\s+username\s*=', line: '    password = "{{ mosquitto_passwd }}"'}
+
+- name: Add username to region configuration files
+  ansible.builtin.replace:
+    path: "{{ item.path }}"
+    regexp: '(^\s+username\s*=\s*")"$'
+    replace: '\g<1>{{ customer_name }}"'
+  with_items: "{{ region.files }}"
+
+- name: Add password to region configuration files
+  ansible.builtin.replace:
+    path: "{{ item.path }}"
+    regexp: '(^\s+password\s*=\s*")"$'
+    replace: '\g<1>{{ mosquitto_passwd }}"'
+  with_items: "{{ region.files }}"
 
 - name: Start and enable chirpstack services
-  systemd:
-    name: chirpstack-{{ item }}-server
+  ansible.builtin.systemd:
+    name: chirpstack
     state: restarted
     enabled: yes
-  loop:
-    - "application"
-    - "network"
 
 - name: Wait for port 8080 to become open on the host
   ansible.builtin.wait_for:
@@ -36,24 +53,69 @@
     chirpstack_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
 
 - name: Get chirpstack jwt token
-  ansible.builtin.uri:
-    url: http://localhost:8080/api/internal/login
-    method: POST
-    body: '{"email": "admin", "password": "admin"}'
-    body_format: json
-    headers:
-      Content-Type: 'application/json'
-      Accept: 'application/json'
-    return_content: true
-  register: chirp_api_token
+  ansible.builtin.command:
+    argv:
+      - grpcurl
+      - -plaintext
+      - -d
+      - '{"email": "admin", "password": "admin"}'
+      - 127.0.0.1:8080
+      - api.InternalService.Login
+  register: chirpstack_api_output
 
-- name: Set chirpstack admin password
-  ansible.builtin.uri:
-    url: http://localhost:8080/api/users/1/password
-    method: PUT
-    body: '{"password": "{{ chirpstack_admin_password }}", "userId": "1"}'
-    body_format: json
-    headers:
-      Content-Type: "application/json"
-      Accept: "application/json"
-      Grpc-Metadata-Authorization: 'Bearer {{ chirp_api_token.json.jwt }}'
+- name: Parse chirpstack jwt token
+  ansible.builtin.set_fact:
+    chirpstack_api_token: "{{ chirpstack_api_output.stdout | from_json | json_query('jwt') }}"
+
+- name: Print chirpstack jwt token
+  ansible.builtin.debug:
+    msg: "chirpstack API jwt token: {{ chirpstack_api_token }}"
+
+- name: gRPC Get chirpstack users list
+  ansible.builtin.command:
+    argv:
+      - grpcurl
+      - -plaintext
+      - -H
+      - "Authorization: Bearer {{ chirpstack_api_token}}"
+      - -d
+      - '{"limit": 1}'
+      - 127.0.0.1:8080
+      - api.UserService/List
+  register: grpc_output
+
+- name: gRPC JSON output
+  ansible.builtin.set_fact:
+    users_list: "{{ grpc_output.stdout | from_json }}"
+
+- name: Get admin UUID
+  ansible.builtin.set_fact:
+    admin_uuid: "{{ users_list.result[0].id }}"
+
+- name: Print admin user ID
+  ansible.builtin.debug:
+    msg: "Admin UUID: {{ admin_uuid }}"
+
+- name: Update chirpstack admin password
+  ansible.builtin.command:
+    argv:
+      - grpcurl
+      - -plaintext
+      - -H
+      - "Authorization: Bearer {{ chirpstack_api_token }}"
+      - -d
+      - '{"user_id": "{{ admin_uuid }}", "password": "{{ chirpstack_admin_password }}"}'
+      - 127.0.0.1:8080
+      - api.UserService/UpdatePassword
+
+- name: Bind API to 0.0.0.0
+  ansible.builtin.replace:
+    path: /etc/chirpstack/chirpstack.toml
+    regexp: '(^\s+bind\s*=\s*")[0-9.]+(:8080")'
+    replace: '\g<1>0.0.0.0\g<2>'
+
+- name: Start and enable chirpstack services
+  ansible.builtin.systemd:
+    name: chirpstack
+    state: restarted
+    enabled: yes
