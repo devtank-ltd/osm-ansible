@@ -475,8 +475,30 @@ class osm_orchestrator_t:
         ansible_proc = subprocess.run(ansible_cmd)
         return ansible_proc.returncode == 0
 
-    def upgrade_osm_customers(self, host_name: str) -> bool:
-        raise Exception("Not implemented")
+    def upgrade_osm_customer(self, customer_name: str, image_alias: str) -> bool:
+        self.logger.debug("Clone '%s' incus instance", customer_name)
+        if not self.clone_container(customer_name):
+            self.logger.error(
+                "Clone '%s' incus instance failed. Unable to proceed",
+                customer_name
+            )
+            return False
+        self.logger.debug(
+            "Upgrading customer '%s' to image '%s'", customer_name, image_alias
+        )
+        ansible_cmd = [
+            "ansible-playbook",
+            "-v",
+            "-i", "localhost,",
+            "-i", "production.ini",
+            "-e", f"customer_name={customer_name}",
+            "-e", f"image={image_alias}",
+            f"{DEVTANK_WD}/env/ansible/upgrade_customer.yaml"
+        ]
+        ansible_proc = subprocess.run(ansible_cmd)
+        print(">>>>>>>>>> END! <<<<<<<<<<")
+        # return ansible_proc.returncode == 0
+        return False
 
     def add_osm_host(self, host_name: str, ip_addr: str, capacity: int) -> int:
         raise Exception("Not implemented")
@@ -550,8 +572,8 @@ class cli_osm_orchestrator_t:
         else:
             return os.EX_UNAVAILABLE
 
-    def upgrade_osm_customers(self, host_name: str) -> int:
-        if self._osm_orch.upgrade_osm_customers(host_name):
+    def upgrade_osm_customer(self, customer_name: str, image_alias: str) -> int:
+        if self._osm_orch.upgrade_osm_customer(customer_name, image_alias):
             return os.EX_OK
         return os.EX_UNAVAILABLE
 
@@ -877,10 +899,10 @@ def main():
             "Move customer to OSM host",
             cli_obj.move_osm_customer,
         ),
-        "upgrade_customers": cmd_entry(
-            "upgrade_customers <host name>: Upgrade existing customers on the "
-            "OSM host",
-            cli_obj.upgrade_osm_customers,
+        "upgrade_customer": cmd_entry(
+            "upgrade_customer <customer name> <base image>: "
+            "Upgrade customer on the using base image",
+            cli_obj.upgrade_osm_customer,
         ),
         "list_hosts": cmd_entry(
             "list_hosts : Lists OSM Hosts in system", cli_obj.list_hosts

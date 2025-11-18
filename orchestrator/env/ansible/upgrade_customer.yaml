@@ -1,0 +1,458 @@
+---
+
+- name: Upgrade '{{ customer_name }}' customer
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+
+  vars:
+    remote: "devtank"
+    db_name: osm
+    db_user: devtank
+    db_host: localhost
+    db_port: 5432
+    data_dir: /tmp/data
+    ansible_python_interpreter: python3
+
+  tasks:
+    - name: Check the '{{ customer_name}}' exists
+      ansible.builtin.shell:
+        incus ls {{ customer_name }} --format csv --columns ns
+      register: instance_state
+
+    - name: Fail if instances does not exist
+      ansible.builtin.fail:
+        msg: "The incus instance '{{ customer_name }}' does not exist."
+      when: instance_state.stdout_lines | length == 0
+
+    - name: Fail if instance is not running
+      ansible.builtin.fail:
+        msg: "The Incus instance 'test' exists but is not running."
+      when: "'RUNNING' not in (instance_state.stdout_lines[0].split(',')[1])"
+
+    - name: Get instance codename
+      ansible.builtin.shell:
+        incus exec bw -- lsb_release -a | sed -rn 's/^Codename:[[:blank:]]+([[:alpha:]]+)$/\1/p'
+      register: codename
+
+    - name: Fail if instance codename not bookworm
+      ansible.builtin.fail:
+        msg: "Only debian bookworm is supported for upgrade"
+      when: codename.stdout != "bookworm"
+
+    - name: Upgrade chirpstack
+      block:
+        - name: Download and install chirpstack v4.11.1
+          ansible.builtin.shell: |
+            wget -O "/tmp/{{ chirpstack_pkg }}" "{{ chirpstack_url }}"
+            dpkg -i "/tmp/{{ chirpstack_pkg }}"
+            systemctl stop chirpstack
+
+          vars:
+            ansible_connection: community.general.incus
+            ansible_host: "{{ customer_name }}-clone"
+            chirpstack_pkg: "chirpstack_4.11.1_linux_amd64.deb"
+            chirpstack_url: "https://artifacts.chirpstack.io/downloads/chirpstack/{{ chirpstack_pkg }}"
+
+        - name: Prepare chirpstack migration
+          ansible.builtin.shell: |
+            conf_dir="/etc/chirpstack"
+            conf="${conf_dir}/chirpstack.toml"
+
+            apt-get update
+            apt-get install -y grpcurl
+            systemctl stop chirpstack
+
+            # get passwords
+            # TODO: should we get customer passwords from the DB instead of file?
+            chirpstack_db_pswd="$(jq -r '.Postgres.chirpstack_as' /root/passwords.json)"
+            chirpstack_admin_pswd="$(jq -r '."Chirpstack Admin".admin' /root/passwords.json)"
+            mosquitto_user="$(jq -r '.Mosquitto | to_entries | map("\(.key)")[0]' /root/passwords.json)"
+            mosquitto_pswd="$(jq -r '.Mosquitto | to_entries | map("\(.value)")[0]' /root/passwords.json)"
+
+            # update chirpstack v4 config
+            sed -ri 's/(.*\/\/chirpstack:).*(@.*)/\1'"$chirpstack_db_pswd"'\2/' "$conf"
+            sed -ri '/\[integration.mqtt\]/a \    username = "'"$mosquitto_user"'"\n    password = "'"$mosquitto_pswd"'"' "$conf"
+            sed -ri 's/(^\s+username = )".*"/\1"'"$mosquitto_user"'"/' "${conf_dir}"/region_*.toml
+            sed -ri 's/(^\s+password = )""/\1"'"$mosquitto_pswd"'"/' "${conf_dir}"/region_*.toml
+
+            # setup postgresql db for chirpstack v4
+            su - postgres -c "psql -c \"CREATE ROLE chirpstack WITH LOGIN PASSWORD '${chirpstack_db_pswd}';\""
+            su - postgres -c "psql -c \"CREATE DATABASE chirpstack WITH OWNER chirpstack;\""
+            su - postgres -c "psql -d chirpstack -c \"CREATE extension pg_trgm;\""
+
+            systemctl stop chirpstack-network-server
+            systemctl stop chirpstack-application-server
+            systemctl start chirpstack
+          vars:
+            ansible_connection: community.general.incus
+            ansible_host: "{{ customer_name }}-clone"
+          args:
+            executable: /bin/bash
+
+        - name: Download migration script
+          ansible.builtin.shell: |
+            # format latest migration url
+            url="$(wget -q "{{ migration_url }}" -O - | jq -r '.assets[] | select(.name | match("{{ matcher }}")).browser_download_url')"
+            tb="${url##*/}"
+            # download migration script
+            wget -O "/tmp/${tb}" "$url"
+            # unpack migration script
+            tar xf "/tmp/${tb}" --directory /tmp/
+          vars:
+            ansible_connection: community.general.incus
+            ansible_host: "{{ customer_name }}-clone"
+            migration_url: "https://api.github.com/repos/chirpstack/chirpstack-v3-to-v4/releases/latest"
+            matcher: "_linux_amd64.tar.gz"
+
+        - name: Do chirspstack 3 -> 4 migration
+          ansible.builtin.shell: |
+            # change admin email, otherwise migration fails
+            api_host="127.0.0.1:8080"
+            payload='{"email": "admin", "password": "admin"}'
+            chirpstack_token="$(grpcurl -plaintext -d "$payload" "$api_host" api.InternalService.Login | jq -r '.jwt')"
+            [[ ! -v chirpstack_token || -z "$chirpstack_token" ]] && exit 1
+
+            payload='{"limit": 1}'
+            admin_uuid="$(grpcurl -plaintext -H "Authorization: Bearer ${chirpstack_token}" -d "$payload" "$api_host" api.UserService/List | jq -r '.result[0].id')"
+            [[ ! -v admin_uuid || -z "$admin_uuid" ]] && exit 1
+
+            n=0
+            payload='{"user": {"id": "'$admin_uuid'", "email": "admin@devtank.co.uk"} }'
+            while :; do
+                if grpcurl -plaintext -H "Authorization: Bearer ${chirpstack_token}" -d "$payload" "$api_host" api.UserService.Update; then
+                    break
+                fi
+                (( n == retries )) && exit 1
+                (( n += 1))
+                sleep 3
+            done
+
+            migration_args=(
+            --as-config-file /etc/chirpstack-application-server/chirpstack-application-server.toml
+            --ns-config-file /etc/chirpstack-network-server/chirpstack-network-server.toml
+            --cs-config-file /etc/chirpstack/chirpstack.toml
+            )
+
+            /tmp/chirpstack-v3-to-v4 "${migration_args[@]}"
+            apt-get -y purge chirpstack-application-server chirpstack-network-server
+          vars:
+            ansible_connection: community.general.incus
+            ansible_host: "{{ customer_name }}-clone"
+          args:
+            executable: /bin/bash
+
+        - name: Update chirpstack to the latest version
+          block:
+            - name: Get chirpstack repository key
+              ansible.builtin.get_url:
+                url: https://artifacts.chirpstack.io/packages/chirpstack.key
+                dest: /etc/apt/keyrings/chirpstack.asc
+                mode: "0644"
+              vars:
+                ansible_connection: community.general.incus
+                ansible_host: "{{ customer_name }}-clone"
+
+            - name: Add chirpstack repository source
+              ansible.builtin.apt_repository:
+                repo: "deb [signed-by=/etc/apt/keyrings/chirpstack.asc] https://artifacts.chirpstack.io/packages/4.x/deb stable main"
+                state: present
+              vars:
+                ansible_connection: community.general.incus
+                ansible_host: "{{ customer_name }}-clone"
+
+            - name: Update chirpstack
+              ansible.builtin.apt:
+                name: chirpstack
+                state: latest
+                update_cache: yes
+              vars:
+                ansible_connection: community.general.incus
+                ansible_host: "{{ customer_name }}-clone"
+
+- name: Prepare database dumps
+  hosts: localhost
+  connection: community.general.incus
+  gather_facts: yes
+
+  vars:
+    dump_dir: /tmp/pg_migration
+    pg_user: postgres
+    ansible_host: "{{ customer_name }}-clone"
+
+  tasks:
+    - name: Update packages
+      ansible.builtin.apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 0
+
+    - name: Get timescaledb version
+      ansible.builtin.shell: |
+        pkg="$(apt list --installed timescaledb-2-oss-postgresql-* 2>/dev/null | sed -rn 's/^(.*)\/.*/\1/p')"
+        apt show "$pkg" 2>/dev/null | sed -rn 's/^Version:\s([0-9.]+).*$/\1/p'
+      register: tsdb_version
+
+    - name: Upgrade timescaledb
+      ansible.builtin.shell:
+        su - postgres -c "psql -X -d osm -c \"ALTER EXTENSION timescaledb UPDATE TO '{{tsdb_version.stdout}}';\""
+
+    - name: Ensure dump directory exists
+      ansible.builtin.file:
+        path: "{{ dump_dir }}"
+        state: directory
+        mode: '0777'
+
+    - name: Dump globals
+      ansible.builtin.shell:
+        su - {{ pg_user }} -c 'pg_dumpall --globals-only > {{ dump_dir }}/globals.sql'
+      args:
+        creates: "{{ dump_dir }}/globals.sql"
+
+    - name: Get list of non-template databases
+      ansible.builtin.shell:
+        su - {{ pg_user }} -c 'psql -At -c "SELECT datname FROM pg_database WHERE datistemplate = false AND datallowconn = true;"'
+      register: db_list_raw
+
+    - name: Set databases list
+      ansible.builtin.set_fact:
+        pg_databases: "{{ db_list_raw.stdout_lines }}"
+
+    - name: Dump databases
+      vars:
+        dbname: "{{ item }}"
+      loop: "{{ pg_databases }}"
+      loop_control:
+        label: "{{ item }}"
+      ansible.builtin.shell:
+        su - {{ pg_user }} -c 'pg_dump -F c -d {{ dbname }} -f {{ dump_dir }}/{{ dbname }}.dump'
+      args:
+        creates: "{{ dump_dir }}/{{ dbname }}.dump"
+
+- name: Pull dumps from {{ customer_name }}-clone instance
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars:
+    conf_dump_dir: /tmp/dump_configs
+    db_dump_dir: /tmp/dump_pg
+    ansible_python_interpreter: python3
+
+  tasks:
+    - name: Ensure configuration dump directory exists
+      ansible.builtin.file:
+        path: "{{ conf_dump_dir }}"
+        state: directory
+        mode: '0777'
+
+    - name: Ensure postgresql dump directory exists
+      ansible.builtin.file:
+        path: "{{ db_dump_dir }}"
+        state: directory
+        mode: '0777'
+
+    - name: Dump grafana files
+      block:
+        - name: Pull grafana files from {{ customer_name}}-clone instance
+          ansible.builtin.shell: |
+            incus exec {{ customer_name }}-clone -- systemctl stop grafana-server
+            incus file pull {{ customer_name }}-clone/etc/grafana {{ conf_dump_dir }}/etc_grafana/ -p -r
+            incus file pull {{ customer_name }}-clone/var/lib/grafana {{ conf_dump_dir }}/var_lib_grafana/ -p -r
+            incus exec {{ customer_name }}-clone -- systemctl start grafana-server
+          args:
+            executable: /bin/bash
+
+        - name: Pull chirpstack files from {{ customer_name }}-clone instance
+          ansible.builtin.shell: |
+            incus file pull {{ customer_name }}-clone/etc/chirpstack {{ conf_dump_dir }}/etc_chirpstack -p -r
+          args:
+            executable: /bin/bash
+
+        - name: Pull mosquitto files from {{ customer_name }}-clone instance
+          ansible.builtin.shell: |
+            incus file pull {{ customer_name }}-clone/etc/mosquitto {{ conf_dump_dir }}/etc_mosquitto -p -r
+          args:
+            executable: /bin/bash
+
+        - name: Pull mqtt-postgres-inserter configuration file from {{ customer_name }}-clone instance
+          ansible.builtin.shell: |
+            incus file pull {{ customer_name }}-clone/etc/mqtt-postgres-inserter {{ conf_dump_dir }}/etc_mqtt-postgres-inserter -p -r
+          args:
+            executable: /bin/bash
+
+        - name: Pull postgresql dump files from {{ customer_name }}-clone instance
+          ansible.builtin.shell: |
+            incus file pull {{ customer_name }}-clone/tmp/pg_migration/ {{ db_dump_dir }} -p -r
+          args:
+            executable: /bin/bash
+
+- name: Prepare new '{{ customer_name }}-{{ image }}' instance
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars:
+    remote: "devtank"
+    conf_restore_dir: /tmp/restore_configs
+    db_restore_dir: /tmp/restore_pg
+    conf_dump_dir: /tmp/dump_configs
+    db_dump_dir: /tmp/dump_pg
+    ansible_python_interpreter: python3
+
+  tasks:
+    - name: Get the '{{ image }}' image fingerprint
+      ansible.builtin.shell:
+        incus image ls {{remote}}:{{image}} --format csv --columns F
+      register: image_fp
+
+    - name: Fail if no fingerprint found
+      ansible.builtin.fail:
+        msg: "No image fingerprint found for {{ image }}"
+      when: image_fp.stdout | trim == ""
+
+    - name: Launch '{{ customer_name }}-{{ image }}' incus instance
+      ansible.builtin.shell:
+        incus launch {{ remote }}:{{ image_fp.stdout }} {{ customer_name }}-{{ image }}
+
+    - name: Copy dumps to '{{ customer_name }}-{{ image }}' incus instance
+      ansible.builtin.shell: |
+        incus exec {{ customer_name }}-{{ image }} -- mkdir --parents {{ db_restore_dir}}
+        incus exec {{ customer_name }}-{{ image }} -- mkdir --parents {{ conf_restore_dir}}
+        incus file push {{ db_dump_dir }}/pg_migration/ {{ customer_name }}-{{ image }}{{ db_restore_dir }} -p -r
+        incus file push {{ conf_dump_dir }} {{ customer_name }}-{{ image }}{{ conf_restore_dir }} -p -r
+
+- name: Migration
+  hosts: localhost
+  connection: community.general.incus
+  gather_facts: yes
+
+  vars:
+    conf_restore_dir: /tmp/restore_configs/dump_configs
+    db_restore_dir: /tmp/restore_pg/pg_migration
+    pg_user: postgres
+    ansible_host: "{{ customer_name }}-{{ image }}"
+    ansible_python_interpreter: python3
+
+  tasks:
+    - name: Update packages
+      ansible.builtin.apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 0
+
+    # TODO: add verification of versions match
+    - name: Get timescaledb version
+      ansible.builtin.shell: |
+        pkg="$(apt list --installed timescaledb-2-oss-postgresql-* 2>/dev/null | sed -rn 's/^(.*)\/.*/\1/p')"
+        apt show "$pkg" 2>/dev/null | sed -rn 's/^Version:\s([0-9.]+).*$/\1/p'
+      register: tsdb_version
+
+    - name: Setup postgresql
+      block:
+        - name: Remove postgres role from globals.sql
+          ansible.builtin.replace:
+            path: /tmp/restore_pg/pg_migration/globals.sql
+            regexp: 'CREATE ROLE postgres;[\s\S]*?;\n'
+            replace: ''
+
+        - name: Apply globals
+          ansible.builtin.shell:
+            su - {{ pg_user }} -c 'psql -v ON_ERROR_STOP=1 -f {{ db_restore_dir }}/globals.sql'
+          register: apply_globals
+          failed_when: apply_globals.rc != 0
+
+        - name: Create 'osm' database
+          ansible.builtin.shell:
+            su - {{ pg_user }} -c 'createdb -O devtank osm'
+
+        - name: Create timescaledb extension for 'osm' database
+          ansible.builtin.shell:
+            su - {{ pg_user }} -c "psql -d osm -c \"CREATE EXTENSION IF NOT EXISTS timescaledb;\""
+
+        - name: Set 'osm' database to pre restore state
+          ansible.builtin.shell:
+            su - {{ pg_user }} -c "psql -d osm -c \"select timescaledb_pre_restore();\""
+
+        - name: Restore 'osm' dump
+          ansible.builtin.shell:
+            su - {{ pg_user }} -c 'pg_restore -Fc -d osm {{ db_restore_dir }}/osm.dump'
+
+        - name: Return 'osm' database to normal operations
+          ansible.builtin.shell:
+            su - {{ pg_user }} -c "psql -d osm -c \"select timescaledb_post_restore();\""
+
+        - name: Create 'chirpstack' database
+          ansible.builtin.shell:
+            su - {{ pg_user }} -c 'createdb -O chirpstack chirpstack'
+
+        - name: Restore 'chirpstack' dump
+          ansible.builtin.shell:
+            su - {{ pg_user }} -c 'pg_restore -Fc -d chirpstack {{ db_restore_dir }}/chirpstack.dump'
+
+    - name: Transfer services data
+      block:
+        - name: Restore grafana configs
+          ansible.builtin.copy:
+            src: "{{ conf_restore_dir }}/etc_grafana/grafana"
+            dest: "/etc/"
+            group: grafana
+            remote_src: true
+
+        - name: Restore grafana data
+          ansible.builtin.copy:
+            src: "{{ conf_restore_dir }}/var_lib_grafana/grafana"
+            dest: "/var/lib/"
+            owner: grafana
+            group: grafana
+            remote_src: true
+
+        - name: Restart grafana
+          ansible.builtin.systemd_service:
+            name: grafana-server
+            state: restarted
+
+        - name: Restore mosquitto data
+          ansible.builtin.copy:
+            src: "{{ conf_restore_dir }}/etc_mosquitto/mosquitto"
+            dest: "/etc/"
+            owner: mosquitto
+            group: mosquitto
+            remote_src: true
+
+        - name: Set correct permissions for mosquitto files
+          ansible.builtin.file:
+            path: "/etc/mosquitto/{{ item }}"
+            mode: '0700'
+          loop:
+            - acl
+            - passwd
+
+        - name: Restart mosquitto
+          ansible.builtin.systemd_service:
+            name: mosquitto
+            state: restarted
+
+        - name: Restore chirpstack configs
+          ansible.builtin.copy:
+            src: "{{ conf_restore_dir }}/etc_chirpstack/chirpstack"
+            dest: "/etc/"
+            owner: chirpstack
+            group: chirpstack
+            remote_src: true
+
+        - name: Restart chirpstack
+          ansible.builtin.systemd_service:
+            name: chirpstack
+            state: restarted
+
+        - name: Restore mqtt-postgres-inserter config
+          ansible.builtin.copy:
+            src: "{{ conf_restore_dir }}/etc_mqtt-postgres-inserter/mqtt-postgres-inserter/mqtt-postgres-inserter.yaml"
+            dest: "/etc/mqtt-postgres-inserter/"
+            remote_src: true
+
+        - name: Restart mqtt-postgres-inserter
+          ansible.builtin.systemd_service:
+            name: mqtt-postgres-inserter
+            state: restarted
