@@ -496,9 +496,7 @@ class osm_orchestrator_t:
             f"{DEVTANK_WD}/env/ansible/upgrade_customer.yaml"
         ]
         ansible_proc = subprocess.run(ansible_cmd)
-        print(">>>>>>>>>> END! <<<<<<<<<<")
-        # return ansible_proc.returncode == 0
-        return False
+        return ansible_proc.returncode == 0
 
     def add_osm_host(self, host_name: str, ip_addr: str, capacity: int) -> int:
         raise Exception("Not implemented")
