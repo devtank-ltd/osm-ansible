@@ -154,7 +154,9 @@ class osm_host_t:
         if rows:
             return [row[0] for row in rows]
 
-    def get_osm_customer_passwords(self, customer_name) -> dict:
+    def get_osm_customer_passwords(
+            self, customer_name: str, reveal: bool = True
+    ) -> dict:
         def walk_encrypted_dict(d: dict, crypt: Fernet, key: str) -> None:
             if isinstance(d, dict):
                 for k, v in d.items():
@@ -167,20 +169,20 @@ class osm_host_t:
         customer_id = self.db.get_customer_id(customer_name)
         k = self.db.get_customer_secret_key(customer_id)
         passwords: dict = {}
+        secrets = self.db.get_customer_secrets(customer_id)
 
         if not k:
             self.logger.error("Unable to get customer key")
             return passwords
 
         k = base64.b64decode(k.encode(self.encoding))
-        print(f"{k=}")
         k = Fernet(self._orchestrator.master_key).decrypt(k)
-        print(f"{k=}")
         crypt = Fernet(k)
-        secrets = self.db.get_customer_secrets(customer_id)
 
         try:
             passwords = json.loads(secrets)
+            if not reveal:
+                return passwords
         except json.JSONDecodeError as err:
             self.logger.error("Invalid JSON: ", err)
             return passwords
@@ -496,7 +498,33 @@ class osm_orchestrator_t:
             f"{DEVTANK_WD}/env/ansible/upgrade_customer.yaml"
         ]
         ansible_proc = subprocess.run(ansible_cmd)
-        return ansible_proc.returncode == 0
+        if ansible_proc.returncode != 0:
+            self.logger.error("Upgrade '%s' customer failed", customer_name)
+            return False
+
+        customer_passwords = self.get_customer_passwords(
+            customer_name, reveal=False
+        )
+        if not customer_passwords:
+            self.logger.error(
+                "Unable to get '%s' customer passwords", customer_name
+            )
+            return False
+
+        customer_id = self.db.get_customer_id(customer_name)
+
+        try:
+            chirpstack_password = customer_passwords["Postgres"]["chirpstack_as"]
+            del customer_passwords["Postgres"]
+            customer_passwords["Postgres"] = {"chirpstack": chirpstack_password }
+        except KeyError:
+            self.logger.warning("There is no password for 'chirpstack_ns' key")
+
+        # TODO: use pyosmorch update instead?
+        self.db.del_customer_secrets(customer_id)
+        return self.db.add_customer_secrets(
+            customer_id, json.dumps(customer_passwords)
+        ) is not None
 
     def add_osm_host(self, host_name: str, ip_addr: str, capacity: int) -> int:
         raise Exception("Not implemented")
@@ -504,9 +532,11 @@ class osm_orchestrator_t:
     def del_osm_host(self, host_name):
         raise Exception("Not implemented")
 
-    def get_customer_passwords(self, customer_name):
+    def get_customer_passwords(
+            self, customer_name: str, reveal: bool = True
+    ) -> dict:
         if osm_host := self.find_osm_host_of(customer_name):
-            return osm_host.get_osm_customer_passwords(customer_name)
+            return osm_host.get_osm_customer_passwords(customer_name, reveal)
         return {}
 
     def get_wg_info(self, host_name: str) -> Dict[str, str]:
