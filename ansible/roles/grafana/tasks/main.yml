@@ -1,8 +1,0 @@
----
-
-- name: "Install Grafana"
-  include_tasks: "install.yml"
-
-- name: "Setup Grafana"
-  include_tasks: "setup.yml"
-  when: install_only is not defined or install_only == False

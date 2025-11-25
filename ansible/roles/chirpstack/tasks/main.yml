@@ -1,8 +1,0 @@
----
-
-- name: "Install chirpstack"
-  include_tasks: "install.yml"
-
-- name: "Setup chirpstack"
-  include_tasks: "setup.yml"
-  when: install_only is not defined or install_only == False

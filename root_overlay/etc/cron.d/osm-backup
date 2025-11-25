@@ -1,2 +1,0 @@
-SHELL=/bin/bash
-43 02 * * * root /opt/devtank/backup.sh >> /var/log/osm-backup
