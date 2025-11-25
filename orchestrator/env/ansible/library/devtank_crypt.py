@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
-import subprocess
 import base64
+import traceback
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore
 from cryptography.fernet import Fernet
@@ -9,15 +9,9 @@ from cryptography.fernet import Fernet
 
 def main():
     module_args = dict(
-        input_string=dict(type="str"),
+        input_string=dict(type="str", required=False),
         action=dict(type="str", required=True),
-        key=dict(type="str"),
-    )
-
-    result = dict(
-        changed=False,
-        message="",
-        output="",
+        key=dict(type="str", required=False),
     )
 
     module = AnsibleModule(
@@ -25,39 +19,63 @@ def main():
         required_if=[
             ("action", "encrypt", ("key", "input_string")),
             ("action", "decrypt", ("key", "input_string")),
-        ]
+        ],
     )
 
-    input_string = module.params["input_string"]
-    action = module.params["action"]
+    try:
+        action = module.params["action"].lower()
+        input_string = module.params.get("input_string")
+        key_param = module.params.get("key")
 
-    if action not in ("encrypt", "decrpyt","generate_key"):
-        module.fail_json(
-            msg=(
-                "Only 'encrypt', 'decrypt' 'generate_key' actions are supported"
-                f". Got '{action}'"
-            )
-        )
+        allowed_actions = ("encrypt", "decrypt", "generate_key")
 
-    if module.params["key"]:
-        key = module.params["key"].encode("utf-8")
-    else:
-        key = Fernet.generate_key()
+        if action not in allowed_actions:
+            module.fail_json(msg=f"Only {allowed_actions} are supported. Got '{action}'")
 
-    if action == "generate_key":
-        result["output"] = {"key": key}
-    else:
-        bstring = input_string.encode("utf-8")
-        crypt = Fernet(key)
+        if module.params["key"]:
+            key = module.params["key"].encode("utf-8")
+        else:
+            key = Fernet.generate_key()
 
-        output_string = getattr(crypt, action)(bstring).decode("utf-8")
-        result["output"] = {
-            "key": base64.b64encode(key).decode("utf-8"),
-            "string": output_string,
-        }
+        result = {"changed": False, "output": {}}
 
-    module.exit_json(**result)
+        if action == "generate_key":
+            result["output"]["key"] = base64.b64encode(key).decode("utf-8")
+            module.exit_json(**result)
+
+        if not input_string:
+            module.fail_json(msg=f"input_string is required for action '{action}'")
+
+        try:
+            crypt = Fernet(key)
+        except Exception:
+            module.fail_json(msg=f"Invalid Fernet key provided: {key_param}")
+
+        if action == "encrypt":
+            encrypted_bytes = crypt.encrypt(input_string.encode("utf-8"))
+            output_string = base64.b64encode(encrypted_bytes).decode("utf-8")
+        else:
+            input_bytes = input_string.encode("utf-8")
+
+            try:
+                output_string = crypt.decrypt(input_bytes).decode("utf-8")
+            except Exception as e:
+                module.fail_json(
+                    msg=(
+                        f"Error during decrypt: {e}\n"
+                        f"Check that the key matches the input string.\n"
+                        f"input_string={input_string}\n"
+                        f"key={key.decode('utf-8')}"
+                    )
+                )
+
+        result["output"]["key"] = base64.b64encode(key).decode("utf-8")
+        result["output"]["string"] = output_string
+        module.exit_json(**result)
+
+    except Exception as e:
+        module.fail_json(msg=f"Unexpected exception: {e}\n{traceback.format_exc()}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

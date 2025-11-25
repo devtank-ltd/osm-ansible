@@ -82,6 +82,16 @@ class OrchestratorHandler:
 
         return {}
 
+    def get_customer_key(self, module: AnsibleModule) -> Dict[str, Any]:
+        customer = module.params["customer_name"]
+        customer_id = self.db.get_customer_id(customer)
+        return self.db.get_customer_secret_key(customer_id) or {}
+
+    def get_customer_secrets(self, module: AnsibleModule) -> Dict[str, Any]:
+        customer = module.params["customer_name"]
+        customer_id = self.db.get_customer_id(customer)
+        return self.db.get_customer_secrets(customer_id) or {}
+
     def get_host(self, module: AnsibleModule) -> Dict[str, Any]:
         host_name = module.params["host_name"]
         res = self.db.get_host(host_name)

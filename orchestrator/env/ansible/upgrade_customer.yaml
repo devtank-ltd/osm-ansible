@@ -32,7 +32,7 @@
 
     - name: Get instance codename
       ansible.builtin.shell:
-        incus exec bw -- lsb_release -a | sed -rn 's/^Codename:[[:blank:]]+([[:alpha:]]+)$/\1/p'
+        incus exec "{{ customer_name }}" -- lsb_release -a | sed -rn 's/^Codename:[[:blank:]]+([[:alpha:]]+)$/\1/p'
       register: codename
 
     - name: Fail if instance codename not bookworm
@@ -54,6 +54,76 @@
             chirpstack_pkg: "chirpstack_4.11.1_linux_amd64.deb"
             chirpstack_url: "https://artifacts.chirpstack.io/downloads/chirpstack/{{ chirpstack_pkg }}"
 
+        - name: Get devtank database config
+          ansible.builtin.set_fact:
+            db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
+
+        - name: Get customer key
+          devtank_db:
+            db_conf: "{{ db_conf.orchestrator }}"
+            customer_name: "{{ customer_name }}"
+            method: get_customer_key
+          register: db_customer_key
+
+        - name: Get '{{ customer_name }}' customer secrets from database
+          devtank_db:
+            db_conf: "{{ db_conf.orchestrator }}"
+            customer_name: "{{ customer_name }}"
+            method: get_customer_secrets
+          register: db_secrets
+
+        - name: Store '{{ customer_name }}' customer key to variable
+          ansible.builtin.set_fact:
+            customer_key_encrypted: "{{ db_customer_key.output }}"
+
+        - name: Decrypt '{{ customer_name }}' customer key
+          devtank_crypt:
+            input_string: "{{ customer_key_encrypted | b64decode }}"
+            action: decrypt
+            key: "{{ master_key }}"
+          register: customer_key
+
+        - name: Store '{{ customer_name }}' customer secrets to variable
+          ansible.builtin.set_fact:
+            customer_secrets: "{{ db_secrets.output | from_json if db_secrets.output is string else db_secrets.output }}"
+
+        - name: Get mosquitto user
+          ansible.builtin.set_fact:
+            mosquitto_user: "{{ (customer_secrets['Mosquitto'] | dict2items | map(attribute='key') | list)[0] }}"
+
+        - name: Decrypt mosquitto password
+          devtank_crypt:
+            input_string: "{{ customer_secrets['Mosquitto'][mosquitto_user] }}"
+            action: decrypt
+            key: "{{ customer_key.output.string }}"
+          register: mosquitto_password_decrypted
+
+        - name: Set mosquitto password variable
+          ansible.builtin.set_fact:
+            mosquitto_password: "{{ mosquitto_password_decrypted.output.string }}"
+
+        - name: Decrypt chirpstack password
+          devtank_crypt:
+            input_string: "{{ customer_secrets['Postgres']['chirpstack_as'] }}"
+            action: decrypt
+            key: "{{ customer_key.output.string }}"
+          register: chirpstack_password_decrypted
+
+        - name: Set chirpstack password variable
+          ansible.builtin.set_fact:
+            chirpstack_password: "{{ chirpstack_password_decrypted.output.string }}"
+
+        - name: Decrypt chirpstack admin password
+          devtank_crypt:
+            input_string: "{{ customer_secrets['Chirpstack Admin']['admin'] }}"
+            action: decrypt
+            key: "{{ customer_key.output.string }}"
+          register: chirpstack_admin_password_decrypted
+
+        - name: Set chirpstack admin password variable
+          ansible.builtin.set_fact:
+            chirpstack_admin_password: "{{ chirpstack_admin_password_decrypted.output.string }}"
+
         - name: Prepare chirpstack migration
           ansible.builtin.shell: |
             conf_dir="/etc/chirpstack"
@@ -63,21 +133,14 @@
             apt-get install -y grpcurl
             systemctl stop chirpstack
 
-            # get passwords
-            # TODO: should we get customer passwords from the DB instead of file?
-            chirpstack_db_pswd="$(jq -r '.Postgres.chirpstack_as' /root/passwords.json)"
-            chirpstack_admin_pswd="$(jq -r '."Chirpstack Admin".admin' /root/passwords.json)"
-            mosquitto_user="$(jq -r '.Mosquitto | to_entries | map("\(.key)")[0]' /root/passwords.json)"
-            mosquitto_pswd="$(jq -r '.Mosquitto | to_entries | map("\(.value)")[0]' /root/passwords.json)"
-
             # update chirpstack v4 config
-            sed -ri 's/(.*\/\/chirpstack:).*(@.*)/\1'"$chirpstack_db_pswd"'\2/' "$conf"
-            sed -ri '/\[integration.mqtt\]/a \    username = "'"$mosquitto_user"'"\n    password = "'"$mosquitto_pswd"'"' "$conf"
-            sed -ri 's/(^\s+username = )".*"/\1"'"$mosquitto_user"'"/' "${conf_dir}"/region_*.toml
-            sed -ri 's/(^\s+password = )""/\1"'"$mosquitto_pswd"'"/' "${conf_dir}"/region_*.toml
+            sed -ri 's/(.*\/\/chirpstack:).*(@.*)/\1{{ chirpstack_password }}\2/' "$conf"
+            sed -ri '/\[integration.mqtt\]/a \    username = "{{ mosquitto_user }}"\n    password = "{{ mosquitto_password }}"' "$conf"
+            sed -ri 's/(^\s+username = )".*"/\1{{ mosquitto_user }}/' "${conf_dir}"/region_*.toml
+            sed -ri 's/(^\s+password = )""/\1{{ mosquitto_password }}/' "${conf_dir}"/region_*.toml
 
             # setup postgresql db for chirpstack v4
-            su - postgres -c "psql -c \"CREATE ROLE chirpstack WITH LOGIN PASSWORD '${chirpstack_db_pswd}';\""
+            su - postgres -c "psql -c \"CREATE ROLE chirpstack WITH LOGIN PASSWORD '{{ chirpstack_password }}';\""
             su - postgres -c "psql -c \"CREATE DATABASE chirpstack WITH OWNER chirpstack;\""
             su - postgres -c "psql -d chirpstack -c \"CREATE extension pg_trgm;\""
 

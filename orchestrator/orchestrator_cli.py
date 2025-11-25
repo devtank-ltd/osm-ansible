@@ -488,13 +488,14 @@ class osm_orchestrator_t:
         self.logger.debug(
             "Upgrading customer '%s' to image '%s'", customer_name, image_alias
         )
+
         ansible_cmd = [
             "ansible-playbook",
-            "-v",
             "-i", "localhost,",
             "-i", "production.ini",
             "-e", f"customer_name={customer_name}",
             "-e", f"image={image_alias}",
+            "-e", f"master_key={self.master_key.decode('utf-8')}",
             f"{DEVTANK_WD}/env/ansible/upgrade_customer.yaml"
         ]
         ansible_proc = subprocess.run(ansible_cmd)
