@@ -29,6 +29,12 @@ init() {
         yesno "Continue?"
     fi
 
+    for gr in "netdev" "kvm"; do
+        if ! in_group "$gr"; then
+            die "The user '${USER}' not in '${gr}' group. Unable to proceed"
+        fi
+    done
+
     declare -gA BASE_HOSTS=(
         # skip orchestrator as the vosmhost0 is the main host now
         # [orchestrator]="preseed-ext4.cfg"
