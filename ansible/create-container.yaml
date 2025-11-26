@@ -1,7 +1,0 @@
-- hosts: localhost
-  connection: local
-  vars:
-    create_container: True
-  roles:
-    - { role: lxc, tags: lxc }
-    - { role: finalize, tags: finalize }

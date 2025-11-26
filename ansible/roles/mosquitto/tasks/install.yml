@@ -1,8 +1,0 @@
----
-
-- name: Install mosquitto
-  apt:
-    name:
-      - mosquitto
-      - mosquitto-clients
-    update_cache: yes

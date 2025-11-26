@@ -1,8 +1,0 @@
----
-
-- name: "Install mosquitto"
-  include_tasks: "install.yml"
-
-- name: "Setup mosquitto"
-  include_tasks: "setup.yml"
-  when: install_only is not defined or install_only == False

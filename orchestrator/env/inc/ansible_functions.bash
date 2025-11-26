@@ -13,6 +13,8 @@ run_ansible_early() {
         # alternative branch name is set by DEVTANK_BRANCH environmet variable
         git_branch="${DEVTANK_BRANCH:-$(git rev-parse --abbrev-ref @ | sed -n 's/HEAD/main/p;t;p')}"
     )
+    ANSIBLE_LIBRARY="ansible/library"
+    export ANSIBLE_LIBRARY
     local ansible_args=(
         -e "${extra_vars[*]}"
         -i "$ANSIBLE_HOSTS"
