@@ -284,26 +284,30 @@ do_setup() {
 
     # shellcheck disable=SC2153
     prepare_base_host "${VOSM_HOST}0" "$OSM_DOMAIN" "${BASE_HOSTS[${VOSM_HOST}0]}" "$pids"
-    clone_host "${VOSM_HOST}0" "${VOSM_HOST}1"
+    if (( OSM_HOST_COUNT > 1 )); then
+        clone_host "${VOSM_HOST}0" "${VOSM_HOST}1"
 
-    for host in "${!OSM_HOSTS[@]}"; do
-        run_qemu "$host" "$VOSM_HOSTBR"
-        OSM_HOSTS["$host"]="$(wait_for_ip "$host" "${OSM_SUBNET}.1")"
-        setup_ssh "${OSM_HOSTS[$host]}"
-        add_ansible_host "$host" "${OSM_HOSTS[$host]}"
-    done
+        for host in "${!OSM_HOSTS[@]}"; do
+            run_qemu "$host" "$VOSM_HOSTBR"
+            OSM_HOSTS["$host"]="$(wait_for_ip "$host" "${OSM_SUBNET}.1")"
+            setup_ssh "${OSM_HOSTS[$host]}"
+            add_ansible_host "$host" "${OSM_HOSTS[$host]}"
+        done
+    fi
 
     run_ansible_early "${OSM_HOSTS[${VOSM_HOST}0]}"
     do_stop_hosts
 
-    local base_host dest_host
-    base_host="${VOSM_HOST}1"
+    if (( OSM_HOST_COUNT > 1 )); then
+        local base_host dest_host
+        base_host="${VOSM_HOST}1"
 
-    for i in $(seq 2 $(( OSM_HOST_COUNT - 1 ))); do
-        dest_host="${VOSM_HOST}${i}"
-        clone_host "$base_host" "$dest_host"
-        OSM_HOSTS["$dest_host"]=""
-    done
+        for i in $(seq 2 $(( OSM_HOST_COUNT - 1 ))); do
+            dest_host="${VOSM_HOST}${i}"
+            clone_host "$base_host" "$dest_host"
+            OSM_HOSTS["$dest_host"]=""
+        done
+    fi
 }
 
 do_post_setup() {
