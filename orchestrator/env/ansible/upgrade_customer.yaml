@@ -128,6 +128,7 @@
           ansible.builtin.shell: |
             conf_dir="/etc/chirpstack"
             conf="${conf_dir}/chirpstack.toml"
+            api_port=8081
 
             apt-get update
             apt-get install -y grpcurl
@@ -138,6 +139,8 @@
             sed -ri '/\[integration.mqtt\]/a \    username = "{{ mosquitto_user }}"\n    password = "{{ mosquitto_password }}"' "$conf"
             sed -ri 's/(^\s+username = )".*"/\1{{ mosquitto_user }}/' "${conf_dir}"/region_*.toml
             sed -ri 's/(^\s+password = )""/\1{{ mosquitto_password }}/' "${conf_dir}"/region_*.toml
+            # change chirpstack API port
+            sed -ri '/\[api\]/,/bind\s?=\s?".*:8080"/ s/8080/'"$api_port"'/' "$conf"
 
             # setup postgresql db for chirpstack v4
             su - postgres -c "psql -c \"CREATE ROLE chirpstack WITH LOGIN PASSWORD '{{ chirpstack_password }}';\""
@@ -170,8 +173,9 @@
 
         - name: Do chirspstack 3 -> 4 migration
           ansible.builtin.shell: |
+            api_port=8081
             # change admin email, otherwise migration fails
-            api_host="127.0.0.1:8080"
+            api_host="127.0.0.1:${api_port}"
             payload='{"email": "admin", "password": "admin"}'
             chirpstack_token="$(grpcurl -plaintext -d "$payload" "$api_host" api.InternalService.Login | jq -r '.jwt')"
             [[ ! -v chirpstack_token || -z "$chirpstack_token" ]] && exit 1
