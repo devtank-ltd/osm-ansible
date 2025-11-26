@@ -20,6 +20,10 @@ edo() {
     "$@" || exit 2
 }
 
+in_group() {
+    [[ " $(id -Gn -- "${2:-$USER}") " == *" $1 "* ]]
+}
+
 parse_config() {
     local conf_file=
     declare -A vars
