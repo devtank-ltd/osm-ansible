@@ -154,7 +154,9 @@ class osm_host_t:
         if rows:
             return [row[0] for row in rows]
 
-    def get_osm_customer_passwords(self, customer_name) -> dict:
+    def get_osm_customer_passwords(
+            self, customer_name: str, reveal: bool = True
+    ) -> dict:
         def walk_encrypted_dict(d: dict, crypt: Fernet, key: str) -> None:
             if isinstance(d, dict):
                 for k, v in d.items():
@@ -167,20 +169,20 @@ class osm_host_t:
         customer_id = self.db.get_customer_id(customer_name)
         k = self.db.get_customer_secret_key(customer_id)
         passwords: dict = {}
+        secrets = self.db.get_customer_secrets(customer_id)
 
         if not k:
             self.logger.error("Unable to get customer key")
             return passwords
 
         k = base64.b64decode(k.encode(self.encoding))
-        print(f"{k=}")
         k = Fernet(self._orchestrator.master_key).decrypt(k)
-        print(f"{k=}")
         crypt = Fernet(k)
-        secrets = self.db.get_customer_secrets(customer_id)
 
         try:
             passwords = json.loads(secrets)
+            if not reveal:
+                return passwords
         except json.JSONDecodeError as err:
             self.logger.error("Invalid JSON: ", err)
             return passwords
@@ -475,8 +477,55 @@ class osm_orchestrator_t:
         ansible_proc = subprocess.run(ansible_cmd)
         return ansible_proc.returncode == 0
 
-    def upgrade_osm_customers(self, host_name: str) -> bool:
-        raise Exception("Not implemented")
+    def upgrade_osm_customer(self, customer_name: str, image_alias: str) -> bool:
+        self.logger.debug("Clone '%s' incus instance", customer_name)
+        if not self.clone_container(customer_name):
+            self.logger.error(
+                "Clone '%s' incus instance failed. Unable to proceed",
+                customer_name
+            )
+            return False
+        self.logger.debug(
+            "Upgrading customer '%s' to image '%s'", customer_name, image_alias
+        )
+
+        ansible_cmd = [
+            "ansible-playbook",
+            "-i", "localhost,",
+            "-i", "production.ini",
+            "-e", f"customer_name={customer_name}",
+            "-e", f"image={image_alias}",
+            "-e", f"master_key={self.master_key.decode('utf-8')}",
+            f"{DEVTANK_WD}/env/ansible/upgrade_customer.yaml"
+        ]
+        ansible_proc = subprocess.run(ansible_cmd)
+        if ansible_proc.returncode != 0:
+            self.logger.error("Upgrade '%s' customer failed", customer_name)
+            return False
+
+        customer_passwords = self.get_customer_passwords(
+            customer_name, reveal=False
+        )
+        if not customer_passwords:
+            self.logger.error(
+                "Unable to get '%s' customer passwords", customer_name
+            )
+            return False
+
+        customer_id = self.db.get_customer_id(customer_name)
+
+        try:
+            chirpstack_password = customer_passwords["Postgres"]["chirpstack_as"]
+            del customer_passwords["Postgres"]
+            customer_passwords["Postgres"] = {"chirpstack": chirpstack_password }
+        except KeyError:
+            self.logger.warning("There is no password for 'chirpstack_ns' key")
+
+        # TODO: use pyosmorch update instead?
+        self.db.del_customer_secrets(customer_id)
+        return self.db.add_customer_secrets(
+            customer_id, json.dumps(customer_passwords)
+        ) is not None
 
     def add_osm_host(self, host_name: str, ip_addr: str, capacity: int) -> int:
         raise Exception("Not implemented")
@@ -484,9 +533,11 @@ class osm_orchestrator_t:
     def del_osm_host(self, host_name):
         raise Exception("Not implemented")
 
-    def get_customer_passwords(self, customer_name):
+    def get_customer_passwords(
+            self, customer_name: str, reveal: bool = True
+    ) -> dict:
         if osm_host := self.find_osm_host_of(customer_name):
-            return osm_host.get_osm_customer_passwords(customer_name)
+            return osm_host.get_osm_customer_passwords(customer_name, reveal)
         return {}
 
     def get_wg_info(self, host_name: str) -> Dict[str, str]:
@@ -550,8 +601,8 @@ class cli_osm_orchestrator_t:
         else:
             return os.EX_UNAVAILABLE
 
-    def upgrade_osm_customers(self, host_name: str) -> int:
-        if self._osm_orch.upgrade_osm_customers(host_name):
+    def upgrade_osm_customer(self, customer_name: str, image_alias: str) -> int:
+        if self._osm_orch.upgrade_osm_customer(customer_name, image_alias):
             return os.EX_OK
         return os.EX_UNAVAILABLE
 
@@ -877,10 +928,10 @@ def main():
             "Move customer to OSM host",
             cli_obj.move_osm_customer,
         ),
-        "upgrade_customers": cmd_entry(
-            "upgrade_customers <host name>: Upgrade existing customers on the "
-            "OSM host",
-            cli_obj.upgrade_osm_customers,
+        "upgrade_customer": cmd_entry(
+            "upgrade_customer <customer name> <base image>: "
+            "Upgrade customer on the using base image",
+            cli_obj.upgrade_osm_customer,
         ),
         "list_hosts": cmd_entry(
             "list_hosts : Lists OSM Hosts in system", cli_obj.list_hosts
