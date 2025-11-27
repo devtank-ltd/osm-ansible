@@ -319,7 +319,7 @@
         state: directory
         mode: '0777'
 
-    - name: Dump grafana files
+    - name: Dump services data files
       block:
         - name: Pull grafana files from {{ customer_name}}-clone instance
           ansible.builtin.shell: |
@@ -348,11 +348,18 @@
           args:
             executable: /bin/bash
 
+        - name: Pull postgREST configuration file from {{ customer_name }}-clone instance
+          ansible.builtin.shell: |
+            incus file pull {{ customer_name }}-clone/etc/postgrest {{ conf_dump_dir }}/etc_postgrest -p -r
+          args:
+            executable: /bin/bash
+
         - name: Pull postgresql dump files from {{ customer_name }}-clone instance
           ansible.builtin.shell: |
             incus file pull {{ customer_name }}-clone/tmp/pg_migration/ {{ db_dump_dir }} -p -r
           args:
             executable: /bin/bash
+
 
 - name: Prepare new '{{ customer_name }}-{{ image }}' instance
   hosts: localhost
@@ -522,4 +529,15 @@
         - name: Restart mqtt-postgres-inserter
           ansible.builtin.systemd_service:
             name: mqtt-postgres-inserter
+            state: restarted
+
+        - name: Restore postgREST config
+          ansible.builtin.copy:
+            src: "{{ conf_restore_dir }}/etc_postgrest/postgrest/postgrest.conf"
+            dest: "/etc/postgrest/"
+            remote_src: true
+
+        - name: Restart postgREST
+          ansible.builtin.systemd_service:
+            name: postgrest
             state: restarted
