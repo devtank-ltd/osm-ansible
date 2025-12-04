@@ -274,17 +274,17 @@ do_setup() {
         die "Bridge setup"
     fi
 
-    # incus needs minimum 3 hosts to form a cluster.
-    # The osm host #0 acts as main host (with devtank DB and pebble ACME installed).
-    # Other osm hosts are cloned from the osm host #1
     OSM_HOSTS=(
         ["${VOSM_HOST}0"]=""
-        ["${VOSM_HOST}1"]=""
     )
 
     # shellcheck disable=SC2153
     prepare_base_host "${VOSM_HOST}0" "$OSM_DOMAIN" "${BASE_HOSTS[${VOSM_HOST}0]}" "$pids"
-    clone_host "${VOSM_HOST}0" "${VOSM_HOST}1"
+
+    if (( OSM_HOST_COUNT > 1 )); then
+        OSM_HOSTS["${VOSM_HOST}1"]=""
+        clone_host "${VOSM_HOST}0" "${VOSM_HOST}1"
+    fi
 
     for host in "${!OSM_HOSTS[@]}"; do
         run_qemu "$host" "$VOSM_HOSTBR"
@@ -435,8 +435,18 @@ get_vm_ip() {
     local host="$1"
     local dns_srv="$2"
     local ipaddr name
+    local -i retr=5
+    local -i n=0
 
     ipaddr="$(dig @"$dns_srv" "$host" +short)"
+
+    while [[ "${dns_srv%.*}" != "${ipaddr%.*}" ]]; do
+        (( n += 1))
+        warn "Subnet address mismatch: expected '${dns_srv%.}' got '${ipaddr%.}'"
+        sleep 1
+        ipaddr="$(dig @"$dns_srv" "$host" +short)"
+        (( n < retr )) && continue || return 1
+    done
 
     if [[ -v ipaddr && -n "$ipaddr" ]]; then
         info "Got '$host' IP address: $ipaddr" >&2
