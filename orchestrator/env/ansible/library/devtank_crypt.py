@@ -28,12 +28,14 @@ def main():
         key_param = module.params.get("key")
 
         allowed_actions = ("encrypt", "decrypt", "generate_key")
-
         if action not in allowed_actions:
             module.fail_json(msg=f"Only {allowed_actions} are supported. Got '{action}'")
 
-        if module.params["key"]:
-            key = module.params["key"].encode("utf-8")
+        if key_param:
+            try:
+                key = base64.b64decode(key_param)
+            except Exception:
+                module.fail_json(msg=f"Invalid base64 key provided: {key_param}")
         else:
             key = Fernet.generate_key()
 
@@ -55,7 +57,10 @@ def main():
             encrypted_bytes = crypt.encrypt(input_string.encode("utf-8"))
             output_string = base64.b64encode(encrypted_bytes).decode("utf-8")
         else:
-            input_bytes = input_string.encode("utf-8")
+            try:
+                input_bytes = base64.b64decode(input_string)
+            except Exception:
+                module.fail_json(msg="input_string must be base64-encoded for decryption")
 
             try:
                 output_string = crypt.decrypt(input_bytes).decode("utf-8")
@@ -65,11 +70,11 @@ def main():
                         f"Error during decrypt: {e}\n"
                         f"Check that the key matches the input string.\n"
                         f"input_string={input_string}\n"
-                        f"key={key.decode('utf-8')}"
+                        f"key={key_param}"
                     )
                 )
 
-        result["output"]["key"] = base64.b64encode(key).decode("utf-8")
+        result["output"]["key"] = key_param if key_param else base64.b64encode(key).decode("utf-8")
         result["output"]["string"] = output_string
         module.exit_json(**result)
 
