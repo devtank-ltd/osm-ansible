@@ -248,6 +248,18 @@
     ansible_host: "{{ customer_name }}-clone"
 
   tasks:
+    - name: Download PostgreSQL repository key
+      ansible.builtin.get_url:
+        url: "https://www.postgresql.org/media/keys/ACCC4CF8.asc"
+        dest: "/etc/apt/keyrings/postgresql.org.asc"
+        mode: '0644'
+
+    - name: Add PostgreSQL repository
+      ansible.builtin.apt_repository:
+        repo: deb [signed-by=/etc/apt/keyrings/postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main
+        filename: pgdg.list
+        state: present
+
     - name: Update packages
       ansible.builtin.apt:
         upgrade: yes
@@ -332,25 +344,25 @@
 
         - name: Pull chirpstack files from {{ customer_name }}-clone instance
           ansible.builtin.shell: |
-            incus file pull {{ customer_name }}-clone/etc/chirpstack {{ conf_dump_dir }}/etc_chirpstack -p -r
+            incus file pull {{ customer_name }}-clone/etc/chirpstack {{ conf_dump_dir }}/etc_chirpstack/ -p -r
           args:
             executable: /bin/bash
 
         - name: Pull mosquitto files from {{ customer_name }}-clone instance
           ansible.builtin.shell: |
-            incus file pull {{ customer_name }}-clone/etc/mosquitto {{ conf_dump_dir }}/etc_mosquitto -p -r
+            incus file pull {{ customer_name }}-clone/etc/mosquitto {{ conf_dump_dir }}/etc_mosquitto/ -p -r
           args:
             executable: /bin/bash
 
         - name: Pull mqtt-postgres-inserter configuration file from {{ customer_name }}-clone instance
           ansible.builtin.shell: |
-            incus file pull {{ customer_name }}-clone/etc/mqtt-postgres-inserter {{ conf_dump_dir }}/etc_mqtt-postgres-inserter -p -r
+            incus file pull {{ customer_name }}-clone/etc/mqtt-postgres-inserter {{ conf_dump_dir }}/etc_mqtt-postgres-inserter/ -p -r
           args:
             executable: /bin/bash
 
         - name: Pull postgREST configuration file from {{ customer_name }}-clone instance
           ansible.builtin.shell: |
-            incus file pull {{ customer_name }}-clone/etc/postgrest {{ conf_dump_dir }}/etc_postgrest -p -r
+            incus file pull {{ customer_name }}-clone/etc/postgrest {{ conf_dump_dir }}/etc_postgrest/ -p -r
           args:
             executable: /bin/bash
 
@@ -409,11 +421,24 @@
     ansible_python_interpreter: python3
 
   tasks:
+    - name: Download PostgreSQL repository key
+      ansible.builtin.get_url:
+        url: "https://www.postgresql.org/media/keys/ACCC4CF8.asc"
+        dest: "/etc/apt/keyrings/postgresql.org.asc"
+        mode: '0644'
+
+    - name: Add PostgreSQL repository
+      ansible.builtin.apt_repository:
+        repo: deb [signed-by=/etc/apt/keyrings/postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt trixie-pgdg main
+        filename: pgdg.list
+        state: present
+
     - name: Update packages
       ansible.builtin.apt:
         upgrade: yes
-        update_cache: yes
+        update_cache: true
         cache_valid_time: 0
+        state: latest
 
     # TODO: add verification of versions match
     - name: Get timescaledb version
