@@ -29,6 +29,16 @@
           vars:
             mqtt_init_port: 8883
 
+      rescue:
+        - name: Cleanup incus instance
+          ansible.builtin.import_role:
+            name: incus_instance
+            tasks_from: remove
+
+        - name: Fail after cleanup
+          ansible.builtin.fail:
+            msg: "Failed to get init data from devtank database"
+
     - name: Setup databases and OSM host
       block:
         - name: Add customer alias to PDNS database
@@ -61,11 +71,19 @@
           import_role:
             name: db_management
             tasks_from: remove
+          ignore_errors: true
+          vars:
+            ansible_connection: local
+          delegate_to: "{{ main_host }}"
 
         - name: Remove incus instance
           import_role:
             name: incus_instance
             tasks_from: remove
+          ignore_errors: true
+          vars:
+            ansible_connection: local
+          delegate_to: "{{ main_host }}"
 
         - name: Remove customer configuration from OSM host
           import_role:
@@ -74,11 +92,16 @@
           vars:
             ansible_connection: ssh
           delegate_to: "{{ osm_ip }}"
+          ignore_errors: true
 
         - name: Rollback PDNS database entries
           import_role:
             name: pdns_management
             tasks_from: remove
+          ignore_errors: true
+          vars:
+            ansible_connection: local
+          delegate_to: "{{ main_host }}"
 
         - name: Fail to stop further processing
           ansible.builtin.fail:
@@ -94,23 +117,85 @@
     timescaledb_db: osm
 
   tasks:
-    - name: Set variables from previous plays
-      ansible.builtin.set_fact:
-        le_domain: "{{ hostvars['localhost'].target_domain }}"
-        main_wg_ip: "{{ hostvars['localhost']['ansible_wg0'].ipv4.address }}"
+    - name: Configure customer services
+      block:
+        - name: Set variables from previous plays
+          ansible.builtin.set_fact:
+            le_domain: "{{ hostvars['localhost'].target_domain }}"
+            main_wg_ip: "{{ hostvars['localhost']['ansible_wg0'].ipv4.address }}"
+            osm_ip: "{{ hostvars['localhost']['osm_ip'] }}"
 
-    - name: Include customer service roles
-      include_role:
-        name: "customer_instance/{{ item }}"
-      loop:
-        - mosquitto
-        - postgres
-        - timescaledb
-        - chirpstack
-        - grafana
-        - prometheus_node_exporter
-        - mqtt_postgres_inserter
-        - finalization
+        - name: Include customer service roles
+          include_role:
+            name: "customer_instance/{{ item }}"
+          loop:
+            - mosquitto
+            - postgres
+            - timescaledb
+            - chirpstack
+            - grafana
+            - prometheus_node_exporter
+            - mqtt_postgres_inserter
+            - finalization
+
+      rescue:
+        - name: Get devtank database config
+          ansible.builtin.set_fact:
+            db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
+          delegate_to: localhost
+          run_once: true
+          connection: local
+
+        - name: Get incus host
+          devtank_db:
+            db_conf: "{{ db_conf.orchestrator }}"
+            method: get_host_name_by_customer
+            customer_name: "{{ customer_name }}"
+          delegate_to: localhost
+          run_once: true
+          connection: local
+          register: incus_location
+
+        - name: Set pdns_alias
+          ansible.builtin.set_fact:
+            pdns_alias: "{{ incus_location.output.host_name }}"
+
+        - name: Rollback devtank database entries (if exist)
+          import_role:
+            name: db_management
+            tasks_from: remove
+          ignore_errors: true
+          delegate_to: localhost
+          run_once: true
+          connection: local
+
+        - name: Rollback PDNS database entries
+          import_role:
+            name: pdns_management
+            tasks_from: remove
+          ignore_errors: true
+          delegate_to: localhost
+          run_once: true
+          connection: local
+
+        - name: Remove incus instance
+          import_role:
+            name: incus_instance
+            tasks_from: remove
+          ignore_errors: true
+
+        - name: Remove customer configuration from OSM host
+          import_role:
+            name: osm_host
+            tasks_from: remove
+          vars:
+            ansible_connection: ssh
+          delegate_to: "{{ osm_ip }}"
+          ignore_errors: true
+
+        - name: Recover customer services fail
+          ansible.builtin.fail:
+            msg: "Creating customer failed. Rollback completed"
 
 - name: Post container setup
   hosts: localhost

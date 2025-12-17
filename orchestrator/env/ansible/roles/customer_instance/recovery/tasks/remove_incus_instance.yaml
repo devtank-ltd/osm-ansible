@@ -1,0 +1,5 @@
+---
+
+- name: Remove incus instance
+  ansible.builtin.shell:
+    incus rm --force {{ customer_name }}
