@@ -8,3 +8,7 @@
     domain: "{{ db_conf.pdns_domain }}"
     domain_id: "{{ db_conf.pdns_domain_id }}"
     host_name: "{{ osm_host }}"
+
+- name: Set PDNS alias
+  ansible.builtin.set_fact:
+    pdns_alias: "{{ osm_host }}"
