@@ -177,6 +177,26 @@
             # change admin email, otherwise migration fails
             api_host="127.0.0.1:${api_port}"
             payload='{"email": "admin", "password": "admin"}'
+
+            retries=10
+            count=0
+
+            is_api_ready() {
+                grpcurl -plaintext -d "$payload" "$api_host" api.InternalService.Login > /dev/null 2>&1
+                return $?
+            }
+
+            while ! is_api_ready; do
+                retry_count=$((count + 1))
+                if (( count > retries )); then
+                    echo "Max retries reached. Exiting."
+                    exit 1
+                fi
+
+                echo "Waiting for API to be ready... Attempt ${count}/${retries}"
+                sleep 5
+            done
+
             chirpstack_token="$(grpcurl -plaintext -d "$payload" "$api_host" api.InternalService.Login | jq -r '.jwt')"
             [[ ! -v chirpstack_token || -z "$chirpstack_token" ]] && exit 1
 
