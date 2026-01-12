@@ -33,7 +33,7 @@ def main():
 
         if key_param:
             try:
-                key = base64.b64decode(key_param)
+                key = key_param
             except Exception:
                 module.fail_json(msg=f"Invalid base64 key provided: {key_param}")
         else:
@@ -42,7 +42,7 @@ def main():
         result = {"changed": False, "output": {}}
 
         if action == "generate_key":
-            result["output"]["key"] = base64.b64encode(key).decode("utf-8")
+            result["output"]["key"] = key
             module.exit_json(**result)
 
         if not input_string:
@@ -55,7 +55,7 @@ def main():
 
         if action == "encrypt":
             encrypted_bytes = crypt.encrypt(input_string.encode("utf-8"))
-            output_string = base64.b64encode(encrypted_bytes).decode("utf-8")
+            output_string = encrypted_bytes.decode("utf-8")
         else:
             try:
                 input_bytes = base64.b64decode(input_string)
