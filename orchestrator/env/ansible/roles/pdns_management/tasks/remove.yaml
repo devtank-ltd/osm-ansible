@@ -1,16 +1,11 @@
 ---
 
-- name: DEBUG
-  ansible.builtin.debug:
-    msg: "alias: {{ pdns_alias }}"
-
 - name: Remove customer alias from PDNS records
   # delete from records where name regexp 'customer(\.|\-)(chirspstack|mqtt|db)?\.?domain\.co\.uk';
   devtank_db:
     db_conf: "{{ db_conf.pdns }}"
     method: del_customer
     customer_name: "{{ customer_name }}"
-    # host_name: "{{ customer_info.output.host_name }}"
-    host_name: "{{ pdns_alias }}"
+    host_name: "{{ pdns_alias | default(customer_info.output.host_name) }}"
     domain: "{{ db_conf.pdns_domain }}"
     domain_id: "{{ db_conf.pdns_domain_id }}"
