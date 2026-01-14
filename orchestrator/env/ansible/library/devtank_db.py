@@ -69,9 +69,7 @@ class OrchestratorHandler:
         }
 
     def add_customer_secrets(self, module: AnsibleModule) -> Dict[str, Any]:
-        key = base64.b64encode(module.params["key"].encode("utf-8")).decode(
-            "utf-8"
-        )
+        key = module.params["key"]
         data = module.params["data"]
         customer_id = module.params["customer_id"]
 

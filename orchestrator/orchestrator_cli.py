@@ -21,7 +21,7 @@ import weakref
 import yaml
 
 from collections import namedtuple
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from pathlib import Path
 from typing import Union, Dict
 
@@ -167,7 +167,7 @@ class osm_host_t:
                         walk_encrypted_dict(v, crypt, key)
 
         customer_id = self.db.get_customer_id(customer_name)
-        k = self.db.get_customer_secret_key(customer_id)
+        k = self.db.get_customer_secret_key(customer_id).encode()
         passwords: dict = {}
         secrets = self.db.get_customer_secrets(customer_id)
 
@@ -175,8 +175,12 @@ class osm_host_t:
             self.logger.error("Unable to get customer key")
             return passwords
 
-        k = base64.b64decode(k.encode(self.encoding))
-        k = Fernet(self._orchestrator.master_key).decrypt(k)
+        try:
+            k = Fernet(self._orchestrator.master_key).decrypt(k)
+        except InvalidToken:
+            k = base64.b64decode(k)
+            k = Fernet(self._orchestrator.master_key).decrypt(k)
+
         crypt = Fernet(k)
 
         try:
