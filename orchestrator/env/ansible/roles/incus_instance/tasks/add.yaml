@@ -1,17 +1,17 @@
 ---
 
+- name: Check customer instance
+  ansible.builtin.shell:
+    cmd: "incus ls {{ customer_name }} -cn -fcsv"
+  register: instance
+
+- name: Fail customer instance init (if exists)
+  when: instance.stdout != ""
+  ansible.builtin.fail:
+    msg: "Customer instance already exists"
+
 - name: Add {{ customer_name }} incus instance
   block:
-    - name: Check customer instance
-      ansible.builtin.shell:
-        cmd: "incus ls {{ customer_name }} -cn -fcsv"
-      register: instance
-
-    - name: Fail customer instance init (if exists)
-      when: instance.stdout != ""
-      ansible.builtin.fail:
-        msg: "Customer instance already exists"
-
     - name: Init customer instance
       ansible.builtin.shell:
         cmd: "incus init {{ base_image }} {{ customer_name }} --target {{ target_host }}"
