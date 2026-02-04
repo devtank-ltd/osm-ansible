@@ -1,0 +1,10 @@
+---
+
+- name: Configure OSM exporter
+  include_tasks: setup.yaml
+
+- name: Enable and start osm_exporter
+  systemd:
+    name: "{{ osm_exporter_service_name }}"
+    enabled: yes
+    state: started

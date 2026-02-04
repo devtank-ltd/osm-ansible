@@ -1,0 +1,14 @@
+[Unit]
+Description=Run OSM Exporter
+After=network.target postgresql@.service grafana-server.service
+Requires=postgresql@.service grafana-server.service
+
+[Service]
+ExecStart={{ osm_exporter_bin_path }}
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
