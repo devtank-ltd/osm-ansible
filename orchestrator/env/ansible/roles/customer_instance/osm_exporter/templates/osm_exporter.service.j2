@@ -1,7 +1,6 @@
 [Unit]
 Description=Run OSM Exporter
 After=network.target postgresql@.service grafana-server.service
-Requires=postgresql@.service grafana-server.service
 
 [Service]
 ExecStart={{ osm_exporter_bin_path }}

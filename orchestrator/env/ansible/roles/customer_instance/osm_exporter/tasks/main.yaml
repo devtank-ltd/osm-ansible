@@ -1,10 +1,55 @@
 ---
 
-- name: Configure OSM exporter
-  include_tasks: setup.yaml
+- name: Install required packages
+  apt:
+    name:
+      - git
+      - python3
+      - python3-requests
+    state: present
+    update_cache: yes
 
-- name: Enable and start osm_exporter
-  systemd:
-    name: "{{ osm_exporter_service_name }}"
-    enabled: yes
-    state: started
+- name: Clone osm_exporter repository
+  ansible.builtin.git:
+    repo: "{{ osm_exporter_repo }}"
+    dest: "{{ osm_exporter_install_dir }}"
+    version: "{{ osm_exporter_version }}"
+    force: yes
+
+- name: Ensure osm_exporter is executable
+  file:
+    path: "{{ osm_exporter_install_dir }}/osm_exporter"
+    mode: '0755'
+
+- name: Install osm_exporter binary
+  copy:
+    src: "{{ osm_exporter_install_dir }}/osm_exporter"
+    dest: "{{ osm_exporter_bin_path }}"
+    remote_src: yes
+    mode: '0755'
+  notify: Restart osm_exporter
+
+- name: Create config directory
+  file:
+    path: "{{ osm_exporter_config_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Configure OSM exporter
+  ansible.builtin.template:
+    src: osm_exporter.yaml.j2
+    dest: "{{ osm_exporter_config_path }}"
+    owner: root
+    group: root
+    mode: "644"
+
+- name: Setup systemd service
+  template:
+    src: osm_exporter.service.j2
+    dest: "/etc/systemd/system/{{ osm_exporter_service_name }}.service"
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart osm_exporter
+
+

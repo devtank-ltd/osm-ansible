@@ -136,6 +136,7 @@
             - grafana
             - prometheus_node_exporter
             - mqtt_postgres_inserter
+            - osm_exporter
             - finalization
 
       rescue:
@@ -220,6 +221,8 @@
 
   vars:
     prometheus_config: "/etc/prometheus/prometheus.yml"
+    osm_job_name: osm-live-sensors
+    new_osm_target: "{{ customer_name }}:9150"
 
   tasks:
     - name: Add {{ customer_name }} to Prometheus
@@ -234,6 +237,64 @@
               proxy_url: http://{{ ansible_wg0.ipv4.address }}:8080/
               static_configs:
                 - targets: ["{{ customer_name }}:9100"]
+
+    - name: Ensure osm-live-sensors has target
+      block:
+
+        - name: Load Prometheus config
+          slurp:
+            src: "{{ prometheus_config }}"
+          register: prom_raw
+
+        - name: Parse Prometheus config
+          set_fact:
+            prom_cfg: "{{ prom_raw.content | b64decode | from_yaml }}"
+
+        - name: Get existing osm-live-sensors job or create
+          set_fact:
+            osm_job: >-
+              {{
+                prom_cfg.scrape_configs
+                | selectattr('job_name', 'equalto', osm_job_name)
+                | first
+                | default({
+                    'job_name': osm_job_name,
+                    'static_configs': [{'targets': []}]
+                  })
+              }}
+
+        - name: Append target if missing
+          set_fact:
+            osm_job: >-
+              {{
+                osm_job | combine({
+                  'static_configs': [{
+                    'targets': (osm_job.static_configs[0].targets + [new_osm_target]) | unique
+                  }]
+                }, recursive=True)
+              }}
+
+        - name: Update scrape_configs
+          set_fact:
+            prom_cfg: >-
+              {{
+                prom_cfg | combine({
+                  'scrape_configs': (
+                    prom_cfg.scrape_configs
+                    | rejectattr('job_name', 'equalto', osm_job_name)
+                    | list
+                    + [osm_job]
+                  )
+                }, recursive=True)
+              }}
+
+        - name: Write updated Prometheus config
+          copy:
+            dest: "{{ prometheus_config }}"
+            content: "{{ prom_cfg | to_nice_yaml(indent=2) }}"
+            owner: prometheus
+            group: prometheus
+            mode: '0644'
 
     - name: Restart Prometheus
       ansible.builtin.systemd_service:
