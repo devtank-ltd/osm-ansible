@@ -225,15 +225,6 @@
     new_osm_target: "{{ customer_name }}:9150"
 
   tasks:
-    - name: Set Prometheus jobs list for {{ customer_name }}
-      set_fact:
-        prometheus_jobs:
-          - name: "{{ customer_name }}"
-            proxy_url: "http://{{ ansible_wg0.ipv4.address }}:8080/"
-            target: "{{ customer_name }}:9100"
-          - name: "{{ customer_name }}-osm-live-sensors"
-            target: "{{ customer_name }}:9150"
-
     - name: Add Prometheus jobs for {{ customer_name }}
       ansible.builtin.blockinfile:
         path: "{{ prometheus_config }}"
@@ -242,14 +233,14 @@
         insertafter: EOF
         marker: "# {mark} ORCHESTRATOR MANAGED {{ customer_name }}"
         block: |2
-          {% for job in prometheus_jobs %}
-          - job_name: "{{ job.name }}"
-            {% if job.proxy_url is defined %}
-            proxy_url: "{{ job.proxy_url }}"
-            {% endif %}
-            static_configs:
-              - targets: ["{{ job.target }}"]
-          {% endfor %}
+            - job_name: "{{ customer_name }}"
+              proxy_url: http://{{ ansible_wg0.ipv4.address }}:8080/
+              static_configs:
+                - targets: ["{{ customer_name }}:9100"]
+
+            - job_name: "{{ customer_name }}-osm-live-sensors"
+              static_configs:
+                - targets: ["{{ customer_name }}:9150"]
 
     - name: Restart Prometheus
       ansible.builtin.systemd_service:
