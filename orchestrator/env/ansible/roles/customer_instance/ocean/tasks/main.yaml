@@ -1,0 +1,15 @@
+---
+
+- name: Configure OSM Container Export Asynchronous Node
+  ansible.builtin.template:
+    src: ocean.tpl
+    dest: /etc/osm-container-export-asynchronous-node/ocean.yaml
+    owner: root
+    group: root
+    mode: "644"
+
+- name: Enable and start OSM Container Export Asynchronous Node
+  ansible.builtin.systemd_service:
+    name: ocean
+    state: restarted
+    enabled: yes
