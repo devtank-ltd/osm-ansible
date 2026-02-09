@@ -1,5 +1,11 @@
 ---
 
+- name: Install package
+  ansible.builtin.apt:
+    name: osm-container-export-asynchronous-node
+    state: present
+    update_cache: yes
+
 - name: Configure OSM Container Export Asynchronous Node
   ansible.builtin.template:
     src: ocean.tpl
