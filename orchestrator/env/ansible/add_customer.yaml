@@ -136,7 +136,7 @@
             - grafana
             - prometheus_node_exporter
             - mqtt_postgres_inserter
-            - osm_exporter
+            - ocean
             - finalization
 
       rescue:
@@ -263,6 +263,7 @@
       - prometheus-node-exporter
       - pushprox-client
       - redis-server
+      - ocean
 
   tasks:
     - name: Set customer domain domain

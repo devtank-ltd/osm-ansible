@@ -1,9 +1,0 @@
----
-- name: Reload systemd
-  systemd:
-    daemon_reload: yes
-
-- name: Restart osm_exporter
-  systemd:
-    name: "{{ osm_exporter_service_name }}"
-    state: restarted
