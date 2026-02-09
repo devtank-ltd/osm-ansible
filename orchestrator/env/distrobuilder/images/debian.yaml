@@ -1301,7 +1301,7 @@ packages:
       - mosquitto
       - mosquitto-clients
       - mqtt-postgres-inserter
-      - ocean
+      - osm-container-export-asynchronous-node
       - postgresql-common
       - postgrest
       - prometheus-node-exporter
