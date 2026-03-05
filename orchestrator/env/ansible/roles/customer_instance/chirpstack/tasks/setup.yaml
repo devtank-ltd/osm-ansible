@@ -22,6 +22,8 @@
   loop:
     - { after_re: '\s+server\s*=', line: '    username = "{{ customer_name }}"'}
     - { after_re: '\s+username\s*=', line: '    password = "{{ mosquitto_passwd }}"'}
+    - { after_re: '\s+json\s*=', line: '    event_topic = "osm/chirpstack/{{ "{{dev_eui}}" }}/measurements"' }
+    - { after_re: '\s+event_topic\s*=', line: '    command_topic = "osm/chirpstack/{{ "{{dev_eui}}" }}/command"'}
 
 - name: Add username to region configuration files
   ansible.builtin.replace:
