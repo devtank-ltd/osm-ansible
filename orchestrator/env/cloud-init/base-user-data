@@ -1,0 +1,163 @@
+#cloud-config
+
+users:
+  - name: admin
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: false
+    plain_text_passwd: devtank
+
+ssh_pwauth: true
+disable_root: false
+ssh_genkeytypes: [ed25519]
+
+ssh_authorized_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINsIiHt8EQlQ4OX5bg8FGUY10mg6yeZyGvgMNapXbb/n OSM dev env
+
+packages:
+  - btrfs-progs
+  - initramfs-tools
+  - vim
+  - wget
+  - wireguard
+  - ansible
+  - curl
+
+write_files:
+  - path: /etc/initramfs-tools/modules
+    content: |
+      btrfs
+
+  - path: /etc/initramfs-tools/hooks/btrfs-convert
+    permissions: '0755'
+    content: |
+      #!/bin/sh
+      set -e
+
+      . /usr/share/initramfs-tools/hook-functions
+      copy_exec /usr/bin/btrfs-convert /usr/bin
+      copy_exec /usr/bin/btrfs /usr/bin
+
+      # this made me crazy >:(
+      # pthread_cancel needs by btrfs-convert
+      # pthread_cancel requires libgcc_s.so.1
+      if [ -f /lib/x86_64-linux-gnu/libgcc_s.so.1 ]; then
+          mkdir -p "${DESTDIR}/lib/x86_64-linux-gnu"
+          cp /lib/x86_64-linux-gnu/libgcc_s.so.1 "${DESTDIR}/lib/x86_64-linux-gnu/"
+      fi
+
+  - path: /etc/initramfs-tools/scripts/init-premount/btrfs-convert
+    permissions: '0755'
+    content: |
+      #!/bin/sh
+      PREREQ=""
+      prereqs() { echo "$PREREQ"; }
+      case $1 in prereqs) prereqs; exit 0;; esac
+      . /scripts/functions
+
+      MARKER="/run/btrfs-convert-done"
+      [ -f "$MARKER" ] && exit 0
+
+      ROOTDEV=$(sed -n 's/.*root=\([^ ]*\).*/\1/p' /proc/cmdline)
+      case "$ROOTDEV" in
+          LABEL=*) ROOTDEV=$(blkid -L "${ROOTDEV#LABEL=}") ;;
+          UUID=*)  ROOTDEV=$(blkid -U "${ROOTDEV#UUID=}") ;;
+          PARTUUID=*) ROOTDEV=$(blkid -t PARTUUID="${ROOTDEV#PARTUUID=}" -o device) ;;
+      esac
+
+      if [ ! -b "$ROOTDEV" ]; then
+          # TODO: need to fine better way
+          for dev in /dev/vda1 /dev/sda1; do
+              if [ -b "$dev" ]; then
+                  ROOTDEV="$dev"
+                  break
+              fi
+          done
+      fi
+      [ ! -b "$ROOTDEV" ] && exit 1
+
+      FSTYPE=$(blkid -s TYPE -o value "$ROOTDEV" 2>/dev/null)
+      [ "$FSTYPE" != "ext4" ] && exit 0
+
+      log_begin_msg "Converting $ROOTDEV from ext4 to btrfs..."
+      if grep -q "^$ROOTDEV " /proc/mounts 2>/dev/null; then
+          log_failure_msg "$ROOTDEV is mounted"
+          exit 1
+      fi
+
+      e2fsck -fvy "$ROOTDEV"
+      if btrfs-convert "$ROOTDEV"; then
+          log_success_msg "btrfs-convert succeeded"
+          mkdir -p /mnt/target
+          mount -t btrfs "$ROOTDEV" /mnt/target
+          sed -ri '/\/ / s|ext4|btrfs|' /mnt/target/etc/fstab
+          sed -ri '/\/ / s|errors=remount-ro,[[:space:]]*||' /mnt/target/etc/fstab
+          sed -ri '/\/ / s|,errors=remount-ro||' /mnt/target/etc/fstab
+          sed -ri '/\/ / s|([[:space:]])([^[:space:]]*)[[:space:]]*([0-9])[[:space:]]*([0-9])$|\1defaults \3 \4|' /mnt/target/etc/fstab
+          > /mnt/target/var/lib/btrfs-convert-done
+          umount /mnt/target
+          > "$MARKER"
+      else
+          log_failure_msg "btrfs-convert failed"
+      fi
+
+      log_end_msg
+      exit 0
+
+  - path: /etc/systemd/system/btrfs-finalise.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Finalise btrfs conversion and power off
+      After=multi-user.target cloud-init.target
+      ConditionPathExists=/var/lib/btrfs-convert-done
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/btrfs-finalise.bash
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /usr/local/bin/btrfs-finalise.bash
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      LOG="/var/log/btrfs-finalise.log"
+      exec >> "$LOG" 2>&1
+      echo "$(date): Starting finalisation"
+
+      ROOTDEV=$(findmnt -n -o SOURCE /)
+      DISKDEV=$(echo "$ROOTDEV" | sed -E 's/p?[0-9]+$//')
+      echo "$(date): Root device $ROOTDEV, disk $DISKDEV"
+
+      if grub-install --recheck "$DISKDEV"; then
+          echo "$(date): GRUB reinstalled successfully"
+      else
+          echo "$(date): GRUB reinstall failed" >&2
+      fi
+      update-grub
+      update-initramfs -u
+
+      rm -f /etc/initramfs-tools/hooks/btrfs-convert
+      rm -f /etc/initramfs-tools/scripts/init-premount/btrfs-convert
+
+      cloud-init clean --logs
+      rm -rf /var/lib/cloud/instance
+      truncate -s 0 /etc/machine-id
+
+      rm -f /etc/systemd/system/btrfs-finalise.service
+      rm -f /usr/local/bin/btrfs-finalise.bash
+      rm -f /var/lib/btrfs-convert-done
+
+      poweroff
+
+power_state:
+  mode: reboot
+  timeout: 30
+  condition: true
+
+runcmd:
+  - update-initramfs -u
+  - systemctl enable btrfs-finalise.service

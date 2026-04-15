@@ -224,51 +224,37 @@ EOF
 }
 
 download() {
-    # download "src" to optional "dst"
-    # if "dst" omitted then download to current dirctory
-    local src="$1"
-    local dst="${2:-.}"
-    local file="${src##*/}"
+    local url="$1"
+    local target_dir="${2:-$DL_DIR}"
+    local target_name="${3:-}"
+    local target=""
 
-    if [[ -e "${dst}/${file}" ]]; then
-        warn "The '${dst}/${file}' exists"
-        return
+    [[ ! -d "$target_dir" ]] && mkdir --parents "$target_dir"
+    [[ -z "$target_name"  ]] && target_name="${url##*/}"
+
+    target="${target_dir}/${target_name}"
+
+    if [[ -f "$target" ]]; then
+        warn "The file '$target' exists. "
+        yesno "Overwrite it?" || return 0
     fi
 
-    curl -L -s --retry 3 --create-dirs --output-dir "$dst" -O "$src"
+    info "Downloading '$url' to '$target'"
+    curl --progress-bar --location "$url" -o "$target"
 }
 
-get_debian_iso() {
-    # download dibian iso file and check SHA512 checksum
-    # download bookworm iso instead of current if enviroment CODE_NAME variable
-    # is set to "bookworm"
-    local dl_dir="$HOSTS_DIR/downloads"
-    local url="$DEB_URL"
-    local sha_args=(--check --quiet --status --ignore-missing)
+get_image() {
+    download "${BASE_URL}/${DEB_IMG}"
+    download "${BASE_URL}/SHA512SUMS"
 
-    local checksum name ver
-
-    # Use fixed bookworm version 12.11.0 for old environment
-    if [[ -v CODE_NAME && "$CODE_NAME" == "bookworm" ]]; then
-        ver="12.11.0"
-        url="https://get.debian.org/cdimage/archive/${ver}/${DEB_ISO_ARCH}/iso-cd"
-    fi
-
-    download "${url}/SHA512SUMS" "$dl_dir"
-    pushd "$dl_dir" >/dev/null 2>&1 || true
-    checksum="$(sed -rn '/debian-([0-9.]+).*/p' SHA512SUMS)"
-    name="${checksum##* }"
-    download "${url}/${name}"
-    echo "$checksum" | sha512sum "${sha_args[@]}" || die "SHA512 check"
-    popd >/dev/null 2>&1 || true
-
-    ISO_NAME="$name"
+    pushd "${DL_DIR}" >/dev/null 2>&1
+    cksum --algorithm=sha512 --check --ignore-missing SHA512SUMS || \
+        die "SHA512 for '$DEB_IMG' failed"
+    popd >/dev/null 2>&1
 }
 
 do_setup() {
-    local pids="$1"
-
-    get_debian_iso
+    get_image
 
     if ! setup_bridge; then
         die "Bridge setup"
@@ -278,12 +264,13 @@ do_setup() {
         ["${VOSM_HOST}0"]=""
     )
 
-    # shellcheck disable=SC2153
-    prepare_base_host "${VOSM_HOST}0" "$OSM_DOMAIN" "${BASE_HOSTS[${VOSM_HOST}0]}" "$pids"
+    prepare_base_host-cloud-init "$DEVTANK_IMG" "$VM_SIZE"
 
     if (( OSM_HOST_COUNT > 1 )); then
-        OSM_HOSTS["${VOSM_HOST}1"]=""
-        clone_host "${VOSM_HOST}0" "${VOSM_HOST}1"
+        for n in $(seq 1 $(( OSM_HOST_COUNT - 1 ))); do
+            OSM_HOSTS["${VOSM_HOST}${n}"]=""
+            clone_host "${VOSM_HOST}0" "${VOSM_HOST}${n}"
+        done
     fi
 
     for host in "${!OSM_HOSTS[@]}"; do
@@ -294,66 +281,18 @@ do_setup() {
     done
 
     run_ansible_early "${OSM_HOSTS[${VOSM_HOST}0]}"
-    do_stop_hosts
-
-    local base_host dest_host
-    base_host="${VOSM_HOST}1"
-
-    for i in $(seq 2 $(( OSM_HOST_COUNT - 1 ))); do
-        dest_host="${VOSM_HOST}${i}"
-        clone_host "$base_host" "$dest_host"
-        OSM_HOSTS["$dest_host"]=""
-    done
 }
 
 do_post_setup() {
-    local host ipaddr main_ip main_pub main_ssh_dir pub_key
-    local -i retries=3
-    local -i delay=3
-    local -i count=0
-
-    main_pub="$(gen_remote_ssh "${OSM_HOSTS[${VOSM_HOST}0]}")"
+    local host ipaddr main_ip
     main_ip="${OSM_HOSTS[${VOSM_HOST}0]}"
-    main_ssh_dir="/home/osm_orchestrator/.ssh"
 
     run_ansible_pebble "${VOSM_HOST}0"
 
     for host in "${!OSM_HOSTS[@]}"; do
-        count=0
         ipaddr="${OSM_HOSTS[$host]}"
-        # update hosts file for ansible
         sed -ri 's/^'"$host"'.*=$/&'"$ipaddr"'/' "${HOSTS_DIR}/hosts"
-
-        if [[ "$host" != "${VOSM_HOST}0" ]]; then
-            info "Copy '${VOSM_HOST}0' SSH pub key to '${host}'[${ipaddr}]"
-            ssh root@"$ipaddr" /bin/bash <<-EOF
-		mkdir -p "$main_ssh_dir"
-		echo "$main_pub" >> "${main_ssh_dir}/authorized_keys"
-EOF
-        fi
-
-        info "Put '${host}' SSH key to orchestrator"
-        ssh root@"$ipaddr" "ssh-keygen -t ed25519 -C 'OSM dev env' -q -N '' -f ~/.ssh/id_ed25519"
-        pub_key="$(ssh root@"$ipaddr" "cat ~/.ssh/id_ed25519.pub")"
-        ssh root@"$main_ip" "echo $pub_key >> /root/.ssh/authorized_keys"
-
-        request_pebble_cert "$host" "$main_ip"
-
-        info "Populate known_hosts of ${main_ip} by ${ipaddr}"
-
-        while (( count < retries )); do
-            # shellcheck disable=SC2029
-            if ! ssh root@"$main_ip" "ssh-keyscan -H $ipaddr | tee -a /root/.ssh/known_hosts &>/dev/null 2>&1"; then
-                warn "Attempt $(( count + 1)) failed, retrying in ${delay} seconds..."
-                sleep $delay
-                (( count++ ))
-            else
-                break
-            fi
-        done
-
-        (( count == retries )) && die "Failed to add '$ipaddr' to known_hosts on '${main_ip}'"
-
+        request_pebble_cert "$host" "$main_ip" "$ipaddr"
     done
 
     run_ansible_incus
@@ -482,65 +421,30 @@ setup_ssh() {
     local ipaddr="$1"
     mkdir -p ~/.ssh
     ssh-keygen -q -f ~/.ssh/known_hosts -R "$ipaddr" &> /dev/null 2>&1
-    ssh-keyscan -H "$ipaddr" | tee -a ~/.ssh/known_hosts &> /dev/null 2>&1
+    ssh-keyscan -H "$ipaddr" | tee -a ~/.ssh/known_hosts &> /dev/null 2>&1 || true
 }
 
-gen_remote_ssh() {
-    local ipaddr="$1"
-    local pub_key
-    pub_key="$(ssh root@"$ipaddr" /bin/bash <<-EOF
-	if [[ ! -e /root/.ssh/id_rsa ]]; then
-	     ssh-keygen -q  -t rsa -N '' -f /root/.ssh/id_rsa
-	fi
-	cat /root/.ssh/id_rsa.pub
-EOF
-)"
-    [[ ! -v pub_key || -z "$pub_key" ]] && die "ssh keys were not generated for the '$ipaddr' host"
-    echo "$pub_key"
+gen_ssh_key(){
+    info "Generating SSH keys"
+    local type="${1:-ed25519}"
+    local path="${2:-${HOSTS_DIR}/${type}}"
+    local comment="${3:-generated-osm-dev}"
+
+    ssh-keygen -t "$type" -N "" -f "$path" -C "$comment"
 }
 
-# ---------- VM functions ----------
-prepare_base_host() {
-    local name="$1"
-    local domain="$2"
-    local preseed_file="$3"
-    local pids_file="$4"
-    local no_output="${5:-}" # whatever value disables live logging
+prepare_base_host-cloud-init() {
+    local img="$1"
+    local size="$2"
 
-    local ipaddr=""
-    local host_dir="${HOSTS_DIR}/${name}"
-    local boot_dir="${host_dir}/boot"
-    local qdisk="${host_dir}/disk.qcow"
-    local biosmem="${host_dir}/ovmf_vars.fd"
-    local hwaddr=""
-    local iso="${HOSTS_DIR}/downloads/${ISO_NAME}"
-    local boot_files=(vmlinuz initrd.gz)
-    local websrv_pid
-    local log_pid
-    local log_file="${host_dir}/install.log"
+    cp -v "${DL_DIR}/${DEB_IMG}" "${DL_DIR}/${DEVTANK_IMG}"
+    qemu-img resize "${DL_DIR}/${DEVTANK_IMG}" "${size}G"
+    cloud-localds base-seed.iso cloud-init/base-user-data
+    run_qemu_base_init "${DL_DIR}/${DEVTANK_IMG}" base-seed.iso
 
-    local cmdline_params=(
-        console=ttyS0
-        priority=critical
-        auto=true
-        DEBIAN_FRONTEND=text
-        hostname="$name"
-        domain="$domain"
-        log_host="${OSM_SUBNET}.1"
-        log_port=10514
-        url="http://${OSM_SUBNET}.1:${HTTP_PORT}/preseed.cfg"
-    )
-    local qemu_args=(
-        -no-reboot
-        -drive "file=${iso},format=raw,if=virtio,media=cdrom"
-        -kernel "${host_dir}/boot/vmlinuz"
-        -initrd "${host_dir}/boot/initrd.gz"
-        --append "${cmdline_params[*]}"
-    )
+    local host_dir="${HOSTS_DIR}/${VOSM_HOST}0"
+    mkdir --parents "$host_dir"
 
-    mkdir -p "$host_dir"
-
-    # set mac address
     if [[ -f "${host_dir}/mac" ]]; then
         hwaddr="$(<"${host_dir}/mac")"
     else
@@ -552,128 +456,98 @@ prepare_base_host() {
         echo "$hwaddr" > "${host_dir}/mac"
     fi
 
-    set_ssh_key "$host_dir"
+    cp "${DL_DIR}/${DEVTANK_IMG}" "${host_dir}/disk.qcow"
+}
 
-    [[ ! -e "$biosmem" ]] && cp "$OVMF_VARS" "$biosmem"
+run_qemu_base_init() {
+    local img="$1"
+    local seed_file="$2"
+    local -i qemu_pid
+    local -i spinner_pid
+    local -a qemu_args=(
+        -netdev "user,id=net0,hostfwd=tcp::2222-:22"
+        -device "virtio-net-pci,netdev=net0"
+        -machine accel=kvm:tcg
+        -m 1G
+        -display none
+        -drive "file=${img},format=qcow2,if=virtio"
+        -drive "file=${seed_file},format=raw,if=virtio,media=cdrom"
+        -serial file:"$QEMU_SERIAL"
+        -pidfile qemu.pid
+    )
 
-    mkdir -p "$boot_dir"
-    for f in "${boot_files[@]}"; do
-        isoinfo -J -i "$iso" -x "/install.amd/${f}" > "${boot_dir}/${f}"
+    > "$QEMU_SERIAL"
+
+    info "${qemu_args[@]}"
+    qemu-system-x86_64 "${qemu_args[@]}" &
+    until [[ -f qemu.pid ]]; do
+        sleep 0.1;
     done
+    qemu_pid=$(<qemu.pid)
 
-    [[ -e "$qdisk" ]] && rm -rf "$qdisk"
-    qemu-img create -f qcow2 "$qdisk" "$DISK_SIZE" >/dev/null 2>&1
+    local lines
+    lines=$(tput lines)
+    local scroll_bottom=$((lines - 2))
+    local spinner_line=$((lines - 1))
 
-    if [[ ! -e "${host_dir}/preseed.cfg" ]]; then
-        sed -e 's|OSM_SUBNET|'"$OSM_SUBNET"'|g' -e 's|HTTP_PORT|'"$HTTP_PORT"'|g' "conf/${preseed_file}" > "${host_dir}/preseed.cfg"
-    fi
+    tput csr 0 $scroll_bottom
+    tput cup 0 0
+    tput cup $spinner_line 0
+    tput el
 
-    local websrv_cmd='echo $$ ; exec >/dev/null 2>&1 ; exec python3 -m http.server -d '"$host_dir"' -b '"${OSM_SUBNET}.1"' '"${HTTP_PORT}"''
-    local log_cmd='echo $$ ; exec > '"${log_file}"' 2>&1 ; exec nc -ul '"${OSM_SUBNET}.1"' 10514'
-    websrv_pid="$(/bin/sh -c "$websrv_cmd" &)"
-    log_pid="$(/bin/sh -c "$log_cmd" &)"
-
-    [[ ! -f "$pids_file" ]] && die "The '$pids_file' file does not exist. Terminating..."
-
-    echo "$websrv_pid" > "$pids_file"
-    echo "$log_pid" >> "$pids_file"
-
-    info "OSM HOST NAME: $name"
-    info "OSM HOST DIR: $host_dir"
-    info "OSM HOST MAC ADDRES: $hwaddr"
-
-    if run_qemu "$name" "$VOSM_HOSTBR" "${qemu_args[@]}"; then
-        exec 3< "$log_file"
-        local sym='-\|/'
-        local -i n=0
-        local stage="Unknown"
-        local -i start_time=$SECONDS
-        local -i terminate_after=120
-        local shutdown_pattern='init\:\ The\ system\ is\ going\ down\ NOW\!'
-
-        while :; do
-            if [[ -z "$no_output" ]]; then
-                n=$(( (n + 1) % 4 ))
-                printf '\rPlease wait [%s]: %s\r' "${sym:$n:1}" "$stage"
-            fi
-
-            if read -r -u 3 line; then
-                if [[ "$line" =~ Menu\ item ]]; then
-                    stage="$(sed -rn 's|.*item (.*) .*|\1|p' <<< "$line")"
-                    tput el
-                fi
-
-                if [[ "$line" =~ $shutdown_pattern ]]; then
-                    line="$(sed -rn 's|.*: (.*)|\1|p' <<< "$line")"
-                    printf '\r'
-                    info "$line"
-                    break
-                fi
-
-                start_time=$SECONDS
-                continue
-
-            elif (( (SECONDS - start_time) >= terminate_after )); then
-                warn "There is no any input from '$log_file'. "
-                warn "Terminating as $terminate_after seconds exceeded"
-                pushd "$host_dir" &>/dev/null || die "pushd to '${host_dir}'"
-                if [[ -f qemu.pid ]];  then
-                    error "Found qemu.pid file."
-                    if [[ ! -e /proc/$(< qemu.pid) ]]; then
-                        error "There is no PID in /proc directory"
-                    else
-                        pkill -15 -F qemu.pid
-                    fi
-                else
-                    warn "qemu.pid file not found"
-                fi
-                die "Unable to proceed"
-            fi
-            sleep .2
+    (
+        local spin='-\|/'
+        local i=0
+        while kill -0 "$qemu_pid" 2>/dev/null; do
+            tput sc                   # save cursor position
+            tput cup $spinner_line 0  # move to position x y
+            tput el                   # clear fotm cursor to the end of line
+            printf "[%c] Wait preparing base image..." "${spin:i++%${#spin}:1}"
+            tput rc                   # restore cursor position
+            sleep 0.2
         done
-        exec 3<&-
-    else
-        # seems the VM is running
-        pushd "$host_dir" &>/dev/null || die "pushd to '${host_dir}'"
-        [[ ! -S "monitor.sock" ]] && die "There is no monitor socket. Unable to proceed"
-        local status
-        status="$(echo "info status" | socat - unix-connect:monitor.sock)"
-        status="$(sed -r 's|\r$||' <<<"$status")"
-        status="$(sed -rn 's|^VM status: (.*)|\1|p' <<<"$status")"
-        if [[ "$status" == "running" ]]; then
-            warn "The VM '$name' is $status"
-            yesno "Do you want to shutdown VM and proceed? "
-            echo "system_powerdown"| socat - unix-connect:monitor.sock >/dev/null 2>&1
+        tput cup $spinner_line 0
+        tput el
+    ) &
+    spinner_pid=$!
+
+    while IFS= read -r line; do
+        if [[ "$line" =~ The\ following\ additional\ packages\ will\ be\ installed ]]; then
+            info "Installing packages..."
+        elif [[ "$line" =~ update-initramfs ]]; then
+            info "Updating initramfs..."
+        elif [[ "$line" =~ Restarting\ system ]]; then
+            info "Restarting system..."
+        elif [[ "$line" =~ Begin:\ Converting\ .*\ from\ ext4\ to\ btrfs ]]; then
+            info "Converting ext4 -> btrfs"
+        elif
+            [[ "$line" =~ btrfs-convert\ succeeded ]]; then
+            info "ext4 -> btrfs done"
+        elif
+            [[ "$line" =~ reboot:\ Power\ down ]]; then
+            info "Success :)"
         fi
-        popd &>/dev/null || die "popd from '${host_dir}'"
+    done < <(tail --pid="$qemu_pid" -f "$QEMU_SERIAL" 2>/dev/null)
+
+    wait "$qemu_pid" 2>/dev/null
+    local exit_code=$?
+
+    # restore terminal
+    kill "$spinner_pid" 2>/dev/null || true
+    tput csr 0 $((lines - 1))
+    tput cup $((lines - 1)) 0
+
+    if (( exit_code != 0 )); then
+        warn "ERROR: QEMU exited with code $exit_code"
+        return $exit_code
     fi
 
-    # wait for qemu shuts down
-    pidwait -F "${host_dir}/qemu.pid"
-    info "The '$name' is powered off"
-
-    run_qemu "$name" "$VOSM_HOSTBR"
-    ipaddr="$(wait_for_ip "$name" "${OSM_SUBNET}.1")"
-    setup_ssh "$ipaddr"
-
-    if ! ssh root@"$ipaddr" exit; then
-        die "SSH access to '${name}:${ipaddr} failed."
-    fi
-
-    ssh root@"$ipaddr" poweroff || true
-    pidwait -F "${host_dir}/qemu.pid"
-    info "The '$name' is powered off"
-
-    info "Backup '$qdisk'"
-    cp "$qdisk" "${qdisk}_bkp"
+    info "The base '${img}' image is ready"
+    return 0
 }
 
 mrproper() {
-    if [[ -s "$pids" ]]; then
-        warn "Cleaning... from '$pids'"
-        xargs kill -TERM < "$pids"
-        rm "$pids"
-    fi
+    warn "No need to clean up"
 }
 
 handle_orphaned_vms() {
@@ -690,29 +564,62 @@ run_qemu() {
     local brif="$2"
     shift 2
     local extra_args=( "$@" )
-    local hwaddr disk biosmem
+    local hwaddr disk
     local -a qemu_args
+    local name="${workdir}"
     workdir="${HOSTS_DIR}/${workdir}"
+    local seed_file="${workdir}/seed.iso"
+    local data_file="cloud-init/user-data.template"
+    local host_data_file="${workdir}/user-data"
+
 
     [[ ! -d "$workdir" ]] && die "Unable to find '$workdir' directory"
     if ! ip -o -4 a s dev "$brif" &>/dev/null; then
         die "The bridge '$brif' does not exist"
     fi
+
     if [[ ! -e "${workdir}/${DISK_NAME}" ]]; then
         die "Unable to find '$DISK_NAME' in '$workdir' directory"
     fi
-    if [[ ! -e "${workdir}/ovmf_vars.fd" ]]; then
-        die "Unable to find 'ovmf_vars.fd' file in '$workdir' directory"
+
+    if [[ ! -e "${workdir}/mac" ]]; then
+        hwaddr="$(gen_hwaddr)"
+        while grep -qs "$hwaddr" "${HOSTS_DIR}/*/mac"; do
+            hwaddr="$(gen_hwaddr)"
+        done
+        echo "$hwaddr" > "${workdir}/mac"
+    else
+        hwaddr="$(<"${workdir}/mac")"
     fi
 
-    hwaddr="$(<"${workdir}/mac")"
     disk="${workdir}/${DISK_NAME}"
-    biosmem="${workdir}/ovmf_vars.fd"
 
     if [[ -z "$hwaddr" ]]; then
         die "MAC address is missing."
     elif [[ ! "$hwaddr" =~ ^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$ ]]; then
         die "Wrong MAC address format."
+    fi
+
+    if [[ ! -e "${workdir}/user-data" ]]; then
+        if [[ ! -e "${HOSTS_DIR}/ed25519" ]]; then
+            gen_ssh_key
+
+        fi
+        local ssh_pubkey
+        local ssh_privkey
+        ssh_pubkey=$(< "${HOSTS_DIR}/ed25519.pub")
+        ssh_privkey="${HOSTS_DIR}/ed25519"
+
+        sed -r 's|<<HOSTNAME>>|'"$name"'|g' "$data_file" > "$host_data_file"
+        sed -ri 's|<<SSH_PUB_KEY>>|'"$ssh_pubkey"'|' "$host_data_file"
+        sed -i -e '/<<<SSH_PRIV_KEY>>>/ {
+            r '"$ssh_privkey"'
+            d
+        }' "$host_data_file"
+        # indent
+        sed -i -r '/----BEGIN/,/----END/ s/^/      /' "$host_data_file"
+
+        cloud-localds "$seed_file" "$host_data_file"
     fi
 
     qemu_args=(
@@ -724,16 +631,16 @@ run_qemu() {
         -serial "unix:${workdir}/console.sock,server,nowait"
         -device "virtio-scsi-pci,id=scsi"
         # TODO: https://gitlab.com/qemu-project/qemu/-/issues/2762
-        # -nic "bridge,br=${brif},model=virtio-net-pci,mac=${hwaddr}"
-        -nic "bridge,br=${brif},model=e1000,mac=${hwaddr}"
+        -nic "bridge,br=${brif},model=virtio-net-pci,mac=${hwaddr}"
+        # -nic "bridge,br=${brif},model=e1000,mac=${hwaddr}"
         -drive "file=${disk},format=qcow2,if=virtio"
+        -drive "file=${seed_file},format=raw,if=virtio,media=cdrom"
         -device "virtio-balloon-pci,id=balloon0"
         -pidfile "${workdir}/qemu.pid"
         "${extra_args[@]}"
-        -drive "if=pflash,format=raw,unit=0,file=${OVMF_CODE},readonly=on"
-        -drive "if=pflash,format=raw,unit=1,file=${biosmem}"
     )
     info "Run '${workdir##*/}' QEMU Virtual machine"
+
     if [[ -e "${workdir}/qemu.pid" ]]; then
         warn "The PID file exists in '${workdir##*/}'"
         local qemu_pid
@@ -771,7 +678,6 @@ run_qemu() {
 }
 
 clone_host() {
-    # TODO: qemu snapshots?
     local base_name="$1"
     local target_name="$2"
     local hwaddr=
@@ -782,59 +688,12 @@ clone_host() {
     fi
 
     info "${HOSTS_DIR}/${base_name} -> ${HOSTS_DIR}/${target_name}"
+    if [[ ! -d "${HOSTS_DIR}/${target_name}" ]]; then
+        mkdir --parents "${HOSTS_DIR}/${target_name}"
+    fi
+
+    cp "${HOSTS_DIR}/${base_name}/"{disk.qcow,mac} "${HOSTS_DIR}/${target_name}/"
     mv "${HOSTS_DIR}/${target_name}/"mac{,_orig}
-    cp "${HOSTS_DIR}/${base_name}/"{disk.qcow,ovmf_vars.fd,mac} "${HOSTS_DIR}/${target_name}/"
-    run_qemu "${target_name}" "$VOSM_HOSTBR"
-    ipaddr="$(do_until 120 get_vm_ip "$base_name" "${OSM_SUBNET}.1")"
-
-    # shellcheck disable=SC2087
-    ssh root@"$ipaddr" bash <<-EOF || true
-	sed -i 's|'"$base_name"'|'"$target_name"'|g' /etc/{hosts,hostname}
-	hostname  "$target_name"
-	rm /etc/ssh/ssh_host_*
-	dpkg-reconfigure openssh-server &> /dev/null
-	# systemctl --force poweroff
-	exit
-EOF
-    shutdown_vm "${HOSTS_DIR}/${target_name}"
-    mv "${HOSTS_DIR}/${target_name}/"mac{_orig,}
-}
-
-set_ssh_key() {
-    local host_dir="$1"
-    declare -a ssh_keys
-    local ssh_key
-    local -a ssh_keys
-
-    if [[ -z  "$DEFAULT_SSH_KEY" ]]; then
-        mapfile -t ssh_keys < <(find ~/.ssh/ -type f -name 'id_*.pub')
-        (( ! ${#ssh_keys[@]} )) && die "Missing public key"
-
-        if (( ${#ssh_keys[@]} > 1 )); then
-            if [[ "$(hostname)" =~ jenkins ]]; then
-                warn "Running on jenkins host? Use the first ssh key found"
-                DEFAULT_SSH_KEY="${ssh_keys[0]}"
-            else
-                warn "Several SSH public keys are found."
-                PS3="Which key should be used? "
-                select key in "${ssh_keys[@]}"; do
-                    [[ $key ]] || continue
-                    info "Set the '$key' key"
-                    DEFAULT_SSH_KEY="$key"
-                    break
-                done
-            fi
-        else
-            info "Set '${ssh_keys[0]}' public key."
-            DEFAULT_SSH_KEY="${ssh_keys[0]}"
-        fi
-    fi
-
-    ssh_key="${DEFAULT_SSH_KEY##*/}"
-    echo "$ssh_key" > "${host_dir}/ssh_key_name"
-    if [[ ! -f "${host_dir}/${ssh_key}" ]]; then
-        ln -s "$DEFAULT_SSH_KEY" "${host_dir}/${ssh_key}"
-    fi
 }
 
 do_start_hosts() {
@@ -900,6 +759,7 @@ shutdown_vm() {
 request_pebble_cert() {
     local name="$1"
     local srvip="$2"
+    local target_ip="$3"
     local args=(
         certonly
         --standalone
@@ -914,7 +774,7 @@ request_pebble_cert() {
     info "Request certificate from '$srvip' for ${name}.${OSM_DOMAIN} domain."
     for (( i=0; i<3; i++ )); do
         # shellcheck disable=SC2029
-        if ! ssh root@"$ipaddr" "REQUESST_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} &>/dev/null"; then
+        if ! ssh root@"$target_ip" "REQUESTS_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} &>/dev/null"; then
             warn "Request certificate failed. Re-trying one more time... [$(( i + 1))]"
         else
             return 0

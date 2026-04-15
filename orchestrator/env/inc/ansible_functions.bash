@@ -29,7 +29,7 @@ run_ansible_pebble() {
     local host="$1"
     local playbook="ansible/incus/deploy.yaml"
     local args=(
-        --tags "pebble"
+         --tags "pebble"
         -u root
         -i "$ANSIBLE_HOSTS"
         -e target="$host"

@@ -35,32 +35,19 @@ init() {
         fi
     done
 
-    declare -gA BASE_HOSTS=(
-        # skip orchestrator as the vosmhost0 is the main host now
-        # [orchestrator]="preseed-ext4.cfg"
-        ["${VOSM_HOST}0"]="preseed-btrfs.cfg"
-    )
     declare -gA OSM_HOSTS
-
-    export BASE_HOSTS
     export OSM_HOSTS
-    export ANSIBLE_NOCOWS=1
-
     check_pkgs
 }
 
 main() {
-    # store PIDs of nc and python webserver here
-    pids="$(mktemp --suffix=-devtank)"
-
     init "$@"
 
     if [[ "${ARGS[action]}" == "setup" ]]; then
         build_env "${ARGS[config]}"
         trap 'mrproper' INT TERM ERR HUP EXIT
         trap 'handle_orphaned_vms' INT TERM ERR HUP
-        do_setup "$pids"
-        do_start_hosts OSM_HOSTS
+        do_setup
         do_post_setup
         print_status
     elif [[ "${ARGS[action]}" == "run" ]]; then
