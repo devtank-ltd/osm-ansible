@@ -6,13 +6,13 @@ users:
     shell: /bin/bash
     lock_passwd: false
     plain_text_passwd: devtank
+  - name: root
+    ssh_authorized_keys:
+      - <<<SSH_PUB_KEY>>>
 
 ssh_pwauth: true
 disable_root: false
 ssh_genkeytypes: [ed25519]
-
-ssh_authorized_keys:
-  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINsIiHt8EQlQ4OX5bg8FGUY10mg6yeZyGvgMNapXbb/n OSM dev env
 
 packages:
   - btrfs-progs

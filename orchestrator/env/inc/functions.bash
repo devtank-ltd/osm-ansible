@@ -427,7 +427,7 @@ setup_ssh() {
 gen_ssh_key(){
     info "Generating SSH keys"
     local type="${1:-ed25519}"
-    local path="${2:-${HOSTS_DIR}/${type}}"
+    local path="${2:-${HOSTS_DIR}/id_${type}}"
     local comment="${3:-generated-osm-dev}"
 
     ssh-keygen -t "$type" -N "" -f "$path" -C "$comment"
@@ -436,9 +436,18 @@ gen_ssh_key(){
 prepare_base_host-cloud-init() {
     local img="$1"
     local size="$2"
+    local ssh_pubkey=""
 
     cp -v "${DL_DIR}/${DEB_IMG}" "${DL_DIR}/${DEVTANK_IMG}"
     qemu-img resize "${DL_DIR}/${DEVTANK_IMG}" "${size}G"
+    if [[ ! -e "${HOSTS_DIR}/id_ed25519" ]]; then
+            gen_ssh_key
+
+    fi
+
+    ssh_pubkey=$(< "${HOSTS_DIR}/id_ed25519.pub")
+    sed -r 's|<<<SSH_PUB_KEY>>>|'"$ssh_pubkey"'|' cloud-init/base-user-data.template > cloud-init/base-user-data
+
     cloud-localds base-seed.iso cloud-init/base-user-data
     run_qemu_base_init "${DL_DIR}/${DEVTANK_IMG}" base-seed.iso
 
@@ -601,14 +610,14 @@ run_qemu() {
     fi
 
     if [[ ! -e "${workdir}/user-data" ]]; then
-        if [[ ! -e "${HOSTS_DIR}/ed25519" ]]; then
+        if [[ ! -e "${HOSTS_DIR}/id_ed25519" ]]; then
             gen_ssh_key
 
         fi
         local ssh_pubkey
         local ssh_privkey
-        ssh_pubkey=$(< "${HOSTS_DIR}/ed25519.pub")
-        ssh_privkey="${HOSTS_DIR}/ed25519"
+        ssh_pubkey=$(< "${HOSTS_DIR}/id_ed25519.pub")
+        ssh_privkey="${HOSTS_DIR}/id_ed25519"
 
         sed -r 's|<<HOSTNAME>>|'"$name"'|g' "$data_file" > "$host_data_file"
         sed -ri 's|<<SSH_PUB_KEY>>|'"$ssh_pubkey"'|' "$host_data_file"
@@ -774,7 +783,9 @@ request_pebble_cert() {
     info "Request certificate from '$srvip' for ${name}.${OSM_DOMAIN} domain."
     for (( i=0; i<3; i++ )); do
         # shellcheck disable=SC2029
-        if ! ssh root@"$target_ip" "REQUESTS_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} &>/dev/null"; then
+        if ! ssh -i "${HOSTS_DIR}/id_ed25519" \
+             root@"$target_ip" \
+             "REQUESTS_CA_BUNDLE=devtank.minica.pem certbot ${args[*]} &>/dev/null"; then
             warn "Request certificate failed. Re-trying one more time... [$(( i + 1))]"
         else
             return 0
