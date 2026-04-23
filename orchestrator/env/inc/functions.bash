@@ -915,6 +915,8 @@ run_tests() {
     local bats_args=(-p --print-output-on-failure --verbose-run -T)
     local cmd=(bats "${bats_args[@]}" "${tests_file}")
 
-    edo ssh root@"${OSM_SUBNET}.2" "export DOMAIN=$OSM_DOMAIN; export ANSIBLE_LOG_PATH=/tmp/ansible.log; TERM=xterm " "${cmd[@]}"
+    edo ssh -i "${HOSTS_DIR}/id_ed25519" \
+        root@"${OSM_SUBNET}.2" \
+        "export DOMAIN=$OSM_DOMAIN; export ANSIBLE_LOG_PATH=/tmp/ansible.log; TERM=xterm " "${cmd[@]}"
     return 0
 }
