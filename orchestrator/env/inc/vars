@@ -14,17 +14,16 @@ readonly DISK_SIZE="24G"
 
 declare -Ar PACKAGES=(
     ["ansible-playbook"]="ansible"
-    ["qemu-system-x86_64"]="qemu-system-x86"
-    ["/usr/share/OVMF/OVMF_CODE_4M.fd"]="ovmf"
-    ["isoinfo"]="genisoimage"
-    ["resolvectl"]="systemd-resolved"
+    ["cloud-localds"]="cloud-image-utils"
     ["dig"]="bind9-dnsutils"
+    ["isoinfo"]="genisoimage"
+    ["qemu-system-x86_64"]="qemu-system-x86"
+    ["resolvectl"]="systemd-resolved"
     ["ssh-keygen"]="openssh"
+    ["curl"]=""
     ["dnsmasq"]=""
     ["iptables"]=""
-    ["curl"]=""
     ["socat"]=""
-
 )
 
 VOSM_HOST="vosmhost"

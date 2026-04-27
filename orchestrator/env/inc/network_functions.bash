@@ -70,6 +70,7 @@ EOF
 EOF
         ) "$brconf"
     elif ! grep -q "$VOSM_HOSTBR" "$brconf"; then
+        warn "The '$VOSM_HOSTBR' was not found in the '$brconf' file"
         echo "allow $VOSM_HOSTBR" | sudo tee -a "$brconf" >/dev/null
     fi
 

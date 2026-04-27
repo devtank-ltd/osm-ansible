@@ -1,11 +1,14 @@
 #cloud-config
 
+hostname: init-host
+manage_etc_hosts: true
+
 users:
   - name: admin
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     lock_passwd: false
-    plain_text_passwd: devtank
+    plain_text_passwd: <<<PASSWORD>>>
   - name: root
     ssh_authorized_keys:
       - <<<SSH_PUB_KEY>>>
@@ -15,13 +18,13 @@ disable_root: false
 ssh_genkeytypes: [ed25519]
 
 packages:
+  - ansible
   - btrfs-progs
+  - curl
   - initramfs-tools
   - vim
   - wget
   - wireguard
-  - ansible
-  - curl
 
 write_files:
   - path: /etc/initramfs-tools/modules
@@ -152,6 +155,21 @@ write_files:
       rm -f /var/lib/btrfs-convert-done
 
       poweroff
+
+  - path: /root/.ssh/id_ed25519
+    permissions: '0600'
+    owner: root:root
+    content: |
+      <<<SSH_PRIV_KEY>>>
+
+  - path: /root/.ssh/config
+    permissions: '0644'
+    owner: root:root
+    content: |
+      Host *
+        StrictHostKeyChecking no
+        UserKnownHostsFile /dev/null
+        IdentityFile ~/.ssh/id_ed25519
 
 power_state:
   mode: reboot

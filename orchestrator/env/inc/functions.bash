@@ -127,21 +127,21 @@ check_pkgs() {
 
     # On Debian Trixie /usr/sbin is not included to the PATH
     # and /sbin points to /usr/sbin
-    # int@beast:~$ file /sbin
+    # ~$ file /sbin
     # /sbin: symbolic link to usr/sbin
     #
     # but
     # int@beast:~$ whereis iptables
     # iptables: /usr/sbin/iptables /usr/share/iptables /usr/share/man/man8/iptables.8.gz
     #
-    # int@beast:~$ lsb_release -a
+    # ~$ lsb_release -a
     # No LSB modules are available.
     # Distributor ID:	Debian
     # Description:	Debian GNU/Linux 13 (trixie)
     # Release:	13
     # Codename:	trixie
     #
-    # int@beast:~$ echo $PATH
+    # ~$ echo $PATH
     # /usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
     PATH="$PATH:/usr/sbin:/sbin"
 
@@ -424,31 +424,16 @@ setup_ssh() {
     ssh-keyscan -H "$ipaddr" | tee -a ~/.ssh/known_hosts &> /dev/null 2>&1 || true
 }
 
-gen_ssh_key(){
-    info "Generating SSH keys"
-    local type="${1:-ed25519}"
-    local path="${2:-${HOSTS_DIR}/id_${type}}"
-    local comment="${3:-generated-osm-dev}"
-
-    ssh-keygen -t "$type" -N "" -f "$path" -C "$comment"
-}
-
 prepare_base_host-cloud-init() {
     local img="$1"
     local size="$2"
-    local ssh_pubkey=""
 
     cp -v "${DL_DIR}/${DEB_IMG}" "${DL_DIR}/${DEVTANK_IMG}"
     qemu-img resize "${DL_DIR}/${DEVTANK_IMG}" "${size}G"
-    if [[ ! -e "${HOSTS_DIR}/id_ed25519" ]]; then
-            gen_ssh_key
 
-    fi
-
-    ssh_pubkey=$(< "${HOSTS_DIR}/id_ed25519.pub")
-    sed -r 's|<<<SSH_PUB_KEY>>>|'"$ssh_pubkey"'|' cloud-init/base-user-data.template > cloud-init/base-user-data
-
+    gen_base_user_data
     cloud-localds base-seed.iso cloud-init/base-user-data
+
     run_qemu_base_init "${DL_DIR}/${DEVTANK_IMG}" base-seed.iso
 
     local host_dir="${HOSTS_DIR}/${VOSM_HOST}0"
@@ -610,26 +595,9 @@ run_qemu() {
     fi
 
     if [[ ! -e "${workdir}/user-data" ]]; then
-        if [[ ! -e "${HOSTS_DIR}/id_ed25519" ]]; then
-            gen_ssh_key
-
-        fi
-        local ssh_pubkey
-        local ssh_privkey
-        ssh_pubkey=$(< "${HOSTS_DIR}/id_ed25519.pub")
-        ssh_privkey="${HOSTS_DIR}/id_ed25519"
-
-        sed -r 's|<<HOSTNAME>>|'"$name"'|g' "$data_file" > "$host_data_file"
-        sed -ri 's|<<SSH_PUB_KEY>>|'"$ssh_pubkey"'|' "$host_data_file"
-        sed -i -e '/<<<SSH_PRIV_KEY>>>/ {
-            r '"$ssh_privkey"'
-            d
-        }' "$host_data_file"
-        # indent
-        sed -i -r '/----BEGIN/,/----END/ s/^/      /' "$host_data_file"
-
-        cloud-localds "$seed_file" "$host_data_file"
+        gen_osm_user_data "$name"
     fi
+    cloud-localds "$seed_file" "$host_data_file"
 
     qemu_args=(
         -enable-kvm

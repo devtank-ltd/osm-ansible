@@ -5,13 +5,13 @@ set -o nounset
 set -o pipefail
 
 init() {
-    local SRC="${BASH_SOURCE[0]}"
     local INC
-
-    INC="$(cd -P "$(dirname "$SRC")" >/dev/null 2>&1 && pwd)/inc"
+    INC="$(dirname "$(readlink -f "$0")")/inc"
 
     # shellcheck disable=SC1091
     source "${INC}/vars"
+    # shellcheck disable=SC1091
+    source "${INC}/cloud-init_generators.bash"
     # shellcheck disable=SC1091
     source "${INC}/functions.bash"
     # shellcheck disable=SC1091

@@ -3,20 +3,6 @@
 hostname: <<HOSTNAME>>
 manage_etc_hosts: true
 
-users:
-  - name: admin
-    sudo: ALL=(ALL) NOPASSWD:ALL
-    shell: /bin/bash
-    lock_passwd: false
-    plain_text_passwd: devtank
-  - name: root
-    ssh_authorized_keys:
-      - <<SSH_PUB_KEY>>
-
-ssh_pwauth: true
-disable_root: false
-ssh_genkeytypes: [ed25519]
-
 write_files:
   - path: /etc/netplan/99-custom.yaml
     permissions: '0644'
@@ -30,21 +16,6 @@ write_files:
             dhcp4-overrides:
               send-hostname: true
               hostname: <<HOSTNAME>>
-
-  - path: /root/.ssh/id_ed25519
-    permissions: '0600'
-    owner: root:root
-    content: |
-      <<<SSH_PRIV_KEY>>>
-
-  - path: /root/.ssh/config
-    permissions: '0644'
-    owner: root:root
-    content: |
-      Host *
-        StrictHostKeyChecking no
-        UserKnownHostsFile /dev/null
-        IdentityFile ~/.ssh/id_ed25519
 
 runcmd:
   - netplan generate
