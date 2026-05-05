@@ -25,6 +25,7 @@ packages:
   - btrfs-progs
   - curl
   - initramfs-tools
+  - nftables
   - vim
   - wget
   - wireguard
