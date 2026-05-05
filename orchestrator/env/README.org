@@ -1,0 +1,50 @@
+OSM development/test environment setup automates the creation of an environment by preparing a base Debian cloud image and provisioning virtual machines (VMs) from it using cloud-init initialization system.
+It is designed to provide a consistent, ready-to-use testing setup with minimal user effort.
+
+* Create environment
+#+begin_src bash
+  ./run.bash -a setup|--action=setup -c <conf_file>|--config=<conf_file>
+#+end_src
+
+** User configuration file example
+#+begin_export bash
+  HOSTS_DIR="hosts"
+  OSM_HOST_COUNT=3
+  OSMCUSTOMER_COUNT=5
+  VOSM_HOSTBR="osm_br0"
+  OSM_SUBNET="192.168.5"
+  HTTP_PORT=8088
+  OSM_DOMAIN="osmm.fake.co.uk"
+  MAIL_SMTP_HOST="smtp.gmail.com:587"
+  MAIL_SMTP_USER="noreply@devtank.co.uk"
+  MAIL_SMTP_PASSWORD="<change me>"
+  MAIL_RECIPIENTS="<change me>"
+#+end_export
+
+* Remove environment
+#+begin_src bash
+  ./run.bash -a shutdown|--action=shutdown -d <hosts directory>|--hosts-dir=<hosts directory>
+#+end_src
+
+* Execute tests on running environment
+#+begin_src bash
+  ./run.bash -t|--run-tests -d <hosts directory>|--hosts-dir=<hosts directory>
+#+end_src
+
+* Preparation flow
+** Stage 1
+  - Fetch the latest amd64 [[https://cloud.debian.org/images/cloud/][Debian generic cloud image]]
+  - Verify SHA512 checksum
+  - Convert ext4 to btrfs file system
+
+The process can be monitored via qemu_serial.log file or by accessing VM via SSH:
+#+begin_src bash
+  ssh -p 2222 root@localhost
+#+end_src
+
+** Stage 2
+- Create network configuration
+- Spawn VMs
+  + VMs amount is configurable via OSM_HOST_COUNT in configuration file. Default is 3
+  + VMs configuration is stored in the HOSTS_DIR directory. Default is "hosts"
+- Install software by ansible orchestration system

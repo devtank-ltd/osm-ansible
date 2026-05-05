@@ -1,5 +1,8 @@
 #cloud-config
 
+locale: en_GB
+timezone: Europe/London
+
 hostname: init-host
 manage_etc_hosts: true
 
