@@ -48,3 +48,15 @@ The process can be monitored via qemu_serial.log file or by accessing VM via SSH
   + VMs amount is configurable via OSM_HOST_COUNT in configuration file. Default is 3
   + VMs configuration is stored in the HOSTS_DIR directory. Default is "hosts"
 - Install software by ansible orchestration system
+
+* VM access
+To get access to VM user can use either SSH or console socket
+** SSH
+#+begin_src bash
+  ssh -i hosts/id_ed25519 root@192.168.10.2
+#+end_src
+
+** console socket
+#+begin_src bash
+  socat -,echo=0,icanon=0 unix-connect:hosts/vosmhost0/console.sock
+#+end_src
