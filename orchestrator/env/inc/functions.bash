@@ -563,7 +563,6 @@ run_qemu() {
     local name="${workdir}"
     workdir="${HOSTS_DIR}/${workdir}"
     local seed_file="${workdir}/seed.iso"
-    local data_file="cloud-init/user-data.template"
     local host_data_file="${workdir}/user-data"
 
 
@@ -594,10 +593,12 @@ run_qemu() {
         die "Wrong MAC address format."
     fi
 
-    if [[ ! -e "${workdir}/user-data" ]]; then
+    if [[ ! -e "$host_data_file" ]]; then
         gen_osm_user_data "$name"
+        cloud-localds "$seed_file" "$host_data_file"
+    elif [[ ! -e "$seed_file" ]]; then
+        cloud-localds "$seed_file" "$host_data_file"
     fi
-    cloud-localds "$seed_file" "$host_data_file"
 
     qemu_args=(
         -enable-kvm
