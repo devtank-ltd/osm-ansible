@@ -107,18 +107,6 @@
     apply:
       delegate_to: "vosmhost0"
 
-- name: Put main host SSH key to authorized keys
-  block:
-    - name: Get main host SSH key
-      when: inventory_hostname == "vosmhost0"
-      ansible.builtin.shell:
-        cat /root/.ssh/id_rsa.pub
-      register: ssh_key
-
-    - name: Copy main host SSH key
-      ansible.builtin.shell:
-        echo "{{ hostvars.vosmhost0.ssh_key.stdout }}" >> /root/.ssh/authorized_keys
-
 # Temporary workaround for snapper-backup bug
 - name: Create backup directory
   when: inventory_hostname == "vosmhost0"
@@ -175,60 +163,3 @@
     name: ansible
     state: latest
     update_cache: yes
-
-- name: Define network interfaces list
-  ansible.builtin.set_fact:
-    network_interfaces: [
-          {
-            'name': "{{ ansible_default_ipv4.interface }}",
-            'dhcp': True,
-            'dns1': "{{ hostvars['vosmhost0']['ansible_host'] }}",
-            'dns2': "8.8.8.8"
-          },
-          {
-            'name': "devtank",
-            'dhcp': False,
-            'address': "{{ incus_init['network']['ipaddr'] }}",
-            'dns1': "{{ incus_init['network']['ipaddr'].split('/')[0] }}",
-            'dns2': "{{ hostvars['vosmhost0']['ansible_host'] }}"
-          }
-        ]
-
-- name: Generate .network files from template
-  ansible.builtin.template:
-    src: systemd.network.tpl
-    dest: "/etc/systemd/network/{{ item.name }}.network"
-    owner: root
-    group: root
-    mode: '0644'
-  loop: "{{ network_interfaces }}"
-
-- name: Remove legacy networking stuff
-  ansible.builtin.shell: |
-    mv /etc/network/interfaces /etc/network/interfaces.save
-    mv /etc/network/interfaces.d /etc/network/interfaces.d.save
-
-- name: Disable networking service
-  ansible.builtin.systemd_service:
-    name: networking
-    enabled: false
-
-- name: Enable systemd-hostnamed
-  ansible.builtin.systemd_service:
-    name: systemd-hostnamed
-    state: started
-    enabled: true
-
-- name: Enable systemd-networkd
-  ansible.builtin.systemd_service:
-    name: systemd-networkd
-    enabled: true
-
-- name: Enable systemd-resolved
-  ansible.builtin.systemd_service:
-    name: systemd-resolved
-    enabled: true
-
-- name: Reboot to apply new network changes
-  ansible.builtin.reboot:
-    test_command: hostnamectl

@@ -1,0 +1,22 @@
+#cloud-config
+
+hostname: <<HOSTNAME>>
+manage_etc_hosts: true
+
+write_files:
+  - path: /etc/netplan/99-custom.yaml
+    permissions: '0644'
+    content: |
+      network:
+        version: 2
+        ethernets:
+          ens3:
+            dhcp4: true
+            dhcp6: false
+            dhcp4-overrides:
+              send-hostname: true
+              hostname: <<HOSTNAME>>
+
+runcmd:
+  - netplan generate
+  - netplan apply

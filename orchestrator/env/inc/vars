@@ -1,36 +1,31 @@
 # shellcheck disable=SC2034
 
-readonly DEB_ISO_ARCH="amd64"
-readonly DEB_URL="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd"
+readonly DL_DIR="downloads"
+readonly DEB_REL="trixie"
+readonly DEB_IMG="debian-13-genericcloud-amd64.qcow2"
+readonly DEVTANK_IMG="devtank-base-debian-13-amd64.qcow2"
+readonly BASE_URL="https://cloud.debian.org/images/cloud/${DEB_REL}/latest"
 
-# debian path
-readonly OVMF_VARS="/usr/share/OVMF/OVMF_VARS_4M.fd"
-readonly OVMF_CODE="/usr/share/OVMF/OVMF_CODE_4M.fd"
-
-# archlinux path
-# readonly OVMF_VARS=/usr/share/edk2/x64/OVMF_VARS.4m.fd
-# readonly OVMF_CODE=/usr/share/edk2/x64/OVMF_CODE.4m.fd
-
+readonly VM_SIZE="10"
+readonly SSH_KEY="devtank-osm"
+readonly QEMU_SERIAL="qemu_serial.log"
 readonly DISK_NAME="disk.qcow"
 readonly DISK_SIZE="24G"
 
 declare -Ar PACKAGES=(
     ["ansible-playbook"]="ansible"
-    ["qemu-system-x86_64"]="qemu-system-x86"
-    ["/usr/share/OVMF/OVMF_CODE_4M.fd"]="ovmf"
-    ["isoinfo"]="genisoimage"
-    ["resolvectl"]="systemd-resolved"
+    ["cloud-localds"]="cloud-image-utils"
     ["dig"]="bind9-dnsutils"
+    ["isoinfo"]="genisoimage"
+    ["qemu-system-x86_64"]="qemu-system-x86"
+    ["resolvectl"]="systemd-resolved"
     ["ssh-keygen"]="openssh"
+    ["curl"]=""
     ["dnsmasq"]=""
     ["iptables"]=""
-    ["curl"]=""
     ["socat"]=""
-
 )
 
-# MUTABLE GLOBALS
-DEFAULT_SSH_KEY=""
 VOSM_HOST="vosmhost"
 
 # COLOURS
