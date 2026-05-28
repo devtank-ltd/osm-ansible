@@ -28,7 +28,6 @@
           databases:
             osm_orchestrator:
               dsn: mysql+pymysql://osm_orchestrator:{{ osm_orchestrator_db_password }}@localhost/osm_orchestrator
-              keep-connected: true
           metrics:
             customer_active_status:
               type: gauge
