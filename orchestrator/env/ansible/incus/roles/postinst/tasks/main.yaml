@@ -147,7 +147,7 @@
     state: restarted
     enabled: true
 
-# TODO: remove me on dist-upgrade
+# TODO: remove me when Forky becomes stable
 # incus connection type is a part of community collection since version 10.6.0 which requires ansible >= 2.15.0 version.
 # Hence, we need to use testing bookworm repository as current version of ansible is 2.14.18
 # 2025-05-19 16:50:36
@@ -157,9 +157,21 @@
     repo: deb http://deb.debian.org/debian/ testing main
     state: present
 
+- name: Create apt preferences down playing testing.
+  ansible.builtin.copy:
+    content: |
+      Package: *
+      Pin: release a=testing
+      Pin-Priority: 300
+    dest: /etc/apt/preferences.d/testing-pin
+    owner: root
+    group: root
+    mode: '0644'
+
 - name: Upgrade ansible
   when: inventory_hostname == "vosmhost0"
   ansible.builtin.apt:
     name: ansible
     state: latest
     update_cache: yes
+    default_release: testing
