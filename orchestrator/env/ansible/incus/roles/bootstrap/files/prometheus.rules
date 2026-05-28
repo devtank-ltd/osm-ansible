@@ -68,3 +68,12 @@ groups:
     annotations:
       summary: Host high CPU load (instance {{ $labels.instance }})
       description: "CPU load is > 80%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - alert: "Btrfs Metadata Space Low"
+    expr: (node_btrfs_used_bytes{block_group_type="metadata"} / node_btrfs_size_bytes{block_group_type="metadata"}) * 100 > 80
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Btrfs metadata usage above 80% on {{ $labels.instance }}"
+      description: "Metadata is almost full (< 20% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
