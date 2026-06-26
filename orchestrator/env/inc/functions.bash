@@ -244,8 +244,18 @@ download() {
 }
 
 get_image() {
-    download "${BASE_URL}/${DEB_IMG}"
     download "${BASE_URL}/SHA512SUMS"
+    if [[ -e "${DL_DIR}/${DEB_IMG}" ]]; then
+        pushd "${DL_DIR}" >/dev/null 2>&1
+        cksum --algorithm=sha512 --check --ignore-missing SHA512SUMS
+        result=$?
+        popd >/dev/null 2>&1
+        if [[ $result = "0" ]]; then
+          info "Previous download still valid."
+          return 0
+        fi
+    fi
+    download "${BASE_URL}/${DEB_IMG}"
 
     pushd "${DL_DIR}" >/dev/null 2>&1
     cksum --algorithm=sha512 --check --ignore-missing SHA512SUMS || \
