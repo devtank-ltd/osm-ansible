@@ -361,7 +361,9 @@ do_shutdown_environment() {
     fi
     close_bridge
     warn "Stop all VMs in located in '$hosts_dir'"
-    find . -name "monitor.sock" -exec echo echo system_powerdown \| socat - UNIX-CONNECT:{} \; | sh
+    find "$hosts_dir" -name "monitor.sock" -exec echo echo system_powerdown \| socat - UNIX-CONNECT:{} \; | sh
+    info "Waiting for VMs to shutdown."
+    find "$hosts_dir" -name "qemu.pid" -exec echo while \[ -e {} \]\; do sleep 1\; done \; | sh
     pkill -15 -F "${hosts_dir}/${VOSM_HOSTBR}.pid"
 }
 
@@ -535,6 +537,7 @@ run_qemu_base_init() {
 
     wait "$qemu_pid" 2>/dev/null
     local exit_code=$?
+    sync
 
     # restore terminal
     kill "$spinner_pid" 2>/dev/null || true
