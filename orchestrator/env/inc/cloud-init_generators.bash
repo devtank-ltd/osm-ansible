@@ -64,7 +64,10 @@ gen_base_user_data() {
     fi
 
     pub_key="$(< "$pub_key")"
-    sed -r 's|<<<PASSWORD>>>|'"$password"'|' "$template_file" > "$data_file"
+
+    # We must make sure slashes and backref are escaped as they mean something to sed and confuse it here.
+    sed_safe_password=$(echo "$password" | sed -e 's/[\/&]/\\&/g')
+    sed -r 's|<<<PASSWORD>>>|'"$sed_safe_password"'|' "$template_file" > "$data_file"
     sed -i -r 's|<<<SSH_PUB_KEY>>>|'"$pub_key"'|' "$data_file"
     sed -i -e '/<<<SSH_PRIV_KEY>>>/ {
             r '"$priv_key"'
