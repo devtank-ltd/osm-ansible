@@ -361,7 +361,7 @@ do_shutdown_environment() {
     fi
     close_bridge
     warn "Stop all VMs in located in '$hosts_dir'"
-    find "$hosts_dir" -name "qemu.pid" -type f -print -exec pkill -15 -F {} \;
+    find . -name "monitor.sock" -exec echo echo system_powerdown \| socat - UNIX-CONNECT:{} \; | sh
     pkill -15 -F "${hosts_dir}/${VOSM_HOSTBR}.pid"
 }
 
