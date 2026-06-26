@@ -122,17 +122,6 @@
   ansible.builtin.shell:
     btrfs subvolume create /srv/backups/incus
 
-- name: Create BTRF subvolume for containers backups
-  when: inventory_hostname == "vosmhost0"
-  ansible.builtin.shell: |
-    dev="$(btrfs device scan | sed -rn 's|^registered: (.*)$|\1|p')"
-    mkdir /srv/backups
-    btrfs subvolume create /srv/backups/incus
-    mount -o subvol=@rootfs/srv/backups/incus "$dev" /srv/backups/incus
-    echo "${dev} /srv/backups/incus btrfs subvol=@rootfs/srv/backups/incus 0 0" >> /etc/fstab
-  args:
-    executable: /bin/bash
-
 - name: Add prometheus node
   delegate_to: "vosmhost0"
   ansible.builtin.blockinfile:
