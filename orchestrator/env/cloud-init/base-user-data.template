@@ -11,7 +11,7 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     lock_passwd: false
-    plain_text_passwd: <<<PASSWORD>>>
+    plain_text_passwd: '<<<PASSWORD>>>'
   - name: root
     ssh_authorized_keys:
       - <<<SSH_PUB_KEY>>>
