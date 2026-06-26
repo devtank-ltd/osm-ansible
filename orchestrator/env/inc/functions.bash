@@ -274,7 +274,7 @@ do_setup() {
     fi
 
     for host in "${!OSM_HOSTS[@]}"; do
-        run_qemu "$host" "$VOSM_HOSTBR"
+        run_qemu_cloudinit "$host" "$VOSM_HOSTBR"
         OSM_HOSTS["$host"]="$(wait_for_ip "$host" "${OSM_SUBNET}.1")"
         setup_ssh "${OSM_HOSTS[$host]}"
         add_ansible_host "$host" "${OSM_HOSTS[$host]}"
@@ -562,9 +562,6 @@ run_qemu() {
     local -a qemu_args
     local name="${workdir}"
     workdir="${HOSTS_DIR}/${workdir}"
-    local seed_file="${workdir}/seed.iso"
-    local host_data_file="${workdir}/user-data"
-
 
     [[ ! -d "$workdir" ]] && die "Unable to find '$workdir' directory"
     if ! ip -o -4 a s dev "$brif" &>/dev/null; then
@@ -593,13 +590,6 @@ run_qemu() {
         die "Wrong MAC address format."
     fi
 
-    if [[ ! -e "$host_data_file" ]]; then
-        gen_osm_user_data "$name"
-        cloud-localds "$seed_file" "$host_data_file"
-    elif [[ ! -e "$seed_file" ]]; then
-        cloud-localds "$seed_file" "$host_data_file"
-    fi
-
     qemu_args=(
         -enable-kvm
         -nographic
@@ -612,10 +602,9 @@ run_qemu() {
         -nic "bridge,br=${brif},model=virtio-net-pci,mac=${hwaddr}"
         # -nic "bridge,br=${brif},model=e1000,mac=${hwaddr}"
         -drive "file=${disk},format=qcow2,if=virtio"
-        -drive "file=${seed_file},format=raw,if=virtio,media=cdrom"
         -device "virtio-balloon-pci,id=balloon0"
         -pidfile "${workdir}/qemu.pid"
-        "${extra_args[@]}"
+        ${extra_args[@]}
     )
     info "Run '${workdir##*/}' QEMU Virtual machine"
 
@@ -653,6 +642,28 @@ run_qemu() {
     done
     info "The '${workdir##*/}' is running"
     return 0
+}
+
+run_qemu_cloudinit() {
+    (( $# < 2 )) && die "At least work dir and bridge name must be passed"
+
+    local workdir="$1"
+    local brif="$2"
+    shift 2
+    local extra_args=( "$@" )
+    local name="${workdir}"
+    workdir="${HOSTS_DIR}/${workdir}"
+    local seed_file="${workdir}/seed.iso"
+    local host_data_file="${workdir}/user-data"
+
+    if [[ ! -e "$host_data_file" ]]; then
+        gen_osm_user_data "$name"
+        cloud-localds "$seed_file" "$host_data_file"
+    elif [[ ! -e "$seed_file" ]]; then
+        cloud-localds "$seed_file" "$host_data_file"
+    fi
+
+    run_qemu "$name" "${brif}" -drive "file=${seed_file},format=raw,if=virtio,media=cdrom" ${extra_args[@]}
 }
 
 clone_host() {
