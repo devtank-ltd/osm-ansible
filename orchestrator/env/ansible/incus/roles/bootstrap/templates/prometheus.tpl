@@ -15,8 +15,8 @@ alerting:
     - targets: ['localhost:9093']
 
 # Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
-# rule_files:
-#   - /etc/prometheus/prometheus.rules
+rule_files:
+  - /etc/prometheus/prometheus.rules
 
 # A scrape configuration containing exactly one endpoint to scrape:
 # Here it's Prometheus itself.

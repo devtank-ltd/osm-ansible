@@ -5,6 +5,11 @@
     src: prometheus.tpl
     dest: "/etc/prometheus/prometheus.yml"
 
+- name: Apply prometheus alert rules
+  copy:
+    src: prometheus.rules
+    dest: /etc/prometheus/prometheus.rules
+
 - name: Restart prometheus
   ansible.builtin.service:
     name: prometheus
