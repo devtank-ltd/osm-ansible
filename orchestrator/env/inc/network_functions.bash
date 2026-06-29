@@ -113,8 +113,11 @@ close_bridge() {
         return
     fi
 
-    warn "Remove iptables rule"
-    sudo iptables -t nat -D POSTROUTING ! -d "${OSM_SUBNET}.0/24" -s "${OSM_SUBNET}.0/24" -j SNAT --to-source "$(main_ip)"
+    warn "Remove iptables rule of subnet ${OSM_SUBNET}"
+    rules=($(sudo iptables --line-num -n -t nat -L POSTROUTING | grep ${OSM_SUBNET} | cut -c1))
+    for rule in ; do
+        sudo iptables -t nat -D POSTROUTING $rule
+    done
     warn "Kill dnsmasq"
     sudo pkill -15 -F "${HOSTS_DIR}/${VOSM_HOSTBR}.pid"
     warn "Remove '$VOSM_HOSTBR' interface"
