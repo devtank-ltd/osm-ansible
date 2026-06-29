@@ -259,10 +259,15 @@ class osm_orchestrator_t:
     def pdns_db(self):
         return self._pdns_db
 
-    def add_dns_host(self, osm_host, ip_addr):
+    def _add_dns_host(self, osm_host, ip_addr):
         domain_id = self.config["pdns_domain_id"]
         domain = self.config["pdns_domain"]
         self._pdns_db.add_host(domain_id, f"{osm_host}.{domain}", ip_addr)
+
+    def _del_dns_host(self, osm_host, ip_addr):
+        domain_id = self.config["pdns_domain_id"]
+        domain = self.config["pdns_domain"]
+        self._pdns_db.del_host(domain_id, f"{osm_host}.{domain}", ip_addr)
 
     @property
     def master_key(self) -> bytes:
@@ -537,7 +542,11 @@ class osm_orchestrator_t:
             self.logger.warning(f"Host {host_name} already exists.")
             return False
         host = self.db.add_host(host_name, ip_addr, capacity)
-        return True if host else False
+        if not host:
+            self.logger.warning(f"Host {host_name} wasn't added.")
+            return False
+        self._add_dns_host(host_name, ip_addr)
+        return True
 
     def del_osm_host(self, host_name) -> bool:
         host = self.db.get_host(host_name)
@@ -548,7 +557,11 @@ class osm_orchestrator_t:
         if customers:
             self.logger.warning(f"Host {host_name} has customers. Can not delete.")
             return False
-        return self.db.del_host(host.id)
+        if not self.db.del_host(host.id):
+            self.logger.warning(f"Host {host_name} delete failed.")
+            return False
+        self._del_dns_host(host_name, host.ip_addr)
+        return True
 
     def get_customer_passwords(
             self, customer_name: str, reveal: bool = True
