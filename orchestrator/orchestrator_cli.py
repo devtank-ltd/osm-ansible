@@ -531,11 +531,24 @@ class osm_orchestrator_t:
             customer_id, json.dumps(customer_passwords)
         ) is not None
 
-    def add_osm_host(self, host_name: str, ip_addr: str, capacity: int) -> int:
-        raise Exception("Not implemented")
+    def add_osm_host(self, host_name: str, ip_addr: str, capacity: int) -> bool:
+        host = self.db.get_host(host_name)
+        if host:
+            self.logger.warning(f"Host {host_name} already exists.")
+            return False
+        host = self.db.add_host(host_name, ip_addr, capacity)
+        return True if host else False
 
-    def del_osm_host(self, host_name):
-        raise Exception("Not implemented")
+    def del_osm_host(self, host_name) -> bool:
+        host = self.db.get_host(host_name)
+        if not host:
+            self.logger.warning(f"Host {host_name} not found.")
+            return False
+        customers = self.db.get_customers(host.id)
+        if customers:
+            self.logger.warning(f"Host {host_name} has customers. Can not delete.")
+            return False
+        return self.db.del_host(host.id)
 
     def get_customer_passwords(
             self, customer_name: str, reveal: bool = True
@@ -610,8 +623,11 @@ class cli_osm_orchestrator_t:
             return os.EX_OK
         return os.EX_UNAVAILABLE
 
-    def add_osm_host(self, host_name):
-        raise Exception("Not implemented")
+    def add_osm_host(self, host_name, ip_addr, capacity):
+        if self._osm_orch.add_osm_host(host_name, ip_addr, capacity):
+            return os.EX_OK
+        else:
+            return os.EX_UNAVAILABLE
 
     def del_osm_host(self, host_name):
         if self._osm_orch.del_osm_host(host_name):
