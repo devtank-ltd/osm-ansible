@@ -49,6 +49,13 @@
       ansible.builtin.set_fact:
         wg_ipaddr: "{{ osm_host_wg_ipaddr.stdout }}"
 
+    - name: Wait for customer to ping
+      ansible.builtin.command: ping -c 1 {{ customer_name }}
+      register: ping_result
+      until: ping_result.rc == 0
+      retries: 10
+      delay: 10
+
   rescue:
     - name: Cleanup incus instance
       ansible.builtin.import_tasks:
