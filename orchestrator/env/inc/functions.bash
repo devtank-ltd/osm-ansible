@@ -244,8 +244,18 @@ download() {
 }
 
 get_image() {
-    download "${BASE_URL}/${DEB_IMG}"
     download "${BASE_URL}/SHA512SUMS"
+    if [[ -e "${DL_DIR}/${DEB_IMG}" ]]; then
+        pushd "${DL_DIR}" >/dev/null 2>&1
+        cksum --algorithm=sha512 --check --ignore-missing SHA512SUMS
+        result=$?
+        popd >/dev/null 2>&1
+        if [[ $result = "0" ]]; then
+          info "Previous download still valid."
+          return 0
+        fi
+    fi
+    download "${BASE_URL}/${DEB_IMG}"
 
     pushd "${DL_DIR}" >/dev/null 2>&1
     cksum --algorithm=sha512 --check --ignore-missing SHA512SUMS || \
@@ -274,7 +284,7 @@ do_setup() {
     fi
 
     for host in "${!OSM_HOSTS[@]}"; do
-        run_qemu "$host" "$VOSM_HOSTBR"
+        run_qemu_cloudinit "$host" "$VOSM_HOSTBR"
         OSM_HOSTS["$host"]="$(wait_for_ip "$host" "${OSM_SUBNET}.1")"
         setup_ssh "${OSM_HOSTS[$host]}"
         add_ansible_host "$host" "${OSM_HOSTS[$host]}"
@@ -351,7 +361,9 @@ do_shutdown_environment() {
     fi
     close_bridge
     warn "Stop all VMs in located in '$hosts_dir'"
-    find "$hosts_dir" -name "qemu.pid" -type f -print -exec pkill -15 -F {} \;
+    find "$hosts_dir" -name "monitor.sock" -exec echo echo system_powerdown \| socat - UNIX-CONNECT:{} \; | sh
+    info "Waiting for VMs to shutdown."
+    find "$hosts_dir" -name "qemu.pid" -exec echo while \[ -e {} \]\; do sleep 1\; done \; | sh
     pkill -15 -F "${hosts_dir}/${VOSM_HOSTBR}.pid"
 }
 
@@ -525,6 +537,7 @@ run_qemu_base_init() {
 
     wait "$qemu_pid" 2>/dev/null
     local exit_code=$?
+    sync
 
     # restore terminal
     kill "$spinner_pid" 2>/dev/null || true
@@ -562,9 +575,6 @@ run_qemu() {
     local -a qemu_args
     local name="${workdir}"
     workdir="${HOSTS_DIR}/${workdir}"
-    local seed_file="${workdir}/seed.iso"
-    local host_data_file="${workdir}/user-data"
-
 
     [[ ! -d "$workdir" ]] && die "Unable to find '$workdir' directory"
     if ! ip -o -4 a s dev "$brif" &>/dev/null; then
@@ -593,13 +603,6 @@ run_qemu() {
         die "Wrong MAC address format."
     fi
 
-    if [[ ! -e "$host_data_file" ]]; then
-        gen_osm_user_data "$name"
-        cloud-localds "$seed_file" "$host_data_file"
-    elif [[ ! -e "$seed_file" ]]; then
-        cloud-localds "$seed_file" "$host_data_file"
-    fi
-
     qemu_args=(
         -enable-kvm
         -nographic
@@ -612,10 +615,9 @@ run_qemu() {
         -nic "bridge,br=${brif},model=virtio-net-pci,mac=${hwaddr}"
         # -nic "bridge,br=${brif},model=e1000,mac=${hwaddr}"
         -drive "file=${disk},format=qcow2,if=virtio"
-        -drive "file=${seed_file},format=raw,if=virtio,media=cdrom"
         -device "virtio-balloon-pci,id=balloon0"
         -pidfile "${workdir}/qemu.pid"
-        "${extra_args[@]}"
+        ${extra_args[@]}
     )
     info "Run '${workdir##*/}' QEMU Virtual machine"
 
@@ -653,6 +655,28 @@ run_qemu() {
     done
     info "The '${workdir##*/}' is running"
     return 0
+}
+
+run_qemu_cloudinit() {
+    (( $# < 2 )) && die "At least work dir and bridge name must be passed"
+
+    local workdir="$1"
+    local brif="$2"
+    shift 2
+    local extra_args=( "$@" )
+    local name="${workdir}"
+    workdir="${HOSTS_DIR}/${workdir}"
+    local seed_file="${workdir}/seed.iso"
+    local host_data_file="${workdir}/user-data"
+
+    if [[ ! -e "$host_data_file" ]]; then
+        gen_osm_user_data "$name"
+        cloud-localds "$seed_file" "$host_data_file"
+    elif [[ ! -e "$seed_file" ]]; then
+        cloud-localds "$seed_file" "$host_data_file"
+    fi
+
+    run_qemu "$name" "${brif}" -drive "file=${seed_file},format=raw,if=virtio,media=cdrom" ${extra_args[@]}
 }
 
 clone_host() {
