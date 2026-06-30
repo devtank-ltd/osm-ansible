@@ -33,22 +33,22 @@ teardown_file() {
 }
 
 @test "Add Test Host" {
-    run "$CLI" add_host faskhost 127.0.0.1
+    run "$CLI" add_host fakehost 127.0.0.1 1
     assert_success
 }
 
 @test "Add Test Host again" {
-    run "$CLI" add_host faskhost 127.0.0.1
+    run "$CLI" add_host fakehost 127.0.0.1 1
     assert_failure
 }
 
 @test "Del Test Host" {
-    run "$CLI" del_host faskhost
+    run "$CLI" del_host fakehost
     assert_success
 }
 
 @test "Del Test Host again" {
-    run "$CLI" del_host faskhost
+    run "$CLI" del_host fakehost
     assert_failure
 }
 
