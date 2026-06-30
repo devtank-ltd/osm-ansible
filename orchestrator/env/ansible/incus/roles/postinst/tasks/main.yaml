@@ -67,7 +67,6 @@
     ip -4 -o a s dev wg0
   register: wg_output
   delegate_to: vosmhost0
-  ignore_errors: true
 
 - name: Set WireGuard IP address of main OSM host
   ansible.builtin.set_fact:
