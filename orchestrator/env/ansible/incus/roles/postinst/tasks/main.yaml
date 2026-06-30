@@ -63,6 +63,8 @@
   ansible.builtin.meta: flush_handlers
 
 - name: Get WireGuard IP address of main OSM host
+  retries: 3
+  delay: 1
   ansible.builtin.shell: |
     ip -4 -o a s dev wg0
   register: wg_output
