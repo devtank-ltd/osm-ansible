@@ -20,7 +20,7 @@
       }}
 
 - name: Add cluster members to Devtank DB
-  community.mysql.mysql_query:
+  ansible.mysql.mysql_query:
     login_db: "{{ db_conf.orchestrator.database }}"
     login_password: "{{ db_conf.orchestrator.password }}"
     login_user: "{{ db_conf.orchestrator.user }}"
@@ -34,7 +34,7 @@
     "{{ osm_hosts | dict2items }}"
 
 - name: Add cluster members to PowerDNS DB
-  community.mysql.mysql_query:
+  ansible.mysql.mysql_query:
     login_db: "{{ db_conf.pdns.database }}"
     login_password: "{{ db_conf.pdns.password }}"
     login_user: "{{ db_conf.pdns.user }}"

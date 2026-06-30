@@ -43,7 +43,7 @@
     osm_alert_db_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16) }}"
 
 - name: Create readonly DB user
-  community.mysql.mysql_user:
+  ansible.mysql.mysql_user:
     login_unix_socket: /var/run/mysqld/mysqld.sock
     name: alert
     password: "{{ osm_alert_db_password }}"

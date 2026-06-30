@@ -9,7 +9,7 @@
     db_conf: "{{ db_conf.stdout | from_yaml }}"
 
 - name: Add wireguard info to Devtank DB
-  community.mysql.mysql_query:
+  ansible.mysql.mysql_query:
     login_db: "{{ db_conf.orchestrator.database }}"
     login_password: "{{ db_conf.orchestrator.password }}"
     login_user: "{{ db_conf.orchestrator.user }}"
