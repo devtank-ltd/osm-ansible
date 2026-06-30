@@ -627,7 +627,7 @@ run_qemu() {
         qemu_pid=$(< "${workdir}/qemu.pid")
 
         if [[ -d "/proc/${qemu_pid}" ]]; then
-            warn "Fround '$qemu_pid' in /proc directory."
+            warn "Found '$qemu_pid' in /proc directory."
             local cmdline
             local cmdline_regex="file=${workdir}"
             cmdline="$(xargs -0 printf '%s ' </proc/"$qemu_pid"/cmdline)"
