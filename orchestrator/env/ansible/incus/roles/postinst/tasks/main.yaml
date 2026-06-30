@@ -62,9 +62,14 @@
 - name: Force notified handlers to run here
   ansible.builtin.meta: flush_handlers
 
+- name: Wait for wg0 to ping
+  ansible.builtin.command: ping -c 1 {{ wg_ip }}
+  register: ping_result
+  until: ping_result.rc == 0
+  retries: 10
+  delay: 10
+
 - name: Get WireGuard IP address of main OSM host
-  retries: 3
-  delay: 1
   ansible.builtin.shell: |
     ip -4 -o a s dev wg0
   register: wg_output
