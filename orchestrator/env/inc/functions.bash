@@ -364,7 +364,6 @@ do_shutdown_environment() {
     find "$hosts_dir" -name "monitor.sock" -exec echo echo system_powerdown \| socat - UNIX-CONNECT:{} \; | sh
     info "Waiting for VMs to shutdown."
     find "$hosts_dir" -name "qemu.pid" -exec echo while \[ -e {} \]\; do sleep 1\; done \; | sh
-    pkill -15 -F "${hosts_dir}/${VOSM_HOSTBR}.pid"
 }
 
 add_ansible_host() {

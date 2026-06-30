@@ -119,7 +119,10 @@ close_bridge() {
         sudo iptables -t nat -D POSTROUTING $rule
     done
     warn "Kill dnsmasq"
-    sudo pkill -15 -F "${HOSTS_DIR}/${VOSM_HOSTBR}.pid"
+    if [ -e "${HOSTS_DIR}/${VOSM_HOSTBR}.pid" ]; then
+        pid=$(cat "${HOSTS_DIR}/${VOSM_HOSTBR}.pid")
+        [ ! -e /proc/$pid/ ] || sudo kill -15 $pid
+    fi
     warn "Remove '$VOSM_HOSTBR' interface"
     sudo ip link set down dev "$VOSM_HOSTBR"
     sudo ip addr del "${OSM_SUBNET}.1/24" dev "$VOSM_HOSTBR"
