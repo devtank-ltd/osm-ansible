@@ -25,6 +25,17 @@
   changed_when: false
   check_mode: no
 
+- name: Disable SSH Server accepting client locals
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^AcceptEnv'
+    line: 'AcceptEnv LANG COLORTERM NO_COLOR'
+
+- name: Restart SSH
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+
 - name: Add Zabbly package source
   template:
     src: sources.tpl
