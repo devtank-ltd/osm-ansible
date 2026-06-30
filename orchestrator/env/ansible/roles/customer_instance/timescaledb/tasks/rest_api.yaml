@@ -23,6 +23,11 @@
       set_fact:
         postgres_api_token: "{{ jwt_token_cmd.stdout }}"
 
+    - name: Debug Print timescaledb passwords
+      debug:
+        msg: "Timescaledb password for {{ item.key }}: {{ item.value }}"
+      loop: "{{ timescaledb_passwords | dict2items }}"
+
     - name: Configure PostgREST
       template:
         src: postgrest.conf.tpl
