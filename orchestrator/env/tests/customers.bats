@@ -108,6 +108,7 @@ teardown_file() {
 }
 
 @test "Move Customer" {
+    [[ ${#OSM_HOSTS[@]} -gt 1 ]] || skip "Only single host"
     current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
     target_host=
     target_host_idx=
@@ -162,6 +163,7 @@ teardown_file() {
 }
 
 @test "Clone Customer. Other OSM host. Non-public" {
+    [[ ${#OSM_HOSTS[@]} -gt 1 ]] || skip "Only single host"
     current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
     target_host=
 
@@ -181,6 +183,7 @@ teardown_file() {
 }
 
 @test "Clone Customer. Other OSM host. Public" {
+    [[ ${#OSM_HOSTS[@]} -gt 1 ]] || skip "Only single host"
     current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
     target_host=
     target_host_idx=
@@ -214,6 +217,7 @@ teardown_file() {
 }
 
 @test "Clone Already Cloned Customer. Other OSM host. Non-public" {
+    [[ ${#OSM_HOSTS[@]} -gt 1 ]] || skip "Only single host"
     current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
     target_host=
 
@@ -229,6 +233,7 @@ teardown_file() {
 }
 
 @test "Clone Already Cloned Customer. Other OSM host. Public" {
+    [[ ${#OSM_HOSTS[@]} -gt 1 ]] || skip "Only single host"
     current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
     target_host=
 
