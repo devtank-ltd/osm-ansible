@@ -32,12 +32,24 @@ teardown_file() {
     assert_failure
 }
 
-@test "Add Host" {
-    skip "Not implemented"
+@test "Add Test Host" {
+    run "$CLI" add_host faskhost 127.0.0.1
+    assert_success
 }
 
-@test "Del Host" {
-    skip "Not implemented"
+@test "Add Test Host again" {
+    run "$CLI" add_host faskhost 127.0.0.1
+    assert_failure
+}
+
+@test "Del Test Host" {
+    run "$CLI" del_host faskhost
+    assert_success
+}
+
+@test "Del Test Host again" {
+    run "$CLI" del_host faskhost
+    assert_failure
 }
 
 @test "Test Hosts" {
