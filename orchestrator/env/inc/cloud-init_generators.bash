@@ -9,7 +9,7 @@ gen_ssh_key(){
 
 gen_password() {
     local -i len=${1:-10}
-    tr -dc '[:alnum:][:punct:]' < /dev/urandom | head -c "$len"
+    tr -dc '[:alnum:]' < /dev/urandom | head -c "$len"
     return 0
 }
 
@@ -65,9 +65,7 @@ gen_base_user_data() {
 
     pub_key="$(< "$pub_key")"
 
-    # We must make sure slashes and backref are escaped as they mean something to sed and confuse it here.
-    sed_safe_password=$(echo "$password" | sed -e 's/[\/&|]/\\&/g')
-    sed -r 's|<<<PASSWORD>>>|'"$sed_safe_password"'|' "$template_file" > "$data_file"
+    sed -r 's|<<<PASSWORD>>>|'"$password"'|' "$template_file" > "$data_file"
     sed -i -r 's|<<<SSH_PUB_KEY>>>|'"$pub_key"'|' "$data_file"
     sed -i -e '/<<<SSH_PRIV_KEY>>>/ {
             r '"$priv_key"'
