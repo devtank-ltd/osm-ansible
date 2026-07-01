@@ -130,6 +130,10 @@
 - name: Post container setup
   hosts: localhost
   connection: local
+  gather_facts: yes
+
+  vars:
+    main_host: localhost
 
   tasks:
     - name: Get devtank database config
