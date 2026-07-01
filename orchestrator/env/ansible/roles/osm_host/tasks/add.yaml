@@ -131,7 +131,7 @@
 - name: Wait for Prometheus Exporter to become open
   wait_for:
     host: "{{ customer_name }}.incus"
-    port: 9110
+    port: 9100
     connect_timeout: 10
 
 - name: Reload nginx
