@@ -274,7 +274,7 @@ do_setup() {
         ["${VOSM_HOST}0"]=""
     )
 
-    prepare_base_host-cloud-init "$DEVTANK_IMG" "$VM_SIZE"
+    prepare_base_host-cloud-init "$DEVTANK_IMG" "$DISK_SIZE"
 
     if (( OSM_HOST_COUNT > 1 )); then
         for n in $(seq 1 $(( OSM_HOST_COUNT - 1 ))); do
@@ -440,7 +440,7 @@ prepare_base_host-cloud-init() {
     local size="$2"
 
     cp -v "${DL_DIR}/${DEB_IMG}" "${DL_DIR}/${DEVTANK_IMG}"
-    qemu-img resize "${DL_DIR}/${DEVTANK_IMG}" "${size}G"
+    qemu-img resize "${DL_DIR}/${DEVTANK_IMG}" "${size}"
 
     gen_base_user_data
     cloud-localds base-seed.iso cloud-init/base-user-data
