@@ -76,6 +76,8 @@
           ansible.builtin.set_fact:
             mqtt_port: "{{ result.output.mqtt_port }}"
 
+# This should be more like : https://thomas-leister.de/en/move-incus-container-between-hosts-zfs/
+
     - name: Transfer {{ customer_name }} instance
       block:
         - name: Get start time
