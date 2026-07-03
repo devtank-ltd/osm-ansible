@@ -85,7 +85,7 @@ cd orchestrator
 
 Create self signed certificate with pebble
 ```sh
-curl -s --cacert /srv/osm-lxc/utils/minica/devtank.minica.pem -o /tmp/rooCA.crt https://localhost:15000/roots/0
+curl -s --cacert /srv/osm-lxc/utils/minica/devtank.minica.pem -o /tmp/rootCA.crt https://localhost:15000/roots/0
 ```
 
 The orchestrator fills in the Grafana and Postgres credentials
@@ -141,7 +141,7 @@ CNT2 = Water consumption panels
 
 Run orchestrator command to add dashboards
 ```sh
-/srv/osm-lxc/orchestrator/orchestrator_cli.py -d add_dashboards <customer_name> /srv/osm-lxc/lib/grafana_api_client/example_config.json /tmp/rooCA.crt
+/srv/osm-lxc/orchestrator/orchestrator_cli.py -d add_dashboards <customer_name> /srv/osm-lxc/lib/grafana_api_client/example_config.json /tmp/rootCA.crt
 ```
 
 ### Test environment
