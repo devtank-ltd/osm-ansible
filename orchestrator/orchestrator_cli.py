@@ -16,6 +16,7 @@ import socket
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 import weakref
 import yaml
@@ -749,48 +750,91 @@ class cli_osm_orchestrator_t:
             print(f"Invalid config file. Exiting")
             return os.EX_CONFIG
         osm_host = self._osm_orch.find_osm_host_of(customer_name)
+
         if not osm_host:
             print(f"Could not find host with customer: {customer_name}")
             return os.EX_CONFIG
+
+        pwds = osm_host.get_osm_customer_passwords(customer_name)
+        self.logger.debug(f"Got {customer_name}'s passwords: {pwds}")
+        postgres_pwd = pwds["Timescaledb"]["devtank"]
+        grafana_pwd = pwds["Grafana Admin"]["admin"]
+
         domains = osm_host.get_osm_customer_domains(customer_name)
         graf_domain = None
+        matches = ["-mqtt.", "-chirpstack.", "-db.", "-auth.", "-portal."] # auth and portal domains to come with release of Skylight
         for domain in domains:
-            if domain == db_config.get("grafana_url"):
+            if all(m not in domain for m in matches):
                 graf_domain = domain
+                self.logger.debug(f"Found Grafana domain: {graf_domain}")
                 break
         if not graf_domain:
             self.logger.warning(
                 f'No grafana domain found for customer "{customer_name}"'
             )
             return os.EX_CONFIG
+
+        db_config["grafana_url"] = graf_domain
+        db_config["grafana_user"] = "admin"
+        db_config["grafana_pwd"] = grafana_pwd
+        db_config["postgres_user"] = "devtank"
+        db_config["postgres_pwd"] = postgres_pwd
+        db_config["postgres_db"] = "osm"
+
+        try:
+            dir_name = os.path.dirname(os.path.abspath(config))
+            with tempfile.NamedTemporaryFile(
+                mode="w", dir=dir_name, delete=False, suffix=".tmp"
+            ) as tmp:
+                json.dump(db_config, tmp, indent=2)
+                self.logger.debug(f"Writing temporary Grafana config with {customer_name}'s pwds")
+                tmp_path = tmp.name
+            os.replace(tmp_path, config)
+            self.logger.debug(f"Replaced Grafana config temporary config file.")
+        except OSError as e:
+            self.logger.error(f"Could not write to Grafana config at {config}: {e}")
+            return os.EX_CONFIG
+        except (TypeError, ValueError) as e:
+            self.logger.error(f"Could not serialize Grafana config to JSON: {e}")
+            return os.EX_CONFIG
         return os.EX_OK
 
     def add_dashboards(
         self, customer_name: str, config: str, cert: Union[str, None] = None
     ) -> int:
-        if self._validate_grafana_config(customer_name, config) == os.EX_OK:
-            grafana_cmd = [
-                "python3",
-                "/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py",
-                "add",
-                config,
-            ]
-            if cert:
-                grafana_cmd += ["-c", cert]
-            grafana_proc = subprocess.Popen(
-                grafana_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        if self._validate_grafana_config(customer_name, config) != os.EX_OK:
+            self.logger.error("Validate grafana config failed.")
+            return os.EX_CONFIG
+
+        self.logger.debug("Grafana config validated, adding dashboards..")
+        grafana_cmd = [
+            "python3",
+            "/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py",
+            "add",
+            config,
+        ]
+        if cert:
+            grafana_cmd += ["-c", cert]
+
+        grafana_proc = subprocess.Popen(
+            grafana_cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            out, err = grafana_proc.communicate()
+        except subprocess.SubprocessError as errs:
+            grafana_proc.kill()
+            self.logger.error(errs)
+            return os.EX_CONFIG
+
+        if grafana_proc.returncode:
+            self.logger.error(
+                "grafana_api_client exited with code %s", grafana_proc.returncode
             )
-            try:
-                out, err = grafana_proc.communicate()
-            except subprocess.SubprocessError as errs:
-                grafana_proc.kill()
-                self.logger.error(errs)
-                return os.EX_CONFIG
-            if grafana_proc.returncode:
-                return os.EX_CONFIG
-            return os.EX_OK
-        print("Validate grafana config failed.")
-        return os.EX_CONFIG
+            return os.EX_CONFIG
+        return os.EX_OK
 
     def del_dashboards(
         self, customer_name: str, config: str, cert: Union[str, None] = None

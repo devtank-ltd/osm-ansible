@@ -88,21 +88,20 @@ Create self signed certificate with pebble
 curl -s --cacert /srv/osm-lxc/utils/minica/devtank.minica.pem -o /tmp/rooCA.crt https://localhost:15000/roots/0
 ```
 
-Fill out config with Grafana admin login details and Postgres/Timescaledb credentials
+The orchestrator fills in the Grafana and Postgres credentials
+but you must configure the dashboards for your collection of sensors
 ```sh
-./orchestrator_cli.py get_customer_passwords <customer_name>
-
 vim /srv/osm-lxc/lib/grafana_api_client/example_config.json
 ```
 
 ```
 {
-    "grafana_user"  : "admin",
-    "grafana_pwd"   : "Q096Ra9uuGQZ8aBz",
-    "postgres_pwd"  : "UVB8nNZgmLrCxMfk",
-    "postgres_user" : "devtank",
-    "postgres_db"   : "osm",
-    "grafana_url"   : "customer_name.osm.example.co.uk",
+    "grafana_user"  : "",
+    "grafana_pwd"   : "",
+    "postgres_pwd"  : "",
+    "postgres_user" : "",
+    "postgres_db"   : "",
+    "grafana_url"   : "",
     "pulse_div"     : "10.",
     "litre_multi"   : "1.",
     "dashboards"    : [
@@ -122,6 +121,22 @@ vim /srv/osm-lxc/lib/grafana_api_client/example_config.json
      }
 ]
 }
+```
+
+The "code" is a hyphen seperated string used to determine which json template Grafana loads for the sensor
+```
+COM1 = WiFi OSM
+COM2 = LoRaWAN OSM
+A1   = Environmental panels including air quality, temperature, humidity and volatile compound index
+CT1  = Single phase current, electricity costs and power consumption panels
+CT3  = 3 Phase current, electricity costs and power consumption panels
+TMP2 = External temperature panel
+RID  = MODBUS power consumption, voltage, costs and three phase current panels
+VIB  = Singular vibration probe panels
+VI2B = Multiple vibration probe panels
+NOX  = Nitrogen oxide panel
+CNT1 = Gas consumption panels
+CNT2 = Water consumption panels
 ```
 
 Run orchestrator command to add dashboards
