@@ -192,6 +192,7 @@
       Description=Incus per-link DNS configuration for devtank
       BindsTo=sys-subsystem-net-devices-devtank.device
       After=sys-subsystem-net-devices-devtank.device
+      Depends=incus.socket
       
       [Service]
       Type=oneshot
