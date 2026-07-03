@@ -14,7 +14,8 @@ server {
     location / {
         # This stops Grafana origin errors
         proxy_set_header Host $http_host;
-        proxy_pass "http://CUSTOMERNAME:3000";
+        set $endpoint http://CUSTOMERNAME:3000;
+        proxy_pass $endpoint;
     }
 
     location /api/live/ {
@@ -22,7 +23,8 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
         proxy_set_header Host $http_host;
-        proxy_pass "http://CUSTOMERNAME:3000";
+        set $endpoint http://CUSTOMERNAME:3000;
+        proxy_pass $endpoint;
     }
 
 }
@@ -40,7 +42,8 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
         proxy_set_header Host $http_host;
-        proxy_pass "http://CUSTOMERNAME:8080";
+        set $endpoint http://CUSTOMERNAME:8080;
+        proxy_pass $endpoint;
     }
 }
 
@@ -56,15 +59,12 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
         proxy_set_header Host $http_host;
-        proxy_pass "http://CUSTOMERNAME:9001";
+        set $endpoint http://CUSTOMERNAME:9001;
+        proxy_pass $endpoint;
     }
 }
 
-# Postgrest
-upstream postgrest-CUSTOMERNAME {
-    server CUSTOMERNAME:3001;
-}
-
+# PostgREST
 server {
     server_name CUSTOMERNAME-db.OSMDOMAIN;
     listen 443 ssl;
@@ -77,7 +77,8 @@ server {
         add_header Content-Location  /$upstream_http_content_location;
         proxy_set_header Connection "";
         proxy_http_version 1.1;
-        proxy_pass "http://postgrest-CUSTOMERNAME";
+        set $endpoint http://CUSTOMERNAME:3001;
+        proxy_pass $endpoint;
     }
 }
 
@@ -86,6 +87,7 @@ server {
     server_name CUSTOMERNAME.OSMDOMAIN;
     listen WG_IP:9110;
     location / {
-        proxy_pass "http://CUSTOMERNAME:9100";
+        set $endpoint http://CUSTOMERNAME:9100;
+        proxy_pass $endpoint;
     }
 }
