@@ -81,6 +81,54 @@ cd orchestrator
 ./orchestrator_cli.py del_customer somecustomer
 ```
 
+### Adding customer dashboards
+
+Create self signed certificate with pebble
+```sh
+curl -s --cacert /srv/osm-lxc/utils/minica/devtank.minica.pem -o /tmp/rooCA.crt https://localhost:15000/roots/0
+```
+
+Fill out config with Grafana admin login details and Postgres/Timescaledb credentials
+```sh
+./orchestrator_cli.py get_customer_passwords <customer_name>
+
+vim /srv/osm-lxc/lib/grafana_api_client/example_config.json
+```
+
+```
+{
+    "grafana_user"  : "admin",
+    "grafana_pwd"   : "Q096Ra9uuGQZ8aBz",
+    "postgres_pwd"  : "UVB8nNZgmLrCxMfk",
+    "postgres_user" : "devtank",
+    "postgres_db"   : "osm",
+    "grafana_url"   : "customer_name.osm.example.co.uk",
+    "pulse_div"     : "10.",
+    "litre_multi"   : "1.",
+    "dashboards"    : [
+     {
+         "location": "Example Location",
+         "osm_name": "Example Loc",
+         "serial_num": "404-101:E:A525040:0001:00001",
+         "code": "COM1-A1-CT3",
+         "topic": ""
+     },
+     {
+         "location": "Example Location 2",
+         "osm_name": "Example Loc 2",
+         "serial_num": "404-101:E:A525040:0001:00099",
+         "code": "COM1-A1-CT3",
+         "topic": ""
+     }
+]
+}
+```
+
+Run orchestrator command to add dashboards
+```sh
+/srv/osm-lxc/orchestrator/orchestrator_cli.py -d add_dashboards <customer_name> /srv/osm-lxc/lib/grafana_api_client/example_config.json /tmp/rooCA.crt
+```
+
 ### Test environment
 
 It is possible to build OSM test environment for development/testing purposes.

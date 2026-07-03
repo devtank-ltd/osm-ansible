@@ -752,11 +752,16 @@ class cli_osm_orchestrator_t:
         if not osm_host:
             print(f"Could not find host with customer: {customer_name}")
             return os.EX_CONFIG
-        grafana_exists = osm_host.ssh_command(
-            f"ping -c1 {db_config['grafana_url']}"
-        )
-        if not grafana_exists:
-            print("Cannot ping domain. Exiting")
+        domains = osm_host.get_osm_customer_domains(customer_name)
+        graf_domain = None
+        for domain in domains:
+            if domain == db_config.get("grafana_url"):
+                graf_domain = domain
+                break
+        if not graf_domain:
+            self.logger.warning(
+                f'No grafana domain found for customer "{customer_name}"'
+            )
             return os.EX_CONFIG
         return os.EX_OK
 
