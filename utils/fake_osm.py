@@ -8,6 +8,7 @@ import argparse
 import logging
 import asyncio
 import random
+import math
 import json
 
 parser = argparse.ArgumentParser(description="Fake OSM")
@@ -25,6 +26,21 @@ logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger()
 
+# Name : (Min, Max, noise)
+VALUES = {"TMP5" : (20, 40, 4),
+          "HUM2" : (20, 60, 4),
+          "SND" : (0, 60, 4),
+          "LGHT" : (0, 1000, 10),
+          "PM25" : (0, 10, 1),
+          "PM10": (0, 10, 1),
+          "PM4" : (0, 10, 1),
+          "PM1" : (0, 10, 1),
+          "VOC" : (0, 500, 10),
+          }
+
+SEND_INTERVAL = 5
+TEST_WAVE_PEROID = 60
+
 
 class FakeOSM:
     def __init__(self, osm, url, user, password):
@@ -41,6 +57,8 @@ class FakeOSM:
         self._client.tls_set(cert_reqs=ssl.CERT_NONE)
         self._client.tls_insecure_set(True)
         self._url = url[len("wss://"):]
+
+        self._test_wave_pos = 0
 
         self._name = osm
         self._topic = f"/osm/{osm}/measurements"
@@ -73,9 +91,24 @@ class FakeOSM:
         self._connection = 0
 
     def _send_update(self):
+
+        test_wave = self._test_wave_pos % TEST_WAVE_PEROID
+        test_wave = test_wave / TEST_WAVE_PEROID
+        test_wave = math.sin(test_wave * math.pi)
+
+        self._test_wave_pos += SEND_INTERVAL
+
+        values = {}
+
+        for k, v in VALUES.items():
+            avg = v[0] + (v[1] - v[0]) * test_wave
+            values[k] = avg
+            values[k+"_min"] = avg - v[2] * random.random()
+            values[k+"_max"] = avg + v[2] * random.random()
+
         payload = {
             "UNIX": int(self._lastsent),
-            "VALUES": {"TMP5": random.randint(2000, 4000)},
+            "VALUES": values,
             "NAME": self._name,
         }
         payload = json.dumps(payload).encode()
@@ -86,7 +119,7 @@ class FakeOSM:
         self._client.loop()
         if self._connection > 1:
             now = time.monotonic()
-            if now - self._lastsent > 5:
+            if now - self._lastsent > SEND_INTERVAL:
                 self._lastsent = now
                 self._send_update()
 
