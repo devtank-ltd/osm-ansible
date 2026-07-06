@@ -19,7 +19,7 @@
 
 # TODO: pyosmorch adjust
 - name: Get list of ports from the devtank DB
-  ansible.mysql.mysql_query:
+  community.mysql.mysql_query:
     login_db: "{{ db_conf.orchestrator.database }}"
     login_password: "{{ db_conf.orchestrator.password }}"
     login_user: "{{ db_conf.orchestrator.user }}"
