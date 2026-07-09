@@ -107,7 +107,7 @@ class FakeOSM:
             values[k+"_max"] = avg + v[2] * random.random()
 
         payload = {
-            "UNIX": int(self._lastsent),
+            "UNIX": int(time.time()),
             "VALUES": values,
             "NAME": self._name,
         }
