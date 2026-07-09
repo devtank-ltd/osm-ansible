@@ -375,7 +375,7 @@ add_ansible_host() {
 
     if ! grep -q "${ipaddr}$" "$ANSIBLE_HOSTS"; then
         # shellcheck disable=SC1003
-        sed -i '1 i\'"${name} ansible_host=${ipaddr}"'' "$ANSIBLE_HOSTS"
+        sed -i '1 i\'"${name} ansible_ssh_private_key_file=${HOSTS_DIR}/id_ed25519 ansible_host=${ipaddr}"'' "$ANSIBLE_HOSTS"
     fi
     warn "The host '$name': $ipaddr exists in $ANSIBLE_HOSTS"
 }
