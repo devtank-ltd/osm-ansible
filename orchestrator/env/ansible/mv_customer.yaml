@@ -11,6 +11,7 @@
     db_port: 5432
     data_dir: /tmp/data
     ansible_python_interpreter: python3
+    transfer_port: 8443
 
     tables:
       - { name: "pg_sf", column: "_time", keys: "_time, osm_id" }
@@ -80,46 +81,60 @@
 
     - name: Transfer {{ customer_name }} instance
       block:
-        - name: Get start time
-          ansible.builtin.set_fact:
-            start_chunk_time: "{{ lookup('pipe', 'date -u +%Y-%m-%d\\ %H:%M:%S%z') }}"
-
-        - name: Remove snapper
-          delegate_to: "{{ src_host_info.output.host_ip }}"
+        - name: Create transfer path on source host.
           ansible.builtin.shell: |
-            snapper -c {{ customer_name }} delete-config
-            rm /etc/snapper/backup-configs/{{ customer_name }}.json
-          vars:
-            ansible_connection: ssh
+            incus config set core.https_address {{ src_host_info.output.host_ip }}:{{ transfer_port }}
 
-        - name: Make {{ customer_name }} instance snapshot
+        - name: Generate trust token on source host
           ansible.builtin.shell: |
-            incus snapshot create {{ customer_name }} temp
+            incus config trust add {{ osm_host }}
+          register: trust_token_output
 
-        - name: Copy snapshot to {{ target_host }} host
-          ansible.builtin.shell: |
-            incus copy {{ customer_name }}/temp {{customer_name }}-temp --target {{ target_host }}
-
-        - name: Rename original {{ customer_name }} instance
-          ansible.builtin.shell: |
-            incus stop {{ customer_name }}
-            incus rename {{ customer_name }} {{ customer_name}}-old
-            incus start {{ customer_name}}-old
-
-        - name: Start transferred instance
-          ansible.builtin.shell: |
-            incus rename {{ customer_name }}-temp {{ customer_name }}
-            incus start {{ customer_name }}
-
-        - name: Ping transferred instance (internal)
+        - name: Add source host remote on the target host
           delegate_to: "{{ dst_host_info.output.host_ip }}"
           connection: ssh
-          retries: 3
-          delay: 3
-          register: result
-          until: result is not failed
-          ansible.builtin.shell:
-            ping -c3 -W1 "{{customer_name}}.incus"
+          ansible.builtin.shell: |
+            incus remote add {{ osm_host }} {{ src_host_info.output.host_ip }} --token {{ trust_token_output.stdout | trim }}
+
+        - name: Create snapshot on the source host
+          ansible.builtin.shell: |
+            incus snapshot create {{ customer_name }}
+
+        - name: Start initial transfer to the target host
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            incus copy {{ osm_host }}:{{ customer_name }} {{ customer_name }} --stateless
+
+        - name: Stop container on source host
+          ansible.builtin.shell: |
+            incus stop {{ customer_name }}
+
+        - name: Create a second snapshot on the source host before final sync
+          ansible.builtin.shell: |
+            incus snapshot create {{ customer_name }}
+
+        - name: Copy container from target host
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            incus copy {{ osm_host }}:{{ customer_name }} {{ customer_name }} --refresh
+
+        - name: Unset volatile.apply_template on target host
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            incus config unset {{ customer_name }} volatile.apply_template
+
+        - name: Start container on target host
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            incus start {{ customer_name }}
+
+        - name: Unset API on source host.
+          ansible.builtin.shell: |
+            incus config unset core.https_address
 
     - name: Configure OSM hosts
       block:
@@ -209,106 +224,3 @@
             mode: '0644'
             owner: root
             group: root
-
-    - name: Move data to the new {{ customer_name }} instance
-      block:
-
-        - name: Get end time
-          ansible.builtin.set_fact:
-            end_chunk_time: "{{ lookup('pipe', 'date -u +%Y-%m-%d\\ %H:%M:%S%z') }}"
-
-        - name: Ensure data directory exists inside container
-          ansible.builtin.file:
-            path: /tmp/data
-            state: directory
-            owner: postgres
-            group: postgres
-            mode: '0755'
-          vars:
-            ansible_connection: community.general.incus
-            ansible_host: "{{ customer_name }}-old"
-
-        - name: Backup data from old {{ customer_name }} instance
-          ansible.builtin.shell: |
-            su - postgres -c "psql -d {{ db_name }} -c \"\COPY (
-              SELECT * FROM {{ item.name }}
-              WHERE {{ item.column }} >= '{{ start_chunk_time }}'::timestamptz
-                AND {{ item.column }} < '{{ end_chunk_time }}'::timestamptz
-            ) TO '/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv' WITH CSV HEADER\""
-          args:
-            executable: /bin/bash
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-          vars:
-            ansible_connection: community.general.incus
-            ansible_host: "{{ customer_name }}-old"
-
-        - name: Pull CSVs from {{ customer_name }}-old instance
-          ansible.builtin.shell: |
-            incus file pull {{ customer_name }}-old/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv /tmp/{{ customer_name }}/{{ item.name }}/
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-        - name: Push CSVs to {{ customer_name }} instance
-          ansible.builtin.shell: |
-            incus file push /tmp/{{ customer_name }}/{{ item.name }}/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv {{ customer_name }}/tmp/data/ -p -r
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-        - name: Set data directory permissions
-          ansible.builtin.file:
-            path: /tmp/data
-            state: directory
-            owner: postgres
-            group: postgres
-            mode: '0755'
-          vars:
-            ansible_connection: community.general.incus
-            ansible_host: "{{ customer_name }}"
-
-        - name: Ensure staging tables exist and are truncated
-          ansible.builtin.shell: |
-            incus exec {{ customer_name }} -- su - postgres -c "psql -d {{ db_name }} -c 'CREATE TABLE IF NOT EXISTS {{ item.name }}_staging (LIKE {{ item.name }} INCLUDING ALL); TRUNCATE {{ item.name }}_staging;'"
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-        - name: Import CSVs into staging tables
-          ansible.builtin.shell: |
-            incus exec {{ customer_name }} -- su - postgres -c "psql -d {{ db_name }} -c \"\COPY {{ item.name }}_staging FROM '/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv' WITH CSV HEADER\""
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-        - name: Insert data from staging into main tables
-          ansible.builtin.shell: |
-            incus exec {{ customer_name }} -- su - postgres -c "
-              psql -d {{ db_name }} -c \"
-                INSERT INTO {{ item.name }}
-                SELECT * FROM {{ item.name }}_staging;
-              \"
-            "
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-    - name: Clean up
-      block:
-        - name: Clean up staging tables
-          ansible.builtin.shell: |
-            incus exec {{ customer_name }} -- su - postgres -c "
-              psql -d {{ db_name }} -c \"
-                TRUNCATE {{ item.name }}_staging;
-              \"
-            "
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-        - name: Remove old {{ customer_name }} instance
-          ansible.builtin.shell: |
-            incus stop {{ customer_name }}-old
-            incus rm {{ customer_name }}-old
