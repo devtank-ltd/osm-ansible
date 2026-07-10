@@ -61,7 +61,7 @@ class FakeOSM:
         self._test_wave_pos = 0
 
         self._name = osm
-        self._topic = f"/osm/{osm}/measurements"
+        self._topic = f"osm/{osm}/measurements"
         self._lastsent = 0
         self._connection = 0
 
