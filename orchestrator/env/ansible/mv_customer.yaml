@@ -36,6 +36,23 @@
           ansible.builtin.set_fact:
             osm_host: "{{ incus_result.stdout }}"
 
+        - name: Check if source and target hosts are in the same cluster
+          ansible.builtin.shell: |
+            incus cluster list -fcsv --columns n 2>/dev/null || echo ""
+          register: cluster_check
+          changed_when: false
+          failed_when: false
+
+        - name: Fail if hosts are not both in a cluster together
+          ansible.builtin.assert:
+            that:
+              - osm_host in cluster_check.stdout_lines
+              - target_host in cluster_check.stdout_lines
+            fail_msg: >-
+              Cannot move {{ customer_name }}: source host '{{ osm_host }}' and/or target host
+              '{{ target_host }}' are not members of the same Incus cluster.
+            success_msg: "Confirmed both hosts are cluster members — proceeding with move."
+
         - name: Get source host info
           devtank_db:
             db_conf: "{{ db_conf.orchestrator }}"
@@ -77,64 +94,19 @@
           ansible.builtin.set_fact:
             mqtt_port: "{{ result.output.mqtt_port }}"
 
-# This should be more like : https://thomas-leister.de/en/move-incus-container-between-hosts-zfs/
-
     - name: Transfer {{ customer_name }} instance
       block:
-        - name: Create transfer path on source host.
-          ansible.builtin.shell: |
-            incus config set core.https_address {{ src_host_info.output.host_ip }}:{{ transfer_port }}
-
-        - name: Generate trust token on source host
-          ansible.builtin.shell: |
-            incus config trust add {{ osm_host }}
-          register: trust_token_output
-
-        - name: Add source host remote on the target host
-          delegate_to: "{{ dst_host_info.output.host_ip }}"
-          connection: ssh
-          ansible.builtin.shell: |
-            incus remote add {{ osm_host }} {{ src_host_info.output.host_ip }} --token {{ trust_token_output.stdout | trim }}
-
-        - name: Create snapshot on the source host
-          ansible.builtin.shell: |
-            incus snapshot create {{ customer_name }}
-
-        - name: Start initial transfer to the target host
-          delegate_to: "{{ dst_host_info.output.host_ip }}"
-          connection: ssh
-          ansible.builtin.shell: |
-            incus copy {{ osm_host }}:{{ customer_name }} {{ customer_name }} --stateless
-
-        - name: Stop container on source host
+        - name: Stop instance before cluster move
           ansible.builtin.shell: |
             incus stop {{ customer_name }}
 
-        - name: Create a second snapshot on the source host before final sync
+        - name: Move instance to target cluster member
           ansible.builtin.shell: |
-            incus snapshot create {{ customer_name }}
+            incus move {{ customer_name }} --target {{ target_host }}
 
-        - name: Copy container from target host
-          delegate_to: "{{ dst_host_info.output.host_ip }}"
-          connection: ssh
-          ansible.builtin.shell: |
-            incus copy {{ osm_host }}:{{ customer_name }} {{ customer_name }} --refresh
-
-        - name: Unset volatile.apply_template on target host
-          delegate_to: "{{ dst_host_info.output.host_ip }}"
-          connection: ssh
-          ansible.builtin.shell: |
-            incus config unset {{ customer_name }} volatile.apply_template
-
-        - name: Start container on target host
-          delegate_to: "{{ dst_host_info.output.host_ip }}"
-          connection: ssh
+        - name: Start instance on target host
           ansible.builtin.shell: |
             incus start {{ customer_name }}
-
-        - name: Unset API on source host.
-          ansible.builtin.shell: |
-            incus config unset core.https_address
 
     - name: Configure OSM hosts
       block:
@@ -193,6 +165,13 @@
           register: pool_name
           changed_when: false
 
+        - name: Check if .snapshots subvolume already exists
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.stat:
+            path: "/var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}/.snapshots"
+          register: snapshots_subvol_check
+
         - name: Create snapper config
           delegate_to: "{{ dst_host_info.output.host_ip }}"
           connection: ssh
@@ -200,6 +179,7 @@
             snapper --debug -v -c {{ customer_name }} create-config /var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}
           args:
             executable: /bin/bash
+          when: not snapshots_subvol_check.stat.exists
 
         - name: Get backup host IP address
           ansible.builtin.set_fact:
