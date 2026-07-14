@@ -96,13 +96,25 @@
 
     - name: Transfer {{ customer_name }} instance
       block:
+        - name: Copy container while still running
+          ansible.builtin.shell: |
+            incus copy {{ customer_name }} {{ customer_name }}-migrating --target {{ target_host }} --stateless
+
         - name: Stop instance before cluster move
           ansible.builtin.shell: |
             incus stop {{ customer_name }}
 
-        - name: Move instance to target cluster member
+        - name: Sync the changes
           ansible.builtin.shell: |
-            incus move {{ customer_name }} --target {{ target_host }}
+            incus copy {{ customer_name }} {{ customer_name }}-migrating --target {{ target_host }} --stateless --refresh
+
+        - name: Delete the old instance
+          ansible.builtin.shell: |
+            incus delete {{ customer_name }}
+
+        - name: Rename new instance
+          ansible.builtin.shell: |
+            incus rename {{ customer_name }}-migrating {{ customer_name}}
 
         - name: Start instance on target host
           ansible.builtin.shell: |
