@@ -113,10 +113,14 @@
             incus delete {{ customer_name }}
 
         - name: Rename new instance
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
           ansible.builtin.shell: |
-            incus rename {{ customer_name }}-migrating {{ customer_name}}
+            incus rename {{ customer_name }}-migrating {{ customer_name }}
 
         - name: Start instance on target host
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
           ansible.builtin.shell: |
             incus start {{ customer_name }}
 
@@ -184,14 +188,36 @@
             path: "/var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}/.snapshots"
           register: snapshots_subvol_check
 
+        - name: List nested subvolumes inside .snapshots
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            btrfs subvolume list -o /var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}/.snapshots 2>/dev/null | awk '{print $NF}'
+          register: nested_subvols
+          when: snapshots_subvol_check.stat.exists
+          changed_when: false
+
+        - name: Delete nested snapshot subvolumes first
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            btrfs subvolume delete "/{{ item }}"
+          loop: "{{ nested_subvols.stdout_lines | default([]) }}"
+          when: snapshots_subvol_check.stat.exists
+
+        - name: Remove pre-existing .snapshots subvolume before snapper init
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            btrfs subvolume delete /var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}/.snapshots
+          when: snapshots_subvol_check.stat.exists
+
+
         - name: Create snapper config
           delegate_to: "{{ dst_host_info.output.host_ip }}"
           connection: ssh
           ansible.builtin.shell:
             snapper --debug -v -c {{ customer_name }} create-config /var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}
-          args:
-            executable: /bin/bash
-          when: not snapshots_subvol_check.stat.exists
 
         - name: Get backup host IP address
           ansible.builtin.set_fact:
@@ -216,3 +242,10 @@
             mode: '0644'
             owner: root
             group: root
+
+        - name: Remove stale snapper-backup configuration from the source host
+          delegate_to: "{{ src_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.file:
+            path: /etc/snapper/backup-configs/{{ customer_name }}.json
+            state: absent
