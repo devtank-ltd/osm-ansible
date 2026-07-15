@@ -94,6 +94,63 @@
           ansible.builtin.set_fact:
             mqtt_port: "{{ result.output.mqtt_port }}"
 
+    - name: Take and verify a fresh backup before touching any snapshots
+      block:
+        - name: Get backup host IP address
+          ansible.builtin.set_fact:
+            backup_host: "{{ osmbackup | default(ansible_default_ipv4.address) }}"
+
+        - name: Take a fresh snapshot on the source
+          ansible.builtin.shell: |
+            snapper -c {{ customer_name }} create --description "pre-move backup" --print-number
+          register: fresh_snapshot
+
+        - name: Set fresh snapshot number fact
+          ansible.builtin.set_fact:
+            fresh_snapshot_number: "{{ fresh_snapshot.stdout | trim | int }}"
+
+        - name: Transfer the fresh snapshot to the backup host
+          ansible.builtin.shell: |
+            snbk -b {{ customer_name }} transfer
+
+        - name: Check transfer status via snbk
+          ansible.builtin.shell: |
+            snbk -b {{ customer_name }} --jsonout list
+          register: snbk_list
+          changed_when: false
+
+        - name: Parse snbk list output
+          ansible.builtin.set_fact:
+            snbk_list_json: "{{ (snbk_list.stdout | from_json)['snapshots'] }}"
+
+        - name: Fail if the fresh snapshot did not transfer successfully
+          ansible.builtin.assert:
+            that:
+              - snbk_list_json | selectattr('number', 'equalto', fresh_snapshot_number) | map(attribute='target-state') | list | first | default('') == 'valid'
+            fail_msg: >-
+              Snapshot {{ fresh_snapshot_number }} for {{ customer_name }} did not reach
+              {{ backup_host }} in a valid state. Refusing to delete source snapshots.
+            success_msg: >-
+              Confirmed snapshot {{ fresh_snapshot_number }} for {{ customer_name }}
+              is valid on {{ backup_host }}.
+
+    - name: Prepare source instance for transfer
+      block:
+        # readonly snapshot subvolumes on the target causes a fail
+        # when any snapshot exists on the source. We've just confirmed
+        # the latest snapshot is on backup_host, so it's safe to clear
+        - name: List snapper snapshots on the source host before transfer
+          ansible.builtin.shell: |
+            snapper -c {{ customer_name }} list --columns number | tail -n +3 | grep -v '^0$'
+          register: pre_transfer_snapshot_numbers
+          changed_when: false
+          failed_when: false
+
+        - name: Delete source snapshots before transfer to avoid btrfs receive failure
+          ansible.builtin.shell: |
+            snapper -c {{ customer_name }} delete {{ item }}
+          loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
+
     - name: Transfer {{ customer_name }} instance
       block:
         - name: Copy container while still running
@@ -212,16 +269,20 @@
             btrfs subvolume delete /var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}/.snapshots
           when: snapshots_subvol_check.stat.exists
 
-
         - name: Create snapper config
           delegate_to: "{{ dst_host_info.output.host_ip }}"
           connection: ssh
           ansible.builtin.shell:
             snapper --debug -v -c {{ customer_name }} create-config /var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}
 
-        - name: Get backup host IP address
-          ansible.builtin.set_fact:
-            backup_host: "{{ osmbackup | default(ansible_default_ipv4.address) }}"
+        # take a fresh snapshot now on the target so there's still a local
+        # restore point rather than leaving it at zero.
+        - name: Take a fresh snapshot on the target if the source had any
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            snapper -c {{ customer_name }} create --description "post-move snapshot"
+          when: (pre_transfer_snapshot_numbers.stdout_lines | default([]) | length) > 0
 
         - name: Create snapper-backup configuration
           delegate_to: "{{ dst_host_info.output.host_ip }}"
