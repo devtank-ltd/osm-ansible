@@ -76,6 +76,7 @@ EOF
 
     sudo ip link add "$VOSM_HOSTBR" type bridge
     sudo ip addr add "${OSM_SUBNET}.1/24" dev "$VOSM_HOSTBR"
+    sudo ip addr add "${OSM_SUBNET}.254/24" dev "$VOSM_HOSTBR"
     sudo ip link set up dev "$VOSM_HOSTBR"
     sudo iptables "${iptables_args[@]}"
 
@@ -102,6 +103,11 @@ EOF
         fi
     done
 
+    # Setup a socat to redirect from second bridge address to host own DNS server.
+    socat UDP-LISTEN:53,fork,reuseaddr,bind="${OSM_SUBNET}.254" UDP:127.0.0.53:53 &
+    socat_pid=$!
+    echo $socat_pid > "${HOSTS_DIR}/socat.pid"
+
     run_dnsmasq
     sudo resolvectl domain "$VOSM_HOSTBR" ~"$OSM_DOMAIN" || return 1
     sudo resolvectl dns "$VOSM_HOSTBR" "${OSM_SUBNET}.2" || return 1
@@ -121,6 +127,10 @@ close_bridge() {
     warn "Kill dnsmasq"
     if [ -e "${HOSTS_DIR}/${VOSM_HOSTBR}.pid" ]; then
         pid=$(cat "${HOSTS_DIR}/${VOSM_HOSTBR}.pid")
+        [ ! -e /proc/$pid/ ] || sudo kill -15 $pid
+    fi
+    if [ -e "${HOSTS_DIR}/socat.pid" ]; then
+        pid=$(cat "${HOSTS_DIR}/socat.pid")
         [ ! -e /proc/$pid/ ] || sudo kill -15 $pid
     fi
     warn "Remove '$VOSM_HOSTBR' interface"

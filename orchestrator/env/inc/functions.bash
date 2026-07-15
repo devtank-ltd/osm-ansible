@@ -801,7 +801,7 @@ run_dnsmasq() {
         dhcp-leasefile="$lease_file"
         except-interface=lo
         bind-interfaces
-        dhcp-range="${OSM_SUBNET}.2,${OSM_SUBNET}.255"
+        dhcp-range="${OSM_SUBNET}.2,${OSM_SUBNET}.253"
         server="/${OSM_DOMAIN}/${OSM_SUBNET}.2"
     )
     declare -A macs=()
@@ -827,12 +827,8 @@ run_dnsmasq() {
         fi
     done
 
-    dns_serv="$(dns_ip)"
-    if [[ -n "$dns_serv" && "$dns_serv" != "$dns_fbaddr" ]]; then
-        settings+=(dhcp-option="6,${dns_serv},${dns_fbaddr}")
-    else
-        settings+=(dhcp-option="6,${dns_fbaddr}")
-    fi
+    # We are going to spawn a socat on ${OSM_SUBNET}.254 to redirect to the hosts's resolved.
+    settings+=(dhcp-option="6,${OSM_SUBNET}.254,${dns_fbaddr}")
 
     : > "$lease_file"
     printf "%s\n" "${settings[@]}" > "$conf_file"
