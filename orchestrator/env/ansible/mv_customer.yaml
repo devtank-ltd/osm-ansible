@@ -136,9 +136,16 @@
 
     - name: Prepare source instance for transfer
       block:
+        - name: Get pool name for source instance
+          ansible.builtin.shell: |
+            incus config show {{ customer_name }} --expanded | sed -rn 's|.*pool: (.*)$|\1|p'
+          register: src_pool_name
+          changed_when: false
+
         # readonly snapshot subvolumes on the target causes a fail
         # when any snapshot exists on the source. We've just confirmed
-        # the latest snapshot is on backup_host, so it's safe to clear
+        # the latest snapshot is on backup_host. So we move them to an
+        # archive directory in case they're needed later.
         - name: List snapper snapshots on the source host before transfer
           ansible.builtin.shell: |
             snapper -c {{ customer_name }} list --columns number | tail -n +3 | grep -v '^0$'
@@ -146,9 +153,15 @@
           changed_when: false
           failed_when: false
 
-        - name: Delete source snapshots before transfer to avoid btrfs receive failure
+        - name: Create snapshot archive directory on the source
           ansible.builtin.shell: |
-            snapper -c {{ customer_name }} delete {{ item }}
+            mkdir -p /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/snapshot-archive/{{ customer_name }}
+          when: (pre_transfer_snapshot_numbers.stdout_lines | default([]) | length) > 0
+
+        - name: Archive pre-transfer snapshots instead of deleting them
+          ansible.builtin.shell: |
+            mv /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/containers/{{ customer_name }}/.snapshots/{{ item }} \
+               /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/snapshot-archive/{{ customer_name }}/{{ item }}
           loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
 
     - name: Transfer {{ customer_name }} instance
