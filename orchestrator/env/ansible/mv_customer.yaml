@@ -275,15 +275,6 @@
           ansible.builtin.shell:
             snapper --debug -v -c {{ customer_name }} create-config /var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}
 
-        # take a fresh snapshot now on the target so there's still a local
-        # restore point rather than leaving it at zero.
-        - name: Take a fresh snapshot on the target if the source had any
-          delegate_to: "{{ dst_host_info.output.host_ip }}"
-          connection: ssh
-          ansible.builtin.shell: |
-            snapper -c {{ customer_name }} create --description "post-move snapshot"
-          when: (pre_transfer_snapshot_numbers.stdout_lines | default([]) | length) > 0
-
         - name: Create snapper-backup configuration
           delegate_to: "{{ dst_host_info.output.host_ip }}"
           connection: ssh
@@ -303,6 +294,46 @@
             mode: '0644'
             owner: root
             group: root
+
+        # Take a fresh local snapshot then immediately push it to backup_host
+        - name: Take a fresh snapshot on target host
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            snapper -c {{ customer_name }} create --description "post-move backup" --print-number
+          register: post_move_snapshot
+          when: (pre_transfer_snapshot_numbers.stdout_lines | default([]) | length) > 0
+
+        - name: Transfer the post-move snapshot to the backup host
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            snbk -b {{ customer_name }} transfer
+          when: (pre_transfer_snapshot_numbers.stdout_lines | default([]) | length) > 0
+
+        - name: Check post-move transfer status via snbk
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            snbk -b {{ customer_name }} --jsonout list
+          register: post_move_snbk_list
+          changed_when: false
+          when: (pre_transfer_snapshot_numbers.stdout_lines | default([]) | length) > 0
+
+        - name: Fail if the post-move snapshot did not transfer successfully
+          ansible.builtin.assert:
+            that:
+              - >-
+                (post_move_snbk_list.stdout | from_json)['snapshots']
+                | selectattr('number', 'equalto', post_move_snapshot.stdout | trim | int)
+                | map(attribute='target-state') | list | first | default('') == 'valid'
+            fail_msg: >-
+              Post-move snapshot {{ post_move_snapshot.stdout | trim }} for {{ customer_name }}
+              did not reach {{ backup_host }} in a valid state.
+            success_msg: >-
+              Confirmed post-move snapshot {{ post_move_snapshot.stdout | trim }} for
+              {{ customer_name }} is valid on {{ backup_host }}.
+          when: (pre_transfer_snapshot_numbers.stdout_lines | default([]) | length) > 0
 
         - name: Remove stale snapper-backup configuration from the source host
           delegate_to: "{{ src_host_info.output.host_ip }}"
