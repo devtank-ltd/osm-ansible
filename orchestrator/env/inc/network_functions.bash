@@ -104,7 +104,7 @@ EOF
     done
 
     # Setup a socat to redirect from second bridge address to host own DNS server.
-    socat UDP-LISTEN:53,fork,reuseaddr,bind="${OSM_SUBNET}.254" UDP:127.0.0.53:53 &
+    sudo socat UDP-LISTEN:53,fork,reuseaddr,bind="${OSM_SUBNET}.254" UDP:127.0.0.53:53 &
     socat_pid=$!
     echo $socat_pid > "${HOSTS_DIR}/socat.pid"
 
