@@ -153,15 +153,32 @@
           changed_when: false
           failed_when: false
 
-        - name: Create snapshot archive directory on the source
+        - name: Create snapshot archive directory on source host
           ansible.builtin.shell: |
-            mkdir -p /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/snapshot-archive/{{ customer_name }}
-          when: (pre_transfer_snapshot_numbers.stdout_lines | default([]) | length) > 0
+            mkdir -p /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/snapshot-archive/{{ customer_name }}/{{ item }}
+          loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
 
-        - name: Archive pre-transfer snapshots instead of deleting them
+        - name: Archive pre move snapshot subvolumes via btrfs send/receive
           ansible.builtin.shell: |
-            mv /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/containers/{{ customer_name }}/.snapshots/{{ item }} \
-               /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/snapshot-archive/{{ customer_name }}/{{ item }}
+            btrfs send /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/containers/{{ customer_name }}/.snapshots/{{ item }}/snapshot \
+              | btrfs receive /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/snapshot-archive/{{ customer_name }}/{{ item }}
+          loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
+
+        - name: Copy snapshot metadata to the archived subvolume
+          ansible.builtin.shell: |
+            cp /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/containers/{{ customer_name }}/.snapshots/{{ item }}/info.xml \
+               /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/snapshot-archive/{{ customer_name }}/{{ item }}/info.xml
+          loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
+          failed_when: false
+
+        - name: Delete the leftover snapshot subvolume from .snapshots
+          ansible.builtin.shell: |
+            btrfs subvolume delete /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/containers/{{ customer_name }}/.snapshots/{{ item }}/snapshot
+          loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
+
+        - name: Remove empty .snapshots directory
+          ansible.builtin.shell: |
+            rm -rf /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/containers/{{ customer_name }}/.snapshots/{{ item }}
           loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
 
     - name: Transfer {{ customer_name }} instance
