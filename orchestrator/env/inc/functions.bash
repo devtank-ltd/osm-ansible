@@ -771,6 +771,14 @@ request_pebble_cert() {
         --quiet
     )
     info "Request certificate from '$srvip' for ${name}.${OSM_DOMAIN} domain."
+
+    # Clear Pebble so certbot re-registers instead of failing with
+    # "Account not found".
+    # shellcheck disable=SC2029
+    ssh -i "${HOSTS_DIR}/id_ed25519" \
+        root@"$target_ip" \
+        "sudo rm -rf '/etc/letsencrypt/accounts/${srvip}:14000'" &>/dev/null || true
+
     for (( i=0; i<3; i++ )); do
         # shellcheck disable=SC2029
         if ! ssh -i "${HOSTS_DIR}/id_ed25519" \
