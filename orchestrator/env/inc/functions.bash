@@ -682,20 +682,17 @@ run_qemu_cloudinit() {
 clone_host() {
     local base_name="$1"
     local target_name="$2"
-    local hwaddr=
-    local ipaddr=
 
     if [[ ! -d "${HOSTS_DIR}/${base_name}" ]]; then
         die "Unable to get '$base_name' to clone '$target_name"
     fi
 
-    info "${HOSTS_DIR}/${base_name} -> ${HOSTS_DIR}/${target_name}"
-    if [[ ! -d "${HOSTS_DIR}/${target_name}" ]]; then
-        mkdir --parents "${HOSTS_DIR}/${target_name}"
-    fi
+    mkdir --parents "${HOSTS_DIR}/${target_name}"
+    cp "${HOSTS_DIR}/${base_name}/disk.qcow" "${HOSTS_DIR}/${target_name}/"
 
-    cp "${HOSTS_DIR}/${base_name}/"{disk.qcow,mac} "${HOSTS_DIR}/${target_name}/"
-    mv "${HOSTS_DIR}/${target_name}/"mac{,_orig}
+    if [[ ! -f "${HOSTS_DIR}/${target_name}/mac" ]]; then
+        gen_hwaddr > "${HOSTS_DIR}/${target_name}/mac"
+    fi
 }
 
 do_start_hosts() {
