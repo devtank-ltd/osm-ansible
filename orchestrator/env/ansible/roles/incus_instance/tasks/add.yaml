@@ -55,7 +55,7 @@
       until: ping_result.rc == 0
       retries: 10
       delay: 10
-      delegate_to: "{{ osm_host_ip }}"
+      delegate_to: "{{ target_host }}"
 
   rescue:
     - name: Cleanup incus instance
