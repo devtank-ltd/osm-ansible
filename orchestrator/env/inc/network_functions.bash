@@ -43,6 +43,7 @@ setup_bridge() {
         -s "${OSM_SUBNET}.0/24" -j SNAT --to-source "$(main_ip)"
     )
     local helper_path="/usr/lib/qemu/qemu-bridge-helper"
+    sudo -v
 
     hosts_dir="$(readlink -f "$HOSTS_DIR")"
 
@@ -104,7 +105,7 @@ EOF
     done
 
     # Setup a socat to redirect from second bridge address to host own DNS server.
-    sudo socat UDP-LISTEN:53,fork,reuseaddr,bind="${OSM_SUBNET}.254" UDP:127.0.0.53:53 &
+    sudo socat UDP-LISTEN:53,fork,reuseaddr,bind="${OSM_SUBNET}.254" UDP:127.0.0.53:53 &>/dev/null &
     socat_pid=$!
     echo $socat_pid > "${HOSTS_DIR}/socat.pid"
 
