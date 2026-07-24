@@ -348,6 +348,7 @@ do_run_environment() {
         host="${host##*/}"
         info "Waiting for IP address assigned for '$host' host"
         wait_for_ip "$host" "${OSM_SUBNET}.1"
+        clear_pebble "$host" "$hosts_dir"
     done
 }
 
@@ -425,7 +426,6 @@ wait_for_ip() {
         error "Unable to get IP address for '$host' host"
         [[ ! -e "${HOSTS_DIR}/${host}/qemu.pid" ]] && die "The '$host' VM is down"
     fi
-    echo "$ipaddr"
     return 0
 }
 
@@ -772,13 +772,6 @@ request_pebble_cert() {
     )
     info "Request certificate from '$srvip' for ${name}.${OSM_DOMAIN} domain."
 
-    # Clear Pebble so certbot re-registers instead of failing with
-    # "Account not found".
-    # shellcheck disable=SC2029
-    ssh -i "${HOSTS_DIR}/id_ed25519" \
-        root@"$target_ip" \
-        "sudo rm -rf '/etc/letsencrypt/accounts/${srvip}:14000'" &>/dev/null || true
-
     for (( i=0; i<3; i++ )); do
         # shellcheck disable=SC2029
         if ! ssh -i "${HOSTS_DIR}/id_ed25519" \
@@ -790,6 +783,17 @@ request_pebble_cert() {
         fi
     done
     die "Unable to get certificate."
+}
+
+clear_pebble() {
+    local host=$1
+    local hosts_dir=$2
+    # Clear Pebble so certbot re-registers instead of failing with
+    # "Account not found".
+    # shellcheck disable=SC2029
+    ssh -i "${hosts_dir}/id_ed25519" \
+        root@"$host" \
+        "rm -rf '/etc/letsencrypt/accounts/10.10.1.2:14000'" &>/dev/null || true
 }
 
 run_dnsmasq() {
