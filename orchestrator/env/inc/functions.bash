@@ -426,6 +426,7 @@ wait_for_ip() {
         error "Unable to get IP address for '$host' host"
         [[ ! -e "${HOSTS_DIR}/${host}/qemu.pid" ]] && die "The '$host' VM is down"
     fi
+    echo "$ipaddr"
     return 0
 }
 
