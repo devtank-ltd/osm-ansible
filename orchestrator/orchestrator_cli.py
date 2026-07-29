@@ -585,6 +585,20 @@ class osm_orchestrator_t:
             return {"wg_key": wg_key, "wg_ipaddr": wg_ipaddr}
         return {}
 
+    def _get_git_branch(self) -> str:
+        branch = os.environ.get("DEVTANK_BRANCH")
+        if branch:
+            return branch
+        try:
+            result = subprocess.run(
+                ["git", "-C", DEVTANK_WD, "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True, text=True, check=True
+            )
+            branch = result.stdout.strip()
+        except subprocess.CalledProcessError:
+            return "main"
+        return "main" if branch == "HEAD" else branch
+
     def _check_target_dependencies(self, ssh) -> bool:
         check_cmd = (
             'python3 -c "' +
@@ -618,6 +632,13 @@ class osm_orchestrator_t:
             "--module-path", f"{DEVTANK_WD}/env/ansible/library",
             "-i", f"{target_ip},",
             "-e", "target_role=main",
+            "-e", f"git_branch={self._get_git_branch()}",
+            "-e", f"osm_dns={target_ip}",
+            "-e", f"osm_domain={self.config['pdns_domain']}",
+            "-e", f"smtp_host={os.environ.get('MAIL_SMTP_HOST', '')}",
+            "-e", f"smtp_user={os.environ.get('MAIL_SMTP_USER', '')}",
+            "-e", f"smtp_password={os.environ.get('MAIL_SMTP_PASSWORD', '')}",
+            "-e", f"mail_recipients={os.environ.get('MAIL_RECIPIENTS', '')}",
             f"{DEVTANK_WD}/env/ansible/incus/deploy.yaml",
         ]
         try:
