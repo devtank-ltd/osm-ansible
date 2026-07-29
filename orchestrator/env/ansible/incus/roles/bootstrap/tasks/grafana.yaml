@@ -122,6 +122,7 @@
         addresses: "{{ mail_recipients }}"
     status_code: 202
   register: orch_grafana_contact_point
+  when: mail_recipients | default('') | trim | length > 0
 
 - name: Add Grafana Folder
   ansible.builtin.uri:
