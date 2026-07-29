@@ -371,13 +371,15 @@ do_shutdown_environment() {
 add_ansible_host() {
     local name="$1"
     local ipaddr="$2"
-
+    local extra_vars=""
     [[ -z "$name" ]] && die "Th host name is missing"
     [[ -z "$ipaddr" ]] && die "The IP address is missing"
-
+    if [[ "$name" == "${VOSM_HOST}0" ]]; then
+        extra_vars=" target_role=main"
+    fi
     if ! grep -q "${ipaddr}$" "$ANSIBLE_HOSTS"; then
         # shellcheck disable=SC1003
-        sed -i '1 i\'"${name} ansible_ssh_private_key_file=${HOSTS_DIR}/id_ed25519 ansible_host=${ipaddr}"'' "$ANSIBLE_HOSTS"
+        sed -i '1 i\'"${name} ansible_ssh_private_key_file=${HOSTS_DIR}/id_ed25519 ansible_host=${ipaddr}${extra_vars}"'' "$ANSIBLE_HOSTS"
     fi
     warn "The host '$name': $ipaddr exists in $ANSIBLE_HOSTS"
 }

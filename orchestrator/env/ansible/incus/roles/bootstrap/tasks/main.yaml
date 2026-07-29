@@ -1,7 +1,7 @@
 ---
 
 - name: Prepare main host
-  when: inventory_hostname == "vosmhost0"
+  when: target_role | default('') == 'main'
   block:
     - name: Set WireGuard interface
       ansible.builtin.set_fact:

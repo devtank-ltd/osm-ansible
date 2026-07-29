@@ -199,6 +199,9 @@ class osm_host_t:
 
 class osm_orchestrator_t:
     MASTER_FILE = "master.key"
+    REQUIRED_MODULES = (
+            "crcmod", "paramiko", "pymysql", "cryptography", "yaml", "pyosmorch",
+        )
 
     def __init__(self, config):
         self.config = config
@@ -582,6 +585,131 @@ class osm_orchestrator_t:
             return {"wg_key": wg_key, "wg_ipaddr": wg_ipaddr}
         return {}
 
+    def _check_target_dependencies(self, ssh) -> bool:
+        check_cmd = (
+            'python3 -c "' +
+            ";".join(f"import {m}" for m in self.REQUIRED_MODULES) +
+            '"'
+        )
+        _, stdout, stderr = ssh.exec_command(check_cmd)
+        if stdout.channel.recv_exit_status() != 0:
+            self.logger.error(
+                "Target host is missing required Python packages:\n%s",
+                stderr.read().decode()
+            )
+            return False
+        return True
+
+    def transfer_orchestrator(self, target_host_name: str) -> bool:
+        """Provision target_host_name as a master candidate, then migrate
+        the orchestrator/pdns MySQL databases, config.yaml, and master.key
+        to it. Non-destructive to the source: nothing here is dropped or
+        modified."""
+        target = self.find_osm_host(target_host_name)
+        if not target:
+            self.logger.error("Unknown target host '%s'", target_host_name)
+            return False
+
+        target_ip = target.ip_addr
+
+        self.logger.info("Provisioning '%s' as a master candidate...", target_host_name)
+        provision_cmd = [
+            "ansible-playbook",
+            "--module-path", f"{DEVTANK_WD}/env/ansible/library",
+            "-i", f"{target_ip},",
+            "-e", "target_role=main",
+            f"{DEVTANK_WD}/env/ansible/incus/deploy.yaml",
+        ]
+        try:
+            subprocess.run(provision_cmd, check=True)
+        except subprocess.CalledProcessError as err:
+            self.logger.error("Provisioning failed on '%s': %s", target_host_name, err)
+            return False
+
+        ssh_key = "/root/.ssh/id_ed25519"
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(target_ip, username="root", key_filename=ssh_key)
+        except Exception as err:
+            self.logger.error("Unable to SSH to '%s': %s", target_ip, err)
+            return False
+
+        try:
+            if not self._check_target_dependencies(ssh):
+                self.logger.error(
+                    "Refusing to proceed: target host cannot run "
+                    "orchestrator_cli.py even after provisioning."
+                )
+                return False
+
+            dump_path = f"/tmp/master_transfer_{int(time.time())}.sql"
+            dump_cmd = [
+                "mysqldump", "--user", "root", "--opt",
+                "--skip-lock-tables", "--databases",
+                "osm_orchestrator", "pdns",
+                "--result-file", dump_path,
+            ]
+            try:
+                subprocess.run(dump_cmd, check=True)
+            except subprocess.CalledProcessError as err:
+                self.logger.error("mysqldump failed: %s", err)
+                return False
+
+            sftp = ssh.open_sftp()
+            remote_dump = f"/tmp/{os.path.basename(dump_path)}"
+            sftp.put(dump_path, remote_dump)
+            sftp.put("config.yaml", "/tmp/config.yaml.incoming")
+            sftp.put(self.MASTER_FILE, f"/tmp/{self.MASTER_FILE}.incoming")
+            sftp.close()
+
+            orch_user = self.config["orchestrator"]["user"]
+            orch_pass = self.config["orchestrator"]["password"]
+            alert_user = self.config["customer_alerts"]["user"]
+            alert_pass = self.config["customer_alerts"]["password"]
+
+            remote_setup_cmd = f"""
+set -e
+systemctl stop pdns.service
+mysql -uroot -e "DROP DATABASE IF EXISTS osm_orchestrator; DROP DATABASE IF EXISTS pdns;"
+mysql -uroot < {remote_dump}
+mysql -uroot -e "
+    DROP USER IF EXISTS '{orch_user}'@'localhost';
+    CREATE USER '{orch_user}'@'localhost' IDENTIFIED BY '{orch_pass}';
+    GRANT ALL ON osm_orchestrator.* TO '{orch_user}'@'localhost';
+    GRANT ALL ON pdns.records TO '{orch_user}'@'localhost';
+    DROP USER IF EXISTS '{alert_user}'@'localhost';
+    CREATE USER '{alert_user}'@'localhost' IDENTIFIED BY '{alert_pass}';
+    GRANT SELECT ON osm_orchestrator.* TO '{alert_user}'@'localhost';
+    FLUSH PRIVILEGES;
+"
+cp /srv/osm-lxc/orchestrator/config.yaml /srv/osm-lxc/orchestrator/config.yaml.bak
+cp /tmp/config.yaml.incoming /srv/osm-lxc/orchestrator/config.yaml
+cp /tmp/{self.MASTER_FILE}.incoming /srv/osm-lxc/orchestrator/{self.MASTER_FILE}
+chmod 600 /srv/osm-lxc/orchestrator/{self.MASTER_FILE}
+systemctl start pdns.service
+"""
+            _, stdout, stderr = ssh.exec_command(remote_setup_cmd)
+            if stdout.channel.recv_exit_status() != 0:
+                self.logger.error("Remote setup failed:\n%s", stderr.read().decode())
+                return False
+
+            verify_cmd = "cd /srv/osm-lxc/orchestrator && ./orchestrator_cli.py list_hosts"
+            _, stdout, stderr = ssh.exec_command(verify_cmd)
+            if stdout.channel.recv_exit_status() != 0:
+                self.logger.error("Verification failed on target: %s", stderr.read().decode())
+                return False
+
+            self.logger.info(
+                "Transfer complete. '%s' is now fully functional as the new "
+                "master. The source host's data has NOT been touched or "
+                "deleted -- decommission it manually once confident.",
+                target_host_name
+            )
+            return True
+        finally:
+            ssh.close()
+
 
 class cli_osm_orchestrator_t:
     def __init__(self, osm_orch):
@@ -938,6 +1066,12 @@ class cli_osm_orchestrator_t:
         )
         return os.EX_OK
 
+    def transfer_orchestrator(self, host_name: str) -> int:
+        return (
+            os.EX_OK if self._osm_orch.transfer_orchestrator(host_name)
+            else os.EX_UNAVAILABLE
+        )
+
 
 def main():
     self_path = os.path.abspath(__file__)
@@ -1061,6 +1195,12 @@ def main():
             "mqtt_listener <customer_name>: Get MQTT listener cmd "
             "Returns bash line of mosquitto_sub to listen to customer",
             cli_obj.get_mosquitto_sub_cmd,
+        ),
+        "transfer_orchestrator": cmd_entry(
+            "transfer_orchestrator <host name>: Migrate orchestrator/pdns "
+            "databases, config.yaml, and master.key to <host name>, "
+            "making it the new master. Source host is left untouched.",
+            cli_obj.transfer_orchestrator,
         ),
     }
 
