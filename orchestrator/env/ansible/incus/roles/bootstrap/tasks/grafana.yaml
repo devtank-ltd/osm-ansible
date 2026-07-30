@@ -137,6 +137,7 @@
       description: "Alerts"
       title: "Alerts"
   register: orch_grafana_folder
+  when: mail_recipients | default('') | trim | length > 0
 
 - name: Add Grafana Alert Group
   vars:
@@ -150,3 +151,4 @@
       Content-Type: application/json
     unredirected_headers: [ Authorization ]
     body: "{{ rules|replace('DATABASE_UID', orch_grafana_datasource_prometheus.datasource.uid) }}"
+  when: mail_recipients | default('') | trim | length > 0
