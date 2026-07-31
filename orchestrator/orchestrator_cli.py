@@ -629,8 +629,9 @@ class osm_orchestrator_t:
         self.logger.info("Provisioning '%s' as a master candidate...", target_host_name)
         provision_cmd = [
             "ansible-playbook",
-            "--module-path", f"{DEVTANK_WD}/env/ansible/library",
             "-i", f"{target_ip},",
+            "--tags", "bootstrap,image_remote",
+            "--skip-tags", "pebble",
             "-e", "target_role=main",
             "-e", f"git_branch={self._get_git_branch()}",
             "-e", f"osm_dns={target_ip}",
@@ -641,8 +642,10 @@ class osm_orchestrator_t:
             "-e", f"mail_recipients={os.environ.get('MAIL_RECIPIENTS', '')}",
             f"{DEVTANK_WD}/env/ansible/incus/deploy.yaml",
         ]
+        env = os.environ.copy()
+        env["ANSIBLE_LIBRARY"] = f"{DEVTANK_WD}/env/ansible/library"
         try:
-            subprocess.run(provision_cmd, check=True)
+            subprocess.run(provision_cmd, check=True, env=env)
         except subprocess.CalledProcessError as err:
             self.logger.error("Provisioning failed on '%s': %s", target_host_name, err)
             return False

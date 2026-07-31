@@ -169,7 +169,12 @@
 - name: Add devtank image server
   shell:
     cmd: "incus remote add devtank {{ incus_init['image']['url'] }} --protocol {{ incus_init['image']['protocol'] }}"
-  when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
+  register: add_devtank_remote
+  retries: 5
+  delay: 30
+  until: add_devtank_remote.rc == 0
+  when: "target_role | default('') == 'main'"
+  tags: [incus, image_remote]
 
 - name: Install systemd-resolved
   apt:
@@ -193,7 +198,7 @@
       BindsTo=sys-subsystem-net-devices-devtank.device
       After=sys-subsystem-net-devices-devtank.device
       Depends=incus.socket
-      
+
       [Service]
       Type=oneshot
       ExecStart=/usr/bin/resolvectl dns devtank {{ incus_init.network.ipaddr.split('/')[0] }} {{ hostvars['vosmhost0']['ansible_host'] }}
@@ -202,7 +207,7 @@
       ExecStart=/usr/bin/resolvectl dnsovertls devtank off
       ExecStopPost=/usr/bin/resolvectl revert devtank
       RemainAfterExit=yes
-      
+
       [Install]
       WantedBy=sys-subsystem-net-devices-devtank.device
     owner: root
