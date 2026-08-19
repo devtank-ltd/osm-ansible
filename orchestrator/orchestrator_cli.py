@@ -972,6 +972,8 @@ class cli_osm_orchestrator_t:
         if os.path.exists("/usr/bin/pebble"):
             grafana_cmd += ["--unsafe"]
 
+        self.logger.info(f"grafana_cmd {grafana_cmd}")
+
         grafana_proc = subprocess.Popen(
             grafana_cmd,
             stdin=subprocess.PIPE,
@@ -1007,6 +1009,7 @@ class cli_osm_orchestrator_t:
             # If it's a test environment, ssl verification can't work easily.
             if os.path.exists("/usr/bin/pebble"):
                 grafana_cmd += ["--unsafe"]
+            self.logger.info(f"grafana_cmd {grafana_cmd}")
             grafana_proc = subprocess.Popen(
                 grafana_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE
             )
