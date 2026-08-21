@@ -17,12 +17,17 @@
       ansible.builtin.set_fact:
         osm_ip: "{{ customer_info.output.host_ipaddr }}"
 
+    - name: Task name
+      stat:
+        path: "/etc/snapper/configs/{{ customer_name }}"
+      register: snapper_filedata
+
     - name: Remove snapper config for {{ customer_name }} customer
       delegate_to: "{{ osm_ip }}"
       connection: ssh
       ansible.builtin.shell:
         snapper -c "{{ customer_name }}" delete-config
-      ignore_errors: true
+      when: snapper_filedata.stat.exists
 
     - name: Remove snapper-backup config for {{ customer_name }} customer
       delegate_to: "{{ osm_ip }}"
