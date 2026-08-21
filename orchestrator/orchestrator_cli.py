@@ -361,15 +361,16 @@ class osm_orchestrator_t:
         return self._db.query_contact_points()
 
     def del_osm_customer(self, customer_name: str) -> bool:
-        warn_msg = (
-            f"!!! WARNING !!! The customer '{customer_name}' is going to be "
-            "deleted. Continue? [y/N]? "
-        )
+        if sys.stdin.isatty():
+            warn_msg = (
+                f"!!! WARNING !!! The customer '{customer_name}' is going to be "
+                "deleted. Continue? [y/N]? "
+            )
 
-        proceed = input(warn_msg)
+            proceed = input(warn_msg)
 
-        if proceed.lower() not in ("y", "yes"):
-            return False
+            if proceed.lower() not in ("y", "yes"):
+                return False
 
         ansible_cmd = [
             "ansible-playbook",
