@@ -25,7 +25,7 @@
 
 - name: Request certificate for customer
   ansible.builtin.shell: |
-    {{ certbot_prefix }}certbot certonly --nginx \
+    {{ certbot_prefix }}certbot certonly -v --nginx \
     -d {{ customer_name }}.{{ target_domain }},\
     {{ customer_name }}-chirpstack.{{ target_domain }},\
     {{ customer_name }}-mqtt.{{ target_domain }},\
