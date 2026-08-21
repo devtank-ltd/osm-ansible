@@ -19,7 +19,7 @@ setup_file() {
 teardown_file() {
     # we don't have remove contacts functionality so far
     mysql -u root osm_orchestrator -e 'delete from osm_customer_contact'
-    rm -v /tmp/devtank_test_data
+    rm -fv /tmp/devtank_test_data
 }
 
 @test "Add customer" {
