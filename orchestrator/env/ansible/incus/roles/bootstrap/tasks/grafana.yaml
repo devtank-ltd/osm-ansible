@@ -37,10 +37,12 @@
   ansible.builtin.uri:
     url: http://localhost:3000/api/health
     method: GET
-  until: uri_out.status == 200
+    status_code: 200
+    timeout: 5
+  register: uri_out
   retries: 5
   delay: 5
-  register: uri_out
+  until: uri_out.status == 200
 
 - name: Create Grafana Service Account
   ansible.builtin.uri:
