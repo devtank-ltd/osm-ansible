@@ -24,7 +24,10 @@
     orch_grafana_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null', length=16, chars=['ascii_letters', 'digits']) }}"
 
 - name: Set Grafana Admin Password
-  command: "grafana cli --homepath /usr/share/grafana admin reset-admin-password {{ orch_grafana_admin_password }}; chown grafana: /var/lib/grafana/grafana.db;"
+  command: "grafana cli --homepath /usr/share/grafana admin reset-admin-password {{ orch_grafana_admin_password }}"
+
+- name: Set back Grafana DB ownership
+  command: "chown grafana: /var/lib/grafana/grafana.db"
 
 - name: Start and enable Grafana
   systemd:
