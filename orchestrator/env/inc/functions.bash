@@ -793,6 +793,8 @@ clear_pebble() {
     local hosts_dir=$2
     # Clear Pebble so certbot re-registers instead of failing with
     # "Account not found".
+    # Pebble doesn't remember accounts between restarts.
+    # https://community.letsencrypt.org/t/failing-to-make-progress-with-certbot-and-pebble/100085/3
     # shellcheck disable=SC2029
     ssh -i "${hosts_dir}/id_ed25519" \
         root@"$host" \
