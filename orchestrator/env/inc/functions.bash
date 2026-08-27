@@ -348,7 +348,6 @@ do_run_environment() {
         host="${host##*/}"
         info "Waiting for IP address assigned for '$host' host"
         wait_for_ip "$host" "${OSM_SUBNET}.1"
-        clear_pebble "$host" "$hosts_dir"
     done
 }
 
@@ -786,19 +785,6 @@ request_pebble_cert() {
         fi
     done
     die "Unable to get certificate."
-}
-
-clear_pebble() {
-    local host=$1
-    local hosts_dir=$2
-    # Clear Pebble so certbot re-registers instead of failing with
-    # "Account not found".
-    # Pebble doesn't remember accounts between restarts.
-    # https://community.letsencrypt.org/t/failing-to-make-progress-with-certbot-and-pebble/100085/3
-    # shellcheck disable=SC2029
-    ssh -i "${hosts_dir}/id_ed25519" \
-        root@"$host" \
-        "rm -rf '/etc/letsencrypt/accounts/10.10.1.2:14000'" &>/dev/null || true
 }
 
 run_dnsmasq() {

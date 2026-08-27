@@ -103,6 +103,17 @@
         state: latest
         update_cache: yes
 
+    - name: Install pebble-workround systemd service
+      ansible.builtin.copy:
+        src: pebble-workround.service
+        dest: /etc/systemd/system/
+
+    - name: Start pebble-workround
+      ansible.builtin.systemd_service:
+        name: pebble-workround
+        daemon_reload: true
+        enabled: true
+
     - name: Include Snapper repo setup
       ansible.builtin.include_tasks: add_snapper_repo.yaml
       when: inventory_hostname != 'orchestrator'
