@@ -4,9 +4,6 @@ main:
   packages:
     - ansible
     - apt-transport-https
-    - bats
-    - bats-assert
-    - bats-support
     - curl
     - default-mysql-client
     - default-mysql-server
@@ -16,7 +13,6 @@ main:
     - iproute2
     - iptables
     - pdns-backend-mysql
-    - pebble
     - prometheus
     - prometheus-pushgateway
     - pushprox-proxy
@@ -39,6 +35,12 @@ main:
   wireguard:
     ipaddr: 10.10.1.1
     port: 51820
+
+osmhosttest:
+  packages:
+    - bats
+    - bats-assert
+    - bats-support
 
 osmhost:
   packages:

@@ -39,6 +39,13 @@
         state: latest
         update_cache: yes
 
+    - name: Install Test env Packages
+      ansible.builtin.apt:
+        pkg: "{{ osmhosttest.packages }}"
+        state: latest
+        update_cache: yes
+      tags: testenv
+
     - name: Install snapper
       ansible.builtin.include_tasks: add_snapper_repo.yaml
       when: inventory_hostname == 'orchestrator'
@@ -68,8 +75,12 @@
         state: present
         reload: true
 
-    - import_tasks: minica.yaml
-    - import_tasks: pebble.yaml
+    - name: Setup Test Main host
+      block:
+        - import_tasks: minica.yaml
+        - import_tasks: pebble.yaml
+      tags: testenv
+
     - import_tasks: db.yaml
     - import_tasks: query_exporter.yaml
     - import_tasks: prometheus.yaml
@@ -107,12 +118,14 @@
       ansible.builtin.copy:
         src: pebble-workround.service
         dest: /etc/systemd/system/
+      tags: testenv
 
     - name: Start pebble-workround
       ansible.builtin.systemd_service:
         name: pebble-workround
         daemon_reload: true
         enabled: true
+      tags: testenv
 
     - name: Include Snapper repo setup
       ansible.builtin.include_tasks: add_snapper_repo.yaml

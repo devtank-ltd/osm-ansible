@@ -18,8 +18,7 @@ run_ansible_early() {
     local ansible_args=(
         -e "${extra_vars[*]}"
         -i "$ANSIBLE_HOSTS"
-        --skip-tags "pebble"
-        --tags "bootstrap"
+        --tags "bootstrap,testenv"
         "$playbook"
     )
     edo ansible-playbook "${ansible_args[@]}"
@@ -29,7 +28,7 @@ run_ansible_pebble() {
     local host="$1"
     local playbook="ansible/incus/deploy.yaml"
     local args=(
-         --tags "pebble"
+        --tags "testenv"
         -u root
         -i "$ANSIBLE_HOSTS"
         -e target="$host"
