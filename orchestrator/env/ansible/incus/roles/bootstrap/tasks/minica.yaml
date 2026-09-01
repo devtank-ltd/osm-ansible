@@ -4,7 +4,7 @@
     - name: Fetch MiniCA sources
       git:
         repo: https://github.com/jsha/minica.git
-        dest: {{ devtank.dir }}/utils/minica
+        dest: "{{ devtank.dir }}/utils/minica"
         single_branch: yes
         version: master
 
