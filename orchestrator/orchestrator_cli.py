@@ -615,6 +615,47 @@ class osm_orchestrator_t:
             return False
         return True
 
+    def _resync_dns_to_orchestrator(self, main_host_name: str, master_ip: str) -> bool:
+        """Point every existing OSM host's wg0 DNS resolver at the new
+        main host WireGuard address."""
+        hosts = self.list_hosts()
+        if not hosts:
+            self.logger.warning("No hosts found to resync DNS for.")
+            return True
+
+        inventory_lines = [
+            f"{h.name} ansible_ssh_private_key_file=/root/.ssh/id_ed25519 "
+            f"ansible_host={h.ip_addr} target_role="
+            f"{'main' if h.name == main_host_name else ''}"
+            for h in hosts
+        ]
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".ini", delete=False
+        ) as inv_file:
+            inv_file.write("\n".join(inventory_lines) + "\n")
+            inv_path = inv_file.name
+
+        resync_cmd = [
+            "ansible-playbook",
+            "-i", inv_path,
+            "--tags", "wireguard_dns",
+            "-e", f"osm_domain={self.config['pdns_domain']}",
+            f"{DEVTANK_WD}/env/ansible/incus/deploy.yaml",
+        ]
+        env = os.environ.copy()
+        env["ANSIBLE_LIBRARY"] = f"{DEVTANK_WD}/env/ansible/library"
+
+        try:
+            subprocess.run(resync_cmd, check=True, env=env)
+        except subprocess.CalledProcessError as err:
+            self.logger.error("DNS resync failed: %s", err)
+            return False
+        finally:
+            os.unlink(inv_path)
+
+        return True
+
     def transfer_orchestrator(self, target_host_name: str) -> bool:
         """Provision target_host_name as a master candidate, then migrate
         the orchestrator/pdns MySQL databases, config.yaml, and master.key
@@ -717,6 +758,10 @@ systemctl start pdns.service
             _, stdout, stderr = ssh.exec_command(remote_setup_cmd)
             if stdout.channel.recv_exit_status() != 0:
                 self.logger.error("Remote setup failed:\n%s", stderr.read().decode())
+                return False
+
+            if not self._resync_dns_to_orchestrator(target_host_name, target_ip):
+                self.logger.error("Orchestrator data migrated, but DNS resync failed. Clients may still be resolving the old orchestrator.")
                 return False
 
             verify_cmd = "cd /srv/osm-lxc/orchestrator && ./orchestrator_cli.py list_hosts"

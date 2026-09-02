@@ -69,16 +69,28 @@
   retries: 10
   delay: 10
 
+- name: Find current main host
+  ansible.builtin.set_fact:
+    main_host: >-
+      {{ (hostvars | dict2items
+          | selectattr('value.target_role', 'defined')
+          | selectattr('value.target_role', 'equalto', 'main')
+          | map(attribute='key') | list | first) }}
+  run_once: true
+  tags: [postinst, wireguard_dns]
+
 - name: Get WireGuard IP address of main OSM host
   ansible.builtin.shell: |
     ip -4 -o a s dev wg0
   register: wg_output
-  delegate_to: vosmhost0
+  delegate_to: "{{ main_host }}"
+  tags: [postinst, wireguard_dns]
 
 - name: Set WireGuard IP address of main OSM host
   ansible.builtin.set_fact:
     main_wg_ip: "{{ wg_output.stdout | regex_search('inet (\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})', '\\1') | first }}"
   run_once: true
+  tags: [postinst, wireguard_dns]
 
 - name: Add DNS info to systemd network file
   ansible.builtin.blockinfile:
@@ -86,22 +98,26 @@
     block: |
       DNS={{ hostvars[inventory_hostname]['main_wg_ip'] }}
       Domains=~{{ osm_domain }}
+  tags: [postinst, wireguard_dns]
 
 - name: Resolve OSM domain on WireGuard interface
   ansible.builtin.shell: |
     resolvectl dns wg0 {{ hostvars[inventory_hostname]['main_wg_ip'] }}
     resolvectl domain wg0 ~{{ osm_domain }}
+  tags: [postinst, wireguard_dns]
 
 - name: Bind WG IP to PowerDNS
-  when: inventory_hostname == "vosmhost0"
+  when: target_role | default('') == 'main'
   ansible.builtin.shell: |
     sed -ri 's/^local-address=.*/&, {{ hostvars[inventory_hostname]["main_wg_ip"] }}/' /etc/powerdns/pdns.conf
+  tags: [postinst, wireguard_dns]
 
 - name: Restart PowerDNS
-  when: inventory_hostname == "vosmhost0"
+  when: target_role | default('') == 'main'
   ansible.builtin.systemd_service:
     name: pdns
     state: restarted
+  tags: [postinst, wireguard_dns]
 
 - name: Setup databases
   when: inventory_hostname == "vosmhost0"
