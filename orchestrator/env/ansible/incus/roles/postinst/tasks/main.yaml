@@ -3,6 +3,7 @@
 - name: Initialize dictionary to store WireGuard info
   ansible.builtin.set_fact:
     wireguard_data: "{{ wireguard_data | default( {} ) }}"
+  tags: [postinst, wireguard_dns]
 
 - name: Generate WireGuard keypair
   shell: |
@@ -10,18 +11,22 @@
     wg genkey | tee /etc/wireguard/priv.key | wg pubkey | tee /etc/wireguard/pub.key
   args:
     creates: /etc/wireguard/priv.key
+  tags: [postinst, wireguard_dns]
 
 - name: Register private key
   shell: cat /etc/wireguard/priv.key
   register: wireguard_priv_key
+  tags: [postinst, wireguard_dns]
 
 - name: Register public key
   shell: cat /etc/wireguard/pub.key
   register: wireguard_pub_key
+  tags: [postinst, wireguard_dns]
 
 - name: Set WireGuard IP address
   ansible.builtin.set_fact:
     wg_ip: "{{ '.'.join(wireguard.ipaddr.split('.')[:3]) + '.' + ansible_default_ipv4.address.split('.')[-1] }}"
+  tags: [postinst, wireguard_dns]
 
 - name: Store WireGuard info to dictionary
   ansible.builtin.set_fact:
@@ -36,11 +41,13 @@
           }
         )
       }}"
+  tags: [postinst, wireguard_dns]
 
 - name: Generate WireGuard config
   template:
     src: wg.conf.tpl
     dest: /etc/wireguard/wg0.conf
+  tags: [postinst, wireguard_dns]
 
 - name: Setup wg0 device
   template:
@@ -49,6 +56,7 @@
     owner: root
     group: systemd-network
     mode: 0640
+  tags: [postinst, wireguard_dns]
 
 - name: Setup wg0 network
   template:
@@ -58,9 +66,11 @@
     group: systemd-network
     mode: 0640
   notify: systemd network restart
+  tags: [postinst, wireguard_dns]
 
 - name: Force notified handlers to run here
   ansible.builtin.meta: flush_handlers
+  tags: [postinst, wireguard_dns]
 
 - name: Wait for wg0 to ping
   ansible.builtin.command: ping -c 1 {{ wg_ip }}
@@ -68,6 +78,7 @@
   until: ping_result.rc == 0
   retries: 10
   delay: 10
+  tags: [postinst, wireguard_dns]
 
 - name: Find current main host
   ansible.builtin.set_fact:
@@ -106,8 +117,17 @@
     resolvectl domain wg0 ~{{ osm_domain }}
   tags: [postinst, wireguard_dns]
 
-- name: Bind WG IP to PowerDNS
+- name: Check if WG IP already bound to PowerDNS
+  ansible.builtin.shell: |
+    grep -q "{{ hostvars[inventory_hostname]['main_wg_ip'] }}" /etc/powerdns/pdns.conf
+  register: wg_already_bound
+  changed_when: false
+  failed_when: false
   when: target_role | default('') == 'main'
+  tags: [postinst, wireguard_dns]
+
+- name: Bind WG IP to PowerDNS
+  when: target_role | default('') == 'main' and wg_already_bound.rc != 0
   ansible.builtin.shell: |
     sed -ri 's/^local-address=.*/&, {{ hostvars[inventory_hostname]["main_wg_ip"] }}/' /etc/powerdns/pdns.conf
   tags: [postinst, wireguard_dns]

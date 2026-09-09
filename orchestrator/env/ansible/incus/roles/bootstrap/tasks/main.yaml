@@ -88,6 +88,7 @@
 
 - name: Prepare osm host
   when: inventory_hostname != "orchestrator"
+  tags: osm_host
   block:
     - name: Check /srv directory for BTRFS
       ansible.builtin.shell: |
