@@ -670,12 +670,14 @@ run_qemu_cloudinit() {
     workdir="${HOSTS_DIR}/${workdir}"
     local seed_file="${workdir}/seed.iso"
     local host_data_file="${workdir}/user-data"
+    local meta_data_file="${workdir}/meta-data"
 
     if [[ ! -e "$host_data_file" ]]; then
         gen_osm_user_data "$name"
-        cloud-localds "$seed_file" "$host_data_file"
+        cloud-localds "$seed_file" "$host_data_file" "$meta_data_file"
     elif [[ ! -e "$seed_file" ]]; then
-        cloud-localds "$seed_file" "$host_data_file"
+        [[ ! -e "$meta_data_file" ]] && printf 'instance-id: %s\nlocal-hostname: %s\n' "$name" "$name" > "$meta_data_file"
+        cloud-localds "$seed_file" "$host_data_file" "$meta_data_file"
     fi
 
     run_qemu "$name" "${brif}" -drive "file=${seed_file},format=raw,if=virtio,media=cdrom" ${extra_args[@]}
