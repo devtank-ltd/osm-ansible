@@ -182,7 +182,6 @@
     cmd: "incus remote list --format csv"
   register: incus_remote_list
   changed_when: false
-  when: "target_role | default('') == 'main'"
   tags: [incus, image_remote]
 
 - name: Add devtank image server
@@ -192,7 +191,7 @@
   retries: 5
   delay: 30
   until: add_devtank_remote.rc == 0
-  when: "target_role | default('') == 'main' and 'devtank' not in (incus_remote_list.stdout | default(''))"
+  when: "'devtank' not in (incus_remote_list.stdout | default(''))"
   tags: [incus, image_remote]
 
 - name: Install systemd-resolved
