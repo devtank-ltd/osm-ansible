@@ -27,7 +27,7 @@ get_ip4_addr() {
     local iface="$1"
     local ipaddr=""
 
-    ipaddr="$(ip -o -4 addr show dev "$iface" | sed -rn 's|.*inet (.*)\/.*|\1|p')"
+    ipaddr="$(ip -o -4 addr show dev "$iface" | head -n1 | sed -rn 's|.*inet (.*)\/.*|\1|p')"
     [[ -z "$ipaddr" ]] && die "Unable to get IP address for '$iface' interface"
     echo "$ipaddr"
 }
