@@ -19,7 +19,7 @@ setup_file() {
 teardown_file() {
     # we don't have remove contacts functionality so far
     mysql -u root osm_orchestrator -e 'delete from osm_customer_contact'
-    rm -v /tmp/devtank_test_data
+    rm -fv /tmp/devtank_test_data
 }
 
 @test "Add customer" {
@@ -32,12 +32,24 @@ teardown_file() {
     assert_failure
 }
 
-@test "Add Host" {
-    skip "Not implemented"
+@test "Add Test Host" {
+    run "$CLI" add_host fakehost 127.0.0.1 1
+    assert_success
 }
 
-@test "Del Host" {
-    skip "Not implemented"
+@test "Add Test Host again" {
+    run "$CLI" add_host fakehost 127.0.0.1 1
+    assert_failure
+}
+
+@test "Del Test Host" {
+    run "$CLI" del_host fakehost
+    assert_success
+}
+
+@test "Del Test Host again" {
+    run "$CLI" del_host fakehost
+    assert_failure
 }
 
 @test "Test Hosts" {
@@ -96,6 +108,7 @@ teardown_file() {
 }
 
 @test "Move Customer" {
+    [[ ${#OSM_HOSTS[@]} -gt 1 ]] || skip "Only single host"
     current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
     target_host=
     target_host_idx=
@@ -150,6 +163,7 @@ teardown_file() {
 }
 
 @test "Clone Customer. Other OSM host. Non-public" {
+    [[ ${#OSM_HOSTS[@]} -gt 1 ]] || skip "Only single host"
     current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
     target_host=
 
@@ -169,6 +183,7 @@ teardown_file() {
 }
 
 @test "Clone Customer. Other OSM host. Public" {
+    [[ ${#OSM_HOSTS[@]} -gt 1 ]] || skip "Only single host"
     current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
     target_host=
     target_host_idx=
@@ -202,6 +217,7 @@ teardown_file() {
 }
 
 @test "Clone Already Cloned Customer. Other OSM host. Non-public" {
+    [[ ${#OSM_HOSTS[@]} -gt 1 ]] || skip "Only single host"
     current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
     target_host=
 
@@ -217,6 +233,7 @@ teardown_file() {
 }
 
 @test "Clone Already Cloned Customer. Other OSM host. Public" {
+    [[ ${#OSM_HOSTS[@]} -gt 1 ]] || skip "Only single host"
     current_host="$(incus ls "$CUSTOMER_NAME" -cL -fcsv)"
     target_host=
 

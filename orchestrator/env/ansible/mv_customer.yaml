@@ -11,6 +11,7 @@
     db_port: 5432
     data_dir: /tmp/data
     ansible_python_interpreter: python3
+    transfer_port: 8443
 
     tables:
       - { name: "pg_sf", column: "_time", keys: "_time, osm_id" }
@@ -34,6 +35,23 @@
         - name: Set current host from incus
           ansible.builtin.set_fact:
             osm_host: "{{ incus_result.stdout }}"
+
+        - name: Check if source and target hosts are in the same cluster
+          ansible.builtin.shell: |
+            incus cluster list -fcsv --columns n 2>/dev/null || echo ""
+          register: cluster_check
+          changed_when: false
+          failed_when: false
+
+        - name: Fail if hosts are not both in a cluster together
+          ansible.builtin.assert:
+            that:
+              - osm_host in cluster_check.stdout_lines
+              - target_host in cluster_check.stdout_lines
+            fail_msg: >-
+              Cannot move {{ customer_name }}: source host '{{ osm_host }}' and/or target host
+              '{{ target_host }}' are not members of the same Incus cluster.
+            success_msg: "Confirmed both hosts are cluster members — proceeding with move."
 
         - name: Get source host info
           devtank_db:
@@ -76,48 +94,122 @@
           ansible.builtin.set_fact:
             mqtt_port: "{{ result.output.mqtt_port }}"
 
+    - name: Take and verify a fresh backup before touching any snapshots
+      block:
+        - name: Get backup host IP address
+          ansible.builtin.set_fact:
+            backup_host: "{{ osmbackup | default(ansible_default_ipv4.address) }}"
+
+        - name: Take a fresh snapshot on the source
+          ansible.builtin.shell: |
+            snapper -c {{ customer_name }} create --description "pre-move backup" --print-number
+          register: fresh_snapshot
+
+        - name: Set fresh snapshot number fact
+          ansible.builtin.set_fact:
+            fresh_snapshot_number: "{{ fresh_snapshot.stdout | trim | int }}"
+
+        - name: Transfer the fresh snapshot to the backup host
+          ansible.builtin.shell: |
+            snbk -b {{ customer_name }} transfer
+
+        - name: Check transfer status via snbk
+          ansible.builtin.shell: |
+            snbk -b {{ customer_name }} --jsonout list
+          register: snbk_list
+          changed_when: false
+
+        - name: Parse snbk list output
+          ansible.builtin.set_fact:
+            snbk_list_json: "{{ (snbk_list.stdout | from_json)['snapshots'] }}"
+
+        - name: Fail if the fresh snapshot did not transfer successfully
+          ansible.builtin.assert:
+            that:
+              - snbk_list_json | selectattr('number', 'equalto', fresh_snapshot_number) | map(attribute='target-state') | list | first | default('') == 'valid'
+            fail_msg: >-
+              Snapshot {{ fresh_snapshot_number }} for {{ customer_name }} did not reach
+              {{ backup_host }} in a valid state. Refusing to delete source snapshots.
+            success_msg: >-
+              Confirmed snapshot {{ fresh_snapshot_number }} for {{ customer_name }}
+              is valid on {{ backup_host }}.
+
+    - name: Prepare source instance for transfer
+      block:
+        - name: Get pool name for source instance
+          ansible.builtin.shell: |
+            incus config show {{ customer_name }} --expanded | sed -rn 's|.*pool: (.*)$|\1|p'
+          register: src_pool_name
+          changed_when: false
+
+        # readonly snapshot subvolumes on the target causes a fail
+        # when any snapshot exists on the source. We've just confirmed
+        # the latest snapshot is on backup_host. So we move them to an
+        # archive directory in case they're needed later.
+        - name: List snapper snapshots on the source host before transfer
+          ansible.builtin.shell: |
+            snapper -c {{ customer_name }} list --columns number | tail -n +3 | grep -v '^0$'
+          register: pre_transfer_snapshot_numbers
+          changed_when: false
+          failed_when: false
+
+        - name: Create snapshot archive directory on source host
+          ansible.builtin.shell: |
+            mkdir -p /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/snapshot-archive/{{ customer_name }}/{{ item }}
+          loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
+
+        - name: Archive pre move snapshot subvolumes via btrfs send/receive
+          ansible.builtin.shell: |
+            btrfs send /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/containers/{{ customer_name }}/.snapshots/{{ item }}/snapshot \
+              | btrfs receive /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/snapshot-archive/{{ customer_name }}/{{ item }}
+          loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
+
+        - name: Copy snapshot metadata to the archived subvolume
+          ansible.builtin.shell: |
+            cp /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/containers/{{ customer_name }}/.snapshots/{{ item }}/info.xml \
+               /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/snapshot-archive/{{ customer_name }}/{{ item }}/info.xml
+          loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
+          failed_when: false
+
+        - name: Delete the leftover snapshot subvolume from .snapshots
+          ansible.builtin.shell: |
+            btrfs subvolume delete /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/containers/{{ customer_name }}/.snapshots/{{ item }}/snapshot
+          loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
+
+        - name: Remove empty .snapshots directory
+          ansible.builtin.shell: |
+            rm -rf /var/lib/incus/storage-pools/{{ src_pool_name.stdout }}/containers/{{ customer_name }}/.snapshots/{{ item }}
+          loop: "{{ pre_transfer_snapshot_numbers.stdout_lines | default([]) }}"
+
     - name: Transfer {{ customer_name }} instance
       block:
-        - name: Get start time
-          ansible.builtin.set_fact:
-            start_chunk_time: "{{ lookup('pipe', 'date -u +%Y-%m-%d\\ %H:%M:%S%z') }}"
-
-        - name: Remove snapper
-          delegate_to: "{{ src_host_info.output.host_ip }}"
+        - name: Copy container while still running
           ansible.builtin.shell: |
-            snapper -c {{ customer_name }} delete-config
-            rm /etc/snapper/backup-configs/{{ customer_name }}.json
-          vars:
-            ansible_connection: ssh
+            incus copy {{ customer_name }} {{ customer_name }}-migrating --target {{ target_host }} --stateless
 
-        - name: Make {{ customer_name }} instance snapshot
-          ansible.builtin.shell: |
-            incus snapshot create {{ customer_name }} temp
-
-        - name: Copy snapshot to {{ target_host }} host
-          ansible.builtin.shell: |
-            incus copy {{ customer_name }}/temp {{customer_name }}-temp --target {{ target_host }}
-
-        - name: Rename original {{ customer_name }} instance
+        - name: Stop instance before cluster move
           ansible.builtin.shell: |
             incus stop {{ customer_name }}
-            incus rename {{ customer_name }} {{ customer_name}}-old
-            incus start {{ customer_name}}-old
 
-        - name: Start transferred instance
+        - name: Sync the changes
           ansible.builtin.shell: |
-            incus rename {{ customer_name }}-temp {{ customer_name }}
-            incus start {{ customer_name }}
+            incus copy {{ customer_name }} {{ customer_name }}-migrating --target {{ target_host }} --stateless --refresh
 
-        - name: Ping transferred instance (internal)
+        - name: Delete the old instance
+          ansible.builtin.shell: |
+            incus delete {{ customer_name }}
+
+        - name: Rename new instance
           delegate_to: "{{ dst_host_info.output.host_ip }}"
           connection: ssh
-          retries: 3
-          delay: 3
-          register: result
-          until: result is not failed
-          ansible.builtin.shell:
-            ping -c3 -W1 "{{customer_name}}.incus"
+          ansible.builtin.shell: |
+            incus rename {{ customer_name }}-migrating {{ customer_name }}
+
+        - name: Start instance on target host
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            incus start {{ customer_name }}
 
     - name: Configure OSM hosts
       block:
@@ -176,17 +268,42 @@
           register: pool_name
           changed_when: false
 
+        - name: Check if .snapshots subvolume already exists
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.stat:
+            path: "/var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}/.snapshots"
+          register: snapshots_subvol_check
+
+        - name: List nested subvolumes inside .snapshots
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            btrfs subvolume list -o /var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}/.snapshots 2>/dev/null | awk '{print $NF}'
+          register: nested_subvols
+          when: snapshots_subvol_check.stat.exists
+          changed_when: false
+
+        - name: Delete nested snapshot subvolumes first
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            btrfs subvolume delete "/{{ item }}"
+          loop: "{{ nested_subvols.stdout_lines | default([]) }}"
+          when: snapshots_subvol_check.stat.exists
+
+        - name: Remove pre-existing .snapshots subvolume before snapper init
+          delegate_to: "{{ dst_host_info.output.host_ip }}"
+          connection: ssh
+          ansible.builtin.shell: |
+            btrfs subvolume delete /var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}/.snapshots
+          when: snapshots_subvol_check.stat.exists
+
         - name: Create snapper config
           delegate_to: "{{ dst_host_info.output.host_ip }}"
           connection: ssh
           ansible.builtin.shell:
             snapper --debug -v -c {{ customer_name }} create-config /var/lib/incus/storage-pools/{{ pool_name.stdout }}/containers/{{ customer_name }}
-          args:
-            executable: /bin/bash
-
-        - name: Get backup host IP address
-          ansible.builtin.set_fact:
-            backup_host: "{{ osmbackup | default(ansible_default_ipv4.address) }}"
 
         - name: Create snapper-backup configuration
           delegate_to: "{{ dst_host_info.output.host_ip }}"
@@ -208,105 +325,9 @@
             owner: root
             group: root
 
-    - name: Move data to the new {{ customer_name }} instance
-      block:
-
-        - name: Get end time
-          ansible.builtin.set_fact:
-            end_chunk_time: "{{ lookup('pipe', 'date -u +%Y-%m-%d\\ %H:%M:%S%z') }}"
-
-        - name: Ensure data directory exists inside container
+        - name: Remove stale snapper-backup configuration from the source host
+          delegate_to: "{{ src_host_info.output.host_ip }}"
+          connection: ssh
           ansible.builtin.file:
-            path: /tmp/data
-            state: directory
-            owner: postgres
-            group: postgres
-            mode: '0755'
-          vars:
-            ansible_connection: community.general.incus
-            ansible_host: "{{ customer_name }}-old"
-
-        - name: Backup data from old {{ customer_name }} instance
-          ansible.builtin.shell: |
-            su - postgres -c "psql -d {{ db_name }} -c \"\COPY (
-              SELECT * FROM {{ item.name }}
-              WHERE {{ item.column }} >= '{{ start_chunk_time }}'::timestamptz
-                AND {{ item.column }} < '{{ end_chunk_time }}'::timestamptz
-            ) TO '/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv' WITH CSV HEADER\""
-          args:
-            executable: /bin/bash
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-          vars:
-            ansible_connection: community.general.incus
-            ansible_host: "{{ customer_name }}-old"
-
-        - name: Pull CSVs from {{ customer_name }}-old instance
-          ansible.builtin.shell: |
-            incus file pull {{ customer_name }}-old/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv /tmp/{{ customer_name }}/{{ item.name }}/
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-        - name: Push CSVs to {{ customer_name }} instance
-          ansible.builtin.shell: |
-            incus file push /tmp/{{ customer_name }}/{{ item.name }}/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv {{ customer_name }}/tmp/data/ -p -r
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-        - name: Set data directory permissions
-          ansible.builtin.file:
-            path: /tmp/data
-            state: directory
-            owner: postgres
-            group: postgres
-            mode: '0755'
-          vars:
-            ansible_connection: community.general.incus
-            ansible_host: "{{ customer_name }}"
-
-        - name: Ensure staging tables exist and are truncated
-          ansible.builtin.shell: |
-            incus exec {{ customer_name }} -- su - postgres -c "psql -d {{ db_name }} -c 'CREATE TABLE IF NOT EXISTS {{ item.name }}_staging (LIKE {{ item.name }} INCLUDING ALL); TRUNCATE {{ item.name }}_staging;'"
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-        - name: Import CSVs into staging tables
-          ansible.builtin.shell: |
-            incus exec {{ customer_name }} -- su - postgres -c "psql -d {{ db_name }} -c \"\COPY {{ item.name }}_staging FROM '/tmp/data/{{ item.name }}_{{ start_chunk_time | regex_replace('[^0-9]', '') }}_{{ end_chunk_time | regex_replace('[^0-9]', '') }}.csv' WITH CSV HEADER\""
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-        - name: Insert data from staging into main tables
-          ansible.builtin.shell: |
-            incus exec {{ customer_name }} -- su - postgres -c "
-              psql -d {{ db_name }} -c \"
-                INSERT INTO {{ item.name }}
-                SELECT * FROM {{ item.name }}_staging;
-              \"
-            "
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-    - name: Clean up
-      block:
-        - name: Clean up staging tables
-          ansible.builtin.shell: |
-            incus exec {{ customer_name }} -- su - postgres -c "
-              psql -d {{ db_name }} -c \"
-                TRUNCATE {{ item.name }}_staging;
-              \"
-            "
-          loop: "{{ tables }}"
-          loop_control:
-            label: "{{ item.name }}"
-
-        - name: Remove old {{ customer_name }} instance
-          ansible.builtin.shell: |
-            incus stop {{ customer_name }}-old
-            incus rm {{ customer_name }}-old
+            path: /etc/snapper/backup-configs/{{ customer_name }}.json
+            state: absent

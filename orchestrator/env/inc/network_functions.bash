@@ -27,7 +27,7 @@ get_ip4_addr() {
     local iface="$1"
     local ipaddr=""
 
-    ipaddr="$(ip -o -4 addr show dev "$iface" | sed -rn 's|.*inet (.*)\/.*|\1|p')"
+    ipaddr="$(ip -o -4 addr show dev "$iface" | head -n1 | sed -rn 's|.*inet (.*)\/.*|\1|p')"
     [[ -z "$ipaddr" ]] && die "Unable to get IP address for '$iface' interface"
     echo "$ipaddr"
 }
@@ -76,6 +76,7 @@ EOF
 
     sudo ip link add "$VOSM_HOSTBR" type bridge
     sudo ip addr add "${OSM_SUBNET}.1/24" dev "$VOSM_HOSTBR"
+    sudo ip addr add "${OSM_SUBNET}.254/24" dev "$VOSM_HOSTBR"
     sudo ip link set up dev "$VOSM_HOSTBR"
     sudo iptables "${iptables_args[@]}"
 
@@ -102,6 +103,11 @@ EOF
         fi
     done
 
+    # Setup a socat to redirect from second bridge address to host own DNS server.
+    sudo setsid socat UDP-LISTEN:53,fork,reuseaddr,bind="${OSM_SUBNET}.254" UDP:127.0.0.53:53 </dev/null &>/dev/null &
+    socat_pid=$!
+    echo $socat_pid > "${HOSTS_DIR}/socat.pid"
+
     run_dnsmasq
     sudo resolvectl domain "$VOSM_HOSTBR" ~"$OSM_DOMAIN" || return 1
     sudo resolvectl dns "$VOSM_HOSTBR" "${OSM_SUBNET}.2" || return 1
@@ -113,10 +119,20 @@ close_bridge() {
         return
     fi
 
-    warn "Remove iptables rule"
-    sudo iptables -t nat -D POSTROUTING ! -d "${OSM_SUBNET}.0/24" -s "${OSM_SUBNET}.0/24" -j SNAT --to-source "$(main_ip)"
+    warn "Remove iptables rule of subnet ${OSM_SUBNET}"
+    rules=($(sudo iptables --line-num -n -t nat -L POSTROUTING | grep ${OSM_SUBNET} | cut -c1))
+    for rule in ; do
+        sudo iptables -t nat -D POSTROUTING $rule
+    done
     warn "Kill dnsmasq"
-    sudo pkill -15 -F "${HOSTS_DIR}/${VOSM_HOSTBR}.pid"
+    if [ -e "${HOSTS_DIR}/${VOSM_HOSTBR}.pid" ]; then
+        pid=$(cat "${HOSTS_DIR}/${VOSM_HOSTBR}.pid")
+        [ ! -e /proc/$pid/ ] || sudo kill -15 $pid
+    fi
+    if [ -e "${HOSTS_DIR}/socat.pid" ]; then
+        pid=$(cat "${HOSTS_DIR}/socat.pid")
+        [ ! -e /proc/$pid/ ] || sudo kill -15 $pid
+    fi
     warn "Remove '$VOSM_HOSTBR' interface"
     sudo ip link set down dev "$VOSM_HOSTBR"
     sudo ip addr del "${OSM_SUBNET}.1/24" dev "$VOSM_HOSTBR"

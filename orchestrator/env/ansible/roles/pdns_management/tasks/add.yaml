@@ -9,6 +9,9 @@
     domain_id: "{{ db_conf.pdns_domain_id }}"
     host_name: "{{ osm_host }}"
 
+- name: Test PDNS record
+  ansible.builtin.command: ping -c 1 {{ customer_name }}.{{ db_conf.pdns_domain }}
+
 - name: Set PDNS alias
   ansible.builtin.set_fact:
     pdns_alias: "{{ osm_host }}"

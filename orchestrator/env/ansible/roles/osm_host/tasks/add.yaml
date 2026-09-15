@@ -25,7 +25,7 @@
 
 - name: Request certificate for customer
   ansible.builtin.shell: |
-    {{ certbot_prefix }}certbot certonly --nginx \
+    {{ certbot_prefix }}certbot certonly -v --nginx \
     -d {{ customer_name }}.{{ target_domain }},\
     {{ customer_name }}-chirpstack.{{ target_domain }},\
     {{ customer_name }}-mqtt.{{ target_domain }},\
@@ -97,6 +97,42 @@
 
 - name: Open UFW port
   command: "ufw allow {{ mqtt_port }}"
+
+- name: Wait for Grafana to become open
+  wait_for:
+    host: "{{ customer_name }}.incus"
+    port: 3000
+    connect_timeout: 10
+
+- name: Wait for PostgREST to become open
+  wait_for:
+    host: "{{ customer_name }}.incus"
+    port: 3001
+    connect_timeout: 10
+
+- name: Wait for Chirpstack to become open
+  wait_for:
+    host: "{{ customer_name }}.incus"
+    port: 8080
+    connect_timeout: 10
+
+- name: Wait for MQTT WS to become open
+  wait_for:
+    host: "{{ customer_name }}.incus"
+    port: 9001
+    connect_timeout: 10
+
+- name: Wait for MQTT TCP to become open
+  wait_for:
+    host: "{{ customer_name }}.incus"
+    port: 1883
+    connect_timeout: 10
+
+- name: Wait for Prometheus Exporter to become open
+  wait_for:
+    host: "{{ customer_name }}.incus"
+    port: 9100
+    connect_timeout: 10
 
 - name: Reload nginx
   command: "{{ item }}"

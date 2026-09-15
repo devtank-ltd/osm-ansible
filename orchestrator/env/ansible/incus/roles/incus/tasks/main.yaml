@@ -6,39 +6,57 @@
   when: inventory_hostname == "vosmhost0"
   delegate_to: localhost
   delegate_facts: true
+  tags: [incus, cluster_join]
 
 - name: Create apt keyring path
   file:
     path: /etc/apt/keyrings/
     mode: 0755
     state: directory
+  tags: [incus, image_remote]
 
 - name: Download Zabbly public key
   ansible.builtin.shell:
     curl -fsSL https://pkgs.zabbly.com/key.asc -o /etc/apt/keyrings/zabbly.asc
   args:
     creates: /etc/apt/keyrings/zabbly.asc
+  tags: [incus, image_remote]
 
 - name: Get architecture
   shell: dpkg --print-architecture
   register: dpkg_architecture
   changed_when: false
   check_mode: no
+  tags: [incus, image_remote]
+
+- name: Disable SSH Server accepting client locals
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^AcceptEnv'
+    line: 'AcceptEnv LANG COLORTERM NO_COLOR'
+
+- name: Restart SSH
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
 
 - name: Add Zabbly package source
   template:
     src: sources.tpl
     dest: /etc/apt/sources.list.d/zabbly-incus-{{ incus_init["release"] }}.sources
   notify: Refresh apt
+  tags: [incus, image_remote]
 
 - name: Force notified handlers to run here
   ansible.builtin.meta: flush_handlers
+  tags: [incus, image_remote]
 
 - name: Install incus package
   apt:
     name: incus
     install_recommends: no
     state: present
+  tags: [incus, image_remote]
 
 # TODO: do we need incus Web UI?
 # - name: Install incus UI
@@ -82,6 +100,7 @@
 - name: Set client listen address
   shell:
     cmd: "incus --force-local config set core.https_address {{ ansible_default_ipv4.address|default(ansible_all_ipv4_addresses[0]) }}"
+  tags: [incus, cluster_join]
 
 - name: Set cluster listen address
   shell:
@@ -130,12 +149,14 @@
     cmd: "incus --force-local --quiet cluster add {{ devtank['hostname'] }}"
   register: cluster_add
   when: "(devtank['hostname'] != 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
+  tags: [incus, cluster_join]
 
 - name: Wait until token is valid
   wait_for:
     timeout: 5
   delegate_to: localhost
   when: "cluster_add.changed"
+  tags: [incus, cluster_join]
 
 - name: Join the cluster
   throttle: 1
@@ -154,11 +175,24 @@
           value: /srv/osm-lxc/incus
 
   when: "cluster_add.changed"
+  tags: [incus, cluster_join]
+
+- name: Check existing incus remotes
+  shell:
+    cmd: "incus remote list --format csv"
+  register: incus_remote_list
+  changed_when: false
+  tags: [incus, image_remote]
 
 - name: Add devtank image server
   shell:
     cmd: "incus remote add devtank {{ incus_init['image']['url'] }} --protocol {{ incus_init['image']['protocol'] }}"
-  when: "(devtank['hostname'] == 'vosmhost0' and devtank['hostname'] != 'orchestrator')"
+  register: add_devtank_remote
+  retries: 5
+  delay: 30
+  until: add_devtank_remote.rc == 0
+  when: "'devtank' not in (incus_remote_list.stdout | default(''))"
+  tags: [incus, image_remote]
 
 - name: Install systemd-resolved
   apt:
@@ -172,6 +206,52 @@
     resolvectl dns {{ ansible_default_ipv4.interface }} {{ dns_ip }} 8.8.8.8
     systemctl start systemd-resolved
 
-- name: Set DNS for incus
-  ansible.builtin.shell: |
-    resolvectl dns devtank {{ incus_init.network.ipaddr.split('/')[0] }} {{ hostvars['vosmhost0']['ansible_host'] }}
+- name: Generate Incus Devtank bridge systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/incus-dns-devtank.service
+    content: |
+      # https://linuxcontainers.org/incus/docs/main/howto/network_bridge_resolved/
+      [Unit]
+      Description=Incus per-link DNS configuration for devtank
+      BindsTo=sys-subsystem-net-devices-devtank.device
+      After=sys-subsystem-net-devices-devtank.device
+      Requires=incus.socket
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/resolvectl dns devtank {{ incus_init.network.ipaddr.split('/')[0] }} {{ hostvars['vosmhost0']['ansible_host'] }}
+      ExecStart=/usr/bin/resolvectl domain devtank ~incus
+      ExecStart=/usr/bin/resolvectl dnssec devtank off
+      ExecStart=/usr/bin/resolvectl dnsovertls devtank off
+      ExecStopPost=/usr/bin/resolvectl revert devtank
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=sys-subsystem-net-devices-devtank.device
+    owner: root
+    group: root
+    mode: 0644
+  tags: [incus, image_remote]
+
+- name: Check if devtank network device already exists
+  ansible.builtin.stat:
+    path: /sys/class/net/devtank
+  register: devtank_device
+  tags: [incus, image_remote]
+
+- name: Start and enable incus-dns-devtank
+  ansible.builtin.systemd_service:
+    name: incus-dns-devtank
+    enabled: true
+    state: restarted
+    daemon_reload: true
+  tags: [incus, image_remote]
+  when: devtank_device.stat.exists
+
+- name: Enable incus-dns-devtank for later device-triggered start
+  ansible.builtin.systemd_service:
+    name: incus-dns-devtank
+    enabled: true
+    daemon_reload: true
+  tags: [incus, image_remote]
+  when: not devtank_device.stat.exists

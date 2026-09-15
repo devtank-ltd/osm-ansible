@@ -4,7 +4,7 @@
     - name: Fetch MiniCA sources
       git:
         repo: https://github.com/jsha/minica.git
-        dest: /srv/osm-lxc/utils/minica
+        dest: "{{ devtank.dir }}/utils/minica"
         single_branch: yes
         version: master
 
@@ -18,4 +18,5 @@
       shell:
         cmd: "./minica -ca-cert {{ devtank.minica.cert}} -ca-key {{ devtank.minica.key }} --domains localhost,{{ osm_domain }}"
       args:
-        chdir: "{{ devtank.dir}}/utils/minica"
+        chdir: "{{ devtank.dir }}/utils/minica"
+        creates: "{{ devtank.dir }}/utils/minica/localhost/key.pem"

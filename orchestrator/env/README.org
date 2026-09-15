@@ -57,6 +57,7 @@ To get access to VM user can use either SSH or console socket
 #+end_src
 
 ** console socket
+The admin user password will be in the "cloud-init/base-user-data" file
 #+begin_src bash
   socat -,echo=0,icanon=0 unix-connect:hosts/vosmhost0/console.sock
 #+end_src

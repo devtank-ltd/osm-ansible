@@ -8,21 +8,26 @@
       ansible.builtin.set_fact:
         db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
 
-    - name: Remove customer from devtank database
+    - name: Get customer from devtank database
       import_role:
         name: db_management
-        tasks_from: remove
+        tasks_from: get_customer_info
 
     - name: Set OSM IP address
       ansible.builtin.set_fact:
         osm_ip: "{{ customer_info.output.host_ipaddr }}"
+
+    - name: Task name
+      stat:
+        path: "/etc/snapper/configs/{{ customer_name }}"
+      register: snapper_filedata
 
     - name: Remove snapper config for {{ customer_name }} customer
       delegate_to: "{{ osm_ip }}"
       connection: ssh
       ansible.builtin.shell:
         snapper -c "{{ customer_name }}" delete-config
-      ignore_errors: true
+      when: snapper_filedata.stat.exists
 
     - name: Remove snapper-backup config for {{ customer_name }} customer
       delegate_to: "{{ osm_ip }}"
@@ -44,6 +49,11 @@
       vars:
         ansible_connection: ssh
       delegate_to: "{{ osm_ip }}"
+
+    - name: Remove customer from devtank database
+      import_role:
+        name: db_management
+        tasks_from: remove
 
     - name: Remove customer ailases from PDNS database
       import_role:

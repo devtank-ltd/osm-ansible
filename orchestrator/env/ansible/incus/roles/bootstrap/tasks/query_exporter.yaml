@@ -53,7 +53,7 @@
         content: |
           [Unit]
           Description=query-exportes to report customers state
-          After=network.taget
+          After=mariadb.service
 
           [Service]
           WorkingDirectory=/srv/osm-lxc/utils/query_exporter

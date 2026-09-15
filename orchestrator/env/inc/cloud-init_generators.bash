@@ -9,7 +9,7 @@ gen_ssh_key(){
 
 gen_password() {
     local -i len=${1:-10}
-    tr -dc '[:alnum:][:punct:]' < /dev/urandom | head -c "$len"
+    tr -dc '[:alnum:]' < /dev/urandom | head -c "$len"
     return 0
 }
 
@@ -17,10 +17,13 @@ gen_osm_user_data() {
     local hostname="$1"
     local template="cloud-init/user-data.template"
     local data_file="${hostname}/user-data"
-
+    local meta_file="${hostname}/meta-data"
     data_file="${HOSTS_DIR}/${data_file}"
+    meta_file="${HOSTS_DIR}/${meta_file}"
     info "Generating user-data for '$hostname' host"
     sed -r 's|<<HOSTNAME>>|'"$hostname"'|g' "$template" > "$data_file"
+    info "Generating meta-data for '$hostname' host"
+    printf 'instance-id: %s\nlocal-hostname: %s\n' "$hostname" "$hostname" > "$meta_file"
 }
 
 gen_base_user_data() {
@@ -53,8 +56,8 @@ gen_base_user_data() {
         pub_key="${dir}/${key}.pub"
 
         for k in "$pub_key" "$priv_key"; do
-            if [[ ! -f "${dir}/${k}" ]]; then
-                die "Unable to find '$k' file in '$dir' directory."
+            if [[ ! -f "$k" ]]; then
+                die "Unable to find '$k' file."
             fi
         done
         info "Copy '$pub_key' to '$HOSTS_DIR'"
@@ -65,9 +68,7 @@ gen_base_user_data() {
 
     pub_key="$(< "$pub_key")"
 
-    # We must make sure slashes and backref are escaped as they mean something to sed and confuse it here.
-    sed_safe_password=$(echo "$password" | sed -e 's/[\/&]/\\&/g')
-    sed -r 's|<<<PASSWORD>>>|'"$sed_safe_password"'|' "$template_file" > "$data_file"
+    sed -r 's|<<<PASSWORD>>>|'"$password"'|' "$template_file" > "$data_file"
     sed -i -r 's|<<<SSH_PUB_KEY>>>|'"$pub_key"'|' "$data_file"
     sed -i -e '/<<<SSH_PRIV_KEY>>>/ {
             r '"$priv_key"'

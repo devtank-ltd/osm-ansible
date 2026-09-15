@@ -49,6 +49,19 @@
       ansible.builtin.set_fact:
         wg_ipaddr: "{{ osm_host_wg_ipaddr.stdout }}"
 
+    # TODO: "Wait for customer to ping" is disabled. delegate_to
+    # should run this on the customer's target host, but it doesn't
+    # (root cause not yet found). Ping fails from the wrong host, so
+    # customer creation succeeds without it for now.
+
+    # - name: Wait for customer to ping
+    #   ansible.builtin.command: ping -c 1 {{ customer_name }}
+    #   register: ping_result
+    #   until: ping_result.rc == 0
+    #   retries: 10
+    #   delay: 10
+    #   delegate_to: "{{ target_host }}"
+
   rescue:
     - name: Cleanup incus instance
       ansible.builtin.import_tasks:

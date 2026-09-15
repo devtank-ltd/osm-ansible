@@ -6,7 +6,6 @@ readonly DEB_IMG="debian-13-genericcloud-amd64.qcow2"
 readonly DEVTANK_IMG="devtank-base-debian-13-amd64.qcow2"
 readonly BASE_URL="https://cloud.debian.org/images/cloud/${DEB_REL}/latest"
 
-readonly VM_SIZE="10"
 readonly SSH_KEY="devtank-osm"
 readonly QEMU_SERIAL="qemu_serial.log"
 readonly DISK_NAME="disk.qcow"

@@ -186,6 +186,7 @@ save_env() {
 	OSM_SUBNET="$OSM_SUBNET"
 	OSM_DOMAIN="$OSM_DOMAIN"
 	ANSIBLE_HOSTS="${HOSTS_DIR}/hosts"
+	OSM_HOST_COUNT="$OSM_HOST_COUNT"
 EOF
 }
 
@@ -274,7 +275,7 @@ do_setup() {
         ["${VOSM_HOST}0"]=""
     )
 
-    prepare_base_host-cloud-init "$DEVTANK_IMG" "$VM_SIZE"
+    prepare_base_host-cloud-init "$DEVTANK_IMG" "$DISK_SIZE"
 
     if (( OSM_HOST_COUNT > 1 )); then
         for n in $(seq 1 $(( OSM_HOST_COUNT - 1 ))); do
@@ -337,7 +338,7 @@ do_run_environment() {
     fi
 
     # shellcheck disable=SC2044
-    mapfile -t hosts < <(find . -name 'vosmhost*' -type d -print)
+    mapfile -t hosts < <(ls -1 hosts/*/disk.qcow | while read line; do dirname "$line"; done)
 
     for host in "${hosts[@]}"; do
         run_qemu "${host##*/}" "${VOSM_HOSTBR}"
@@ -364,19 +365,20 @@ do_shutdown_environment() {
     find "$hosts_dir" -name "monitor.sock" -exec echo echo system_powerdown \| socat - UNIX-CONNECT:{} \; | sh
     info "Waiting for VMs to shutdown."
     find "$hosts_dir" -name "qemu.pid" -exec echo while \[ -e {} \]\; do sleep 1\; done \; | sh
-    pkill -15 -F "${hosts_dir}/${VOSM_HOSTBR}.pid"
 }
 
 add_ansible_host() {
     local name="$1"
     local ipaddr="$2"
-
+    local extra_vars=""
     [[ -z "$name" ]] && die "Th host name is missing"
     [[ -z "$ipaddr" ]] && die "The IP address is missing"
-
+    if [[ "$name" == "${VOSM_HOST}0" ]]; then
+        extra_vars=" target_role=main"
+    fi
     if ! grep -q "${ipaddr}$" "$ANSIBLE_HOSTS"; then
         # shellcheck disable=SC1003
-        sed -i '1 i\'"${name} ansible_host=${ipaddr}"'' "$ANSIBLE_HOSTS"
+        sed -i '1 i\'"${name} ansible_ssh_private_key_file=${HOSTS_DIR}/id_ed25519${extra_vars} ansible_host=${ipaddr}"'' "$ANSIBLE_HOSTS"
     fi
     warn "The host '$name': $ipaddr exists in $ANSIBLE_HOSTS"
 }
@@ -441,7 +443,7 @@ prepare_base_host-cloud-init() {
     local size="$2"
 
     cp -v "${DL_DIR}/${DEB_IMG}" "${DL_DIR}/${DEVTANK_IMG}"
-    qemu-img resize "${DL_DIR}/${DEVTANK_IMG}" "${size}G"
+    qemu-img resize "${DL_DIR}/${DEVTANK_IMG}" "${size}"
 
     gen_base_user_data
     cloud-localds base-seed.iso cloud-init/base-user-data
@@ -627,7 +629,7 @@ run_qemu() {
         qemu_pid=$(< "${workdir}/qemu.pid")
 
         if [[ -d "/proc/${qemu_pid}" ]]; then
-            warn "Fround '$qemu_pid' in /proc directory."
+            warn "Found '$qemu_pid' in /proc directory."
             local cmdline
             local cmdline_regex="file=${workdir}"
             cmdline="$(xargs -0 printf '%s ' </proc/"$qemu_pid"/cmdline)"
@@ -668,12 +670,14 @@ run_qemu_cloudinit() {
     workdir="${HOSTS_DIR}/${workdir}"
     local seed_file="${workdir}/seed.iso"
     local host_data_file="${workdir}/user-data"
+    local meta_data_file="${workdir}/meta-data"
 
     if [[ ! -e "$host_data_file" ]]; then
         gen_osm_user_data "$name"
-        cloud-localds "$seed_file" "$host_data_file"
+        cloud-localds "$seed_file" "$host_data_file" "$meta_data_file"
     elif [[ ! -e "$seed_file" ]]; then
-        cloud-localds "$seed_file" "$host_data_file"
+        [[ ! -e "$meta_data_file" ]] && printf 'instance-id: %s\nlocal-hostname: %s\n' "$name" "$name" > "$meta_data_file"
+        cloud-localds "$seed_file" "$host_data_file" "$meta_data_file"
     fi
 
     run_qemu "$name" "${brif}" -drive "file=${seed_file},format=raw,if=virtio,media=cdrom" ${extra_args[@]}
@@ -682,20 +686,17 @@ run_qemu_cloudinit() {
 clone_host() {
     local base_name="$1"
     local target_name="$2"
-    local hwaddr=
-    local ipaddr=
 
     if [[ ! -d "${HOSTS_DIR}/${base_name}" ]]; then
         die "Unable to get '$base_name' to clone '$target_name"
     fi
 
-    info "${HOSTS_DIR}/${base_name} -> ${HOSTS_DIR}/${target_name}"
-    if [[ ! -d "${HOSTS_DIR}/${target_name}" ]]; then
-        mkdir --parents "${HOSTS_DIR}/${target_name}"
-    fi
+    mkdir --parents "${HOSTS_DIR}/${target_name}"
+    cp "${HOSTS_DIR}/${base_name}/disk.qcow" "${HOSTS_DIR}/${target_name}/"
 
-    cp "${HOSTS_DIR}/${base_name}/"{disk.qcow,mac} "${HOSTS_DIR}/${target_name}/"
-    mv "${HOSTS_DIR}/${target_name}/"mac{,_orig}
+    if [[ ! -f "${HOSTS_DIR}/${target_name}/mac" ]]; then
+        gen_hwaddr > "${HOSTS_DIR}/${target_name}/mac"
+    fi
 }
 
 do_start_hosts() {
@@ -774,6 +775,7 @@ request_pebble_cert() {
         --quiet
     )
     info "Request certificate from '$srvip' for ${name}.${OSM_DOMAIN} domain."
+
     for (( i=0; i<3; i++ )); do
         # shellcheck disable=SC2029
         if ! ssh -i "${HOSTS_DIR}/id_ed25519" \
@@ -802,7 +804,7 @@ run_dnsmasq() {
         dhcp-leasefile="$lease_file"
         except-interface=lo
         bind-interfaces
-        dhcp-range="${OSM_SUBNET}.2,${OSM_SUBNET}.255"
+        dhcp-range="${OSM_SUBNET}.2,${OSM_SUBNET}.253"
         server="/${OSM_DOMAIN}/${OSM_SUBNET}.2"
     )
     declare -A macs=()
@@ -828,12 +830,8 @@ run_dnsmasq() {
         fi
     done
 
-    dns_serv="$(dns_ip)"
-    if [[ -n "$dns_serv" && "$dns_serv" != "$dns_fbaddr" ]]; then
-        settings+=(dhcp-option="6,${dns_serv},${dns_fbaddr}")
-    else
-        settings+=(dhcp-option="6,${dns_fbaddr}")
-    fi
+    # We are going to spawn a socat on ${OSM_SUBNET}.254 to redirect to the hosts's resolved.
+    settings+=(dhcp-option="6,${OSM_SUBNET}.254,${dns_fbaddr}")
 
     : > "$lease_file"
     printf "%s\n" "${settings[@]}" > "$conf_file"

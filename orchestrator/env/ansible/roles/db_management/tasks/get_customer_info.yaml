@@ -1,0 +1,8 @@
+---
+
+- name: Get customer from devtank database
+  devtank_db:
+    db_conf: "{{ db_conf.orchestrator }}"
+    method: get_customer_info
+    customer_name: "{{ customer_name }}"
+  register: customer_info

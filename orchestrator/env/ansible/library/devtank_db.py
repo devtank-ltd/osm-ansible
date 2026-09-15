@@ -34,6 +34,23 @@ class OrchestratorHandler:
             module.fail_json(msg="Failed to add customer")
         return {"id": res.id}
 
+    def get_customer_info(self, module: AnsibleModule) -> Dict[str, Any]:
+        customer = module.params["customer_name"]
+        customer_id = self.db.get_customer_id(customer)
+        host_id = self.db.get_host_by_customer(customer)
+
+        if not customer_id or not host_id:
+            module.fail_json(msg="Unable to get customer or host ID")
+
+        host_name = self.db.get_host_name_by_id(host_id)
+        host_ipaddr = self.db.get_hosts_ipaddr(host_id)
+
+        return {
+            "customer_name": customer,
+            "host_name": host_name,
+            "host_ipaddr": host_ipaddr,
+        }
+
     def remove_customer(self, module: AnsibleModule) -> Dict[str, Any]:
         customer = module.params["customer_name"]
         customer_id = self.db.get_customer_id(customer)

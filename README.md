@@ -81,6 +81,69 @@ cd orchestrator
 ./orchestrator_cli.py del_customer somecustomer
 ```
 
+### Adding customer dashboards
+
+Create self signed certificate with pebble
+```sh
+curl -s --cacert /srv/osm-lxc/utils/minica/devtank.minica.pem -o /tmp/rootCA.crt https://localhost:15000/roots/0
+```
+
+The orchestrator fills in the Grafana and Postgres credentials
+but you must configure the dashboards for your collection of sensors
+```sh
+vim /srv/osm-lxc/lib/grafana_api_client/example_config.json
+```
+
+```
+{
+    "grafana_user"  : "",
+    "grafana_pwd"   : "",
+    "postgres_pwd"  : "",
+    "postgres_user" : "",
+    "postgres_db"   : "",
+    "grafana_url"   : "",
+    "pulse_div"     : "10.",
+    "litre_multi"   : "1.",
+    "dashboards"    : [
+     {
+         "location": "Example Location",
+         "osm_name": "Example Loc",
+         "serial_num": "404-101:E:A525040:0001:00001",
+         "code": "COM1-A1-CT3",
+         "topic": ""
+     },
+     {
+         "location": "Example Location 2",
+         "osm_name": "Example Loc 2",
+         "serial_num": "404-101:E:A525040:0001:00099",
+         "code": "COM1-A1-CT3",
+         "topic": ""
+     }
+]
+}
+```
+
+The "code" is a hyphen seperated string used to determine which json template Grafana loads for the sensor
+```
+COM1 = WiFi OSM
+COM2 = LoRaWAN OSM
+A1   = Environmental panels including air quality, temperature, humidity and volatile compound index
+CT1  = Single phase current, electricity costs and power consumption panels
+CT3  = 3 Phase current, electricity costs and power consumption panels
+TMP2 = External temperature panel
+RID  = MODBUS power consumption, voltage, costs and three phase current panels
+VIB  = Singular vibration probe panels
+VI2B = Multiple vibration probe panels
+NOX  = Nitrogen oxide panel
+CNT1 = Gas consumption panels
+CNT2 = Water consumption panels
+```
+
+Run orchestrator command to add dashboards
+```sh
+/srv/osm-lxc/orchestrator/orchestrator_cli.py -d add_dashboards <customer_name> /srv/osm-lxc/lib/grafana_api_client/example_config.json /tmp/rootCA.crt
+```
+
 ### Test environment
 
 It is possible to build OSM test environment for development/testing purposes.

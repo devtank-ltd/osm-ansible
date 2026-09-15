@@ -20,92 +20,21 @@
       ansible.builtin.set_fact:
         db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
 
-    - name: Get init data from devtank database
-      block:
-        - name: Get data MQTT and domain from database
-          import_role:
-            name: db_management
-            tasks_from: get_port_domain_info
-          vars:
-            mqtt_init_port: 8883
+    - name: Get Domain information
+      import_role:
+        name: db_management
+        tasks_from: get_port_domain_info
+      vars:
+        mqtt_init_port: 8883
 
-      rescue:
-        - name: Cleanup incus instance
-          ansible.builtin.import_role:
-            name: incus_instance
-            tasks_from: remove
-
-        - name: Fail after cleanup
-          ansible.builtin.fail:
-            msg: "Failed to get init data from devtank database"
-
-    - name: Setup databases and OSM host
-      block:
-        - name: Add customer alias to PDNS database
-          import_role:
-            name: pdns_management
-            tasks_from: add
-          vars:
-            ansible_connection: local
-            db_conf: "{{ db_conf.pdns }}"
-          delegate_to: "{{ main_host }}"
-
-        - name: Add customer configuration to OSM host
-          import_role:
-            name: osm_host
-            tasks_from: add
-          vars:
-            ansible_connection: ssh
-          delegate_to: "{{ osm_ip }}"
-
-        - name: Add customer to devtank database
-          import_role:
-            name: db_management
-            tasks_from: add
-          vars:
-            ansible_connection: local
-          delegate_to: "{{ main_host }}"
-
-      rescue:
-        - name: Rollback devtank database entries (if exist)
-          import_role:
-            name: db_management
-            tasks_from: remove
-          ignore_errors: true
-          vars:
-            ansible_connection: local
-          delegate_to: "{{ main_host }}"
-
-        - name: Remove incus instance
-          import_role:
-            name: incus_instance
-            tasks_from: remove
-          ignore_errors: true
-          vars:
-            ansible_connection: local
-          delegate_to: "{{ main_host }}"
-
-        - name: Remove customer configuration from OSM host
-          import_role:
-            name: osm_host
-            tasks_from: remove
-          vars:
-            ansible_connection: ssh
-          delegate_to: "{{ osm_ip }}"
-          ignore_errors: true
-
-        - name: Rollback PDNS database entries
-          import_role:
-            name: pdns_management
-            tasks_from: remove
-          ignore_errors: true
-          vars:
-            ansible_connection: local
-          delegate_to: "{{ main_host }}"
-
-        - name: Fail to stop further processing
-          ansible.builtin.fail:
-            msg: "Customer creatin failed. Rollback completed"
+    - name: Add customer alias to PDNS database
+      import_role:
+        name: pdns_management
+        tasks_from: add
+      vars:
+        ansible_connection: local
+        db_conf: "{{ db_conf.pdns }}"
+      delegate_to: "{{ main_host }}"
 
 - name: Setup customer services
   hosts: "{{ customer_name }}"
@@ -201,8 +130,93 @@
 - name: Post container setup
   hosts: localhost
   connection: local
+  gather_facts: yes
+
+  vars:
+    main_host: localhost
 
   tasks:
+    - name: Get devtank database config
+      ansible.builtin.set_fact:
+        db_conf: "{{ lookup('file', '/srv/osm-lxc/orchestrator/config.yaml') | from_yaml }}"
+
+    - name: Get init data from devtank database
+      block:
+        - name: Get data MQTT and domain from database
+          import_role:
+            name: db_management
+            tasks_from: get_port_domain_info
+          vars:
+            mqtt_init_port: 8883
+
+      rescue:
+        - name: Cleanup incus instance
+          ansible.builtin.import_role:
+            name: incus_instance
+            tasks_from: remove
+
+        - name: Fail after cleanup
+          ansible.builtin.fail:
+            msg: "Failed to get init data from devtank database"
+
+    - name: Setup databases and OSM host
+      block:
+        - name: Add customer configuration to OSM host
+          import_role:
+            name: osm_host
+            tasks_from: add
+          vars:
+            ansible_connection: ssh
+          delegate_to: "{{ osm_ip }}"
+
+        - name: Add customer to devtank database
+          import_role:
+            name: db_management
+            tasks_from: add
+          vars:
+            ansible_connection: local
+          delegate_to: "{{ main_host }}"
+
+      rescue:
+        - name: Rollback devtank database entries (if exist)
+          import_role:
+            name: db_management
+            tasks_from: remove
+          ignore_errors: true
+          vars:
+            ansible_connection: local
+          delegate_to: "{{ main_host }}"
+
+        - name: Remove incus instance
+          import_role:
+            name: incus_instance
+            tasks_from: remove
+          ignore_errors: true
+          vars:
+            ansible_connection: local
+          delegate_to: "{{ main_host }}"
+
+        - name: Remove customer configuration from OSM host
+          import_role:
+            name: osm_host
+            tasks_from: remove
+          vars:
+            ansible_connection: ssh
+          delegate_to: "{{ osm_ip }}"
+          ignore_errors: true
+
+        - name: Rollback PDNS database entries
+          import_role:
+            name: pdns_management
+            tasks_from: remove
+          ignore_errors: true
+          vars:
+            ansible_connection: local
+          delegate_to: "{{ main_host }}"
+
+        - name: Fail to stop further processing
+          ansible.builtin.fail:
+            msg: "Customer creatin failed. Rollback completed"
 
     - name: Set customer variables
       ansible.builtin.set_fact:

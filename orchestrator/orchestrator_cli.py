@@ -16,6 +16,7 @@ import socket
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 import weakref
 import yaml
@@ -198,6 +199,9 @@ class osm_host_t:
 
 class osm_orchestrator_t:
     MASTER_FILE = "master.key"
+    REQUIRED_MODULES = (
+            "crcmod", "paramiko", "pymysql", "cryptography", "yaml", "pyosmorch",
+        )
 
     def __init__(self, config):
         self.config = config
@@ -259,10 +263,15 @@ class osm_orchestrator_t:
     def pdns_db(self):
         return self._pdns_db
 
-    def add_dns_host(self, osm_host, ip_addr):
+    def _add_dns_host(self, osm_host, ip_addr):
         domain_id = self.config["pdns_domain_id"]
         domain = self.config["pdns_domain"]
         self._pdns_db.add_host(domain_id, f"{osm_host}.{domain}", ip_addr)
+
+    def _del_dns_host(self, osm_host, ip_addr):
+        domain_id = self.config["pdns_domain_id"]
+        domain = self.config["pdns_domain"]
+        self._pdns_db.del_host(domain_id, f"{osm_host}.{domain}", ip_addr)
 
     @property
     def master_key(self) -> bytes:
@@ -352,15 +361,16 @@ class osm_orchestrator_t:
         return self._db.query_contact_points()
 
     def del_osm_customer(self, customer_name: str) -> bool:
-        warn_msg = (
-            f"!!! WARNING !!! The customer '{customer_name}' is going to be "
-            "deleted. Continue? [y/N]? "
-        )
+        if sys.stdin.isatty():
+            warn_msg = (
+                f"!!! WARNING !!! The customer '{customer_name}' is going to be "
+                "deleted. Continue? [y/N]? "
+            )
 
-        proceed = input(warn_msg)
+            proceed = input(warn_msg)
 
-        if proceed.lower() not in ("y", "yes"):
-            return False
+            if proceed.lower() not in ("y", "yes"):
+                return False
 
         ansible_cmd = [
             "ansible-playbook",
@@ -531,11 +541,32 @@ class osm_orchestrator_t:
             customer_id, json.dumps(customer_passwords)
         ) is not None
 
-    def add_osm_host(self, host_name: str, ip_addr: str, capacity: int) -> int:
-        raise Exception("Not implemented")
+    def add_osm_host(self, host_name: str, ip_addr: str, capacity: int) -> bool:
+        host = self.db.get_host(host_name)
+        if host:
+            self.logger.warning(f"Host {host_name} already exists.")
+            return False
+        host = self.db.add_host(host_name, ip_addr, capacity)
+        if not host:
+            self.logger.warning(f"Host {host_name} wasn't added.")
+            return False
+        self._add_dns_host(host_name, ip_addr)
+        return True
 
-    def del_osm_host(self, host_name):
-        raise Exception("Not implemented")
+    def del_osm_host(self, host_name) -> bool:
+        host = self.db.get_host(host_name)
+        if not host:
+            self.logger.warning(f"Host {host_name} not found.")
+            return False
+        customers = self.db.get_customers(host.id)
+        if customers:
+            self.logger.warning(f"Host {host_name} has customers. Can not delete.")
+            return False
+        if not self.db.del_host(host.id):
+            self.logger.warning(f"Host {host_name} delete failed.")
+            return False
+        self._del_dns_host(host_name, host.ip_addr)
+        return True
 
     def get_customer_passwords(
             self, customer_name: str, reveal: bool = True
@@ -554,6 +585,200 @@ class osm_orchestrator_t:
             wg_key, wg_ipaddr = self.db.get_wireguard_info(osm_host_id)
             return {"wg_key": wg_key, "wg_ipaddr": wg_ipaddr}
         return {}
+
+    def _get_git_branch(self) -> str:
+        branch = os.environ.get("DEVTANK_BRANCH")
+        if branch:
+            return branch
+        try:
+            result = subprocess.run(
+                ["git", "-C", DEVTANK_WD, "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True, text=True, check=True
+            )
+            branch = result.stdout.strip()
+        except subprocess.CalledProcessError:
+            return "main"
+        return "main" if branch == "HEAD" else branch
+
+    def _check_target_dependencies(self, ssh) -> bool:
+        check_cmd = (
+            'python3 -c "' +
+            ";".join(f"import {m}" for m in self.REQUIRED_MODULES) +
+            '"'
+        )
+        _, stdout, stderr = ssh.exec_command(check_cmd)
+        if stdout.channel.recv_exit_status() != 0:
+            self.logger.error(
+                "Target host is missing required Python packages:\n%s",
+                stderr.read().decode()
+            )
+            return False
+        return True
+
+    def _resync_dns_to_orchestrator(self, main_host_name: str, master_ip: str) -> bool:
+        """Point every existing OSM host's wg0 DNS resolver at the new
+        main host WireGuard address."""
+        hosts = self.list_hosts()
+        if not hosts:
+            self.logger.warning("No hosts found to resync DNS for.")
+            return True
+
+        inventory_lines = [
+            f"{h.name} ansible_ssh_private_key_file=/root/.ssh/id_ed25519 "
+            f"ansible_host={h.ip_addr} target_role="
+            f"{'main' if h.name == main_host_name else ''}"
+            for h in hosts
+        ]
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".ini", delete=False
+        ) as inv_file:
+            inv_file.write("\n".join(inventory_lines) + "\n")
+            inv_path = inv_file.name
+
+        resync_cmd = [
+            "ansible-playbook",
+            "-i", inv_path,
+            "--tags", "wireguard_dns",
+            "-e", f"osm_domain={self.config['pdns_domain']}",
+            f"{DEVTANK_WD}/env/ansible/incus/deploy.yaml",
+        ]
+        env = os.environ.copy()
+        env["ANSIBLE_LIBRARY"] = f"{DEVTANK_WD}/env/ansible/library"
+
+        try:
+            subprocess.run(resync_cmd, check=True, env=env)
+        except subprocess.CalledProcessError as err:
+            self.logger.error("DNS resync failed: %s", err)
+            return False
+        finally:
+            os.unlink(inv_path)
+
+        return True
+
+    def transfer_orchestrator(self, target_host_name: str) -> bool:
+        """Provision target_host_name as a master candidate, then migrate
+        the orchestrator/pdns MySQL databases, config.yaml, and master.key
+        to it. Non-destructive to the source: nothing here is dropped or
+        modified."""
+        target = self.find_osm_host(target_host_name)
+        if not target:
+            self.logger.error("Unknown target host '%s'", target_host_name)
+            return False
+
+        target_ip = target.ip_addr
+
+        self.logger.info("Provisioning '%s' as a master candidate...", target_host_name)
+        provision_cmd = [
+            "ansible-playbook",
+            "-i", f"{target_ip},",
+            "--tags", "bootstrap,image_remote",
+            "--skip-tags", "pebble",
+            "-e", "target_role=main",
+            "-e", f"git_branch={self._get_git_branch()}",
+            "-e", f"osm_dns={target_ip}",
+            "-e", f"osm_domain={self.config['pdns_domain']}",
+            "-e", f"smtp_host={os.environ.get('MAIL_SMTP_HOST', '')}",
+            "-e", f"smtp_user={os.environ.get('MAIL_SMTP_USER', '')}",
+            "-e", f"smtp_password={os.environ.get('MAIL_SMTP_PASSWORD', '')}",
+            "-e", f"mail_recipients={os.environ.get('MAIL_RECIPIENTS', '')}",
+            f"{DEVTANK_WD}/env/ansible/incus/deploy.yaml",
+        ]
+        env = os.environ.copy()
+        env["ANSIBLE_LIBRARY"] = f"{DEVTANK_WD}/env/ansible/library"
+        try:
+            subprocess.run(provision_cmd, check=True, env=env)
+        except subprocess.CalledProcessError as err:
+            self.logger.error("Provisioning failed on '%s': %s", target_host_name, err)
+            return False
+
+        ssh_key = "/root/.ssh/id_ed25519"
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(target_ip, username="root", key_filename=ssh_key)
+        except Exception as err:
+            self.logger.error("Unable to SSH to '%s': %s", target_ip, err)
+            return False
+
+        try:
+            if not self._check_target_dependencies(ssh):
+                self.logger.error(
+                    "Refusing to proceed: target host cannot run "
+                    "orchestrator_cli.py even after provisioning."
+                )
+                return False
+
+            dump_path = f"/tmp/master_transfer_{int(time.time())}.sql"
+            dump_cmd = [
+                "mysqldump", "--user", "root", "--opt",
+                "--skip-lock-tables", "--databases",
+                "osm_orchestrator", "pdns",
+                "--result-file", dump_path,
+            ]
+            try:
+                subprocess.run(dump_cmd, check=True)
+            except subprocess.CalledProcessError as err:
+                self.logger.error("mysqldump failed: %s", err)
+                return False
+
+            sftp = ssh.open_sftp()
+            remote_dump = f"/tmp/{os.path.basename(dump_path)}"
+            sftp.put(dump_path, remote_dump)
+            sftp.put("config.yaml", "/tmp/config.yaml.incoming")
+            sftp.put(self.MASTER_FILE, f"/tmp/{self.MASTER_FILE}.incoming")
+            sftp.close()
+
+            orch_user = self.config["orchestrator"]["user"]
+            orch_pass = self.config["orchestrator"]["password"]
+            alert_user = self.config["customer_alerts"]["user"]
+            alert_pass = self.config["customer_alerts"]["password"]
+
+            remote_setup_cmd = f"""
+set -e
+systemctl stop pdns.service
+mysql -uroot -e "DROP DATABASE IF EXISTS osm_orchestrator; DROP DATABASE IF EXISTS pdns;"
+mysql -uroot < {remote_dump}
+mysql -uroot -e "
+    DROP USER IF EXISTS '{orch_user}'@'localhost';
+    CREATE USER '{orch_user}'@'localhost' IDENTIFIED BY '{orch_pass}';
+    GRANT ALL ON osm_orchestrator.* TO '{orch_user}'@'localhost';
+    GRANT ALL ON pdns.records TO '{orch_user}'@'localhost';
+    DROP USER IF EXISTS '{alert_user}'@'localhost';
+    CREATE USER '{alert_user}'@'localhost' IDENTIFIED BY '{alert_pass}';
+    GRANT SELECT ON osm_orchestrator.* TO '{alert_user}'@'localhost';
+    FLUSH PRIVILEGES;
+"
+cp /srv/osm-lxc/orchestrator/config.yaml /srv/osm-lxc/orchestrator/config.yaml.bak
+cp /tmp/config.yaml.incoming /srv/osm-lxc/orchestrator/config.yaml
+cp /tmp/{self.MASTER_FILE}.incoming /srv/osm-lxc/orchestrator/{self.MASTER_FILE}
+chmod 600 /srv/osm-lxc/orchestrator/{self.MASTER_FILE}
+systemctl start pdns.service
+"""
+            _, stdout, stderr = ssh.exec_command(remote_setup_cmd)
+            if stdout.channel.recv_exit_status() != 0:
+                self.logger.error("Remote setup failed:\n%s", stderr.read().decode())
+                return False
+
+            if not self._resync_dns_to_orchestrator(target_host_name, target_ip):
+                self.logger.error("Orchestrator data migrated, but DNS resync failed. Clients may still be resolving the old orchestrator.")
+                return False
+
+            verify_cmd = "cd /srv/osm-lxc/orchestrator && ./orchestrator_cli.py list_hosts"
+            _, stdout, stderr = ssh.exec_command(verify_cmd)
+            if stdout.channel.recv_exit_status() != 0:
+                self.logger.error("Verification failed on target: %s", stderr.read().decode())
+                return False
+
+            self.logger.info(
+                "Transfer complete. '%s' is now fully functional as the new "
+                "master. The source host's data has NOT been touched or "
+                "deleted -- decommission it manually once confident.",
+                target_host_name
+            )
+            return True
+        finally:
+            ssh.close()
 
 
 class cli_osm_orchestrator_t:
@@ -610,8 +835,11 @@ class cli_osm_orchestrator_t:
             return os.EX_OK
         return os.EX_UNAVAILABLE
 
-    def add_osm_host(self, host_name):
-        raise Exception("Not implemented")
+    def add_osm_host(self, host_name, ip_addr, capacity):
+        if self._osm_orch.add_osm_host(host_name, ip_addr, capacity):
+            return os.EX_OK
+        else:
+            return os.EX_UNAVAILABLE
 
     def del_osm_host(self, host_name):
         if self._osm_orch.del_osm_host(host_name):
@@ -720,43 +948,97 @@ class cli_osm_orchestrator_t:
             print(f"Invalid config file. Exiting")
             return os.EX_CONFIG
         osm_host = self._osm_orch.find_osm_host_of(customer_name)
+
         if not osm_host:
             print(f"Could not find host with customer: {customer_name}")
             return os.EX_CONFIG
-        grafana_exists = osm_host.ssh_command(
-            f"ping -c1 {db_config['grafana_url']}"
-        )
-        if not grafana_exists:
-            print("Cannot ping domain. Exiting")
+
+        pwds = osm_host.get_osm_customer_passwords(customer_name)
+        self.logger.debug(f"Got {customer_name}'s passwords: {pwds}")
+        postgres_pwd = pwds["Timescaledb"]["devtank"]
+        grafana_pwd = pwds["Grafana Admin"]["admin"]
+
+        domains = osm_host.get_osm_customer_domains(customer_name)
+        graf_domain = None
+        matches = ["-mqtt.", "-chirpstack.", "-db.", "-auth.", "-portal."] # auth and portal domains to come with release of Skylight
+        for domain in domains:
+            if all(m not in domain for m in matches):
+                graf_domain = domain
+                self.logger.debug(f"Found Grafana domain: {graf_domain}")
+                break
+        if not graf_domain:
+            self.logger.warning(
+                f'No grafana domain found for customer "{customer_name}"'
+            )
+            return os.EX_CONFIG
+
+        db_config["grafana_url"] = graf_domain
+        db_config["grafana_user"] = "admin"
+        db_config["grafana_pwd"] = grafana_pwd
+        db_config["postgres_user"] = "devtank"
+        db_config["postgres_pwd"] = postgres_pwd
+        db_config["postgres_db"] = "osm"
+
+        try:
+            dir_name = os.path.dirname(os.path.abspath(config))
+            with tempfile.NamedTemporaryFile(
+                mode="w", dir=dir_name, delete=False, suffix=".tmp"
+            ) as tmp:
+                json.dump(db_config, tmp, indent=2)
+                self.logger.debug(f"Writing temporary Grafana config with {customer_name}'s pwds")
+                tmp_path = tmp.name
+            os.replace(tmp_path, config)
+            self.logger.debug(f"Replaced Grafana config temporary config file.")
+        except OSError as e:
+            self.logger.error(f"Could not write to Grafana config at {config}: {e}")
+            return os.EX_CONFIG
+        except (TypeError, ValueError) as e:
+            self.logger.error(f"Could not serialize Grafana config to JSON: {e}")
             return os.EX_CONFIG
         return os.EX_OK
 
     def add_dashboards(
         self, customer_name: str, config: str, cert: Union[str, None] = None
     ) -> int:
-        if self._validate_grafana_config(customer_name, config) == os.EX_OK:
-            grafana_cmd = [
-                "python3",
-                "/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py",
-                "add",
-                config,
-            ]
-            if cert:
-                grafana_cmd += ["-c", cert]
-            grafana_proc = subprocess.Popen(
-                grafana_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        if self._validate_grafana_config(customer_name, config) != os.EX_OK:
+            self.logger.error("Validate grafana config failed.")
+            return os.EX_CONFIG
+
+        self.logger.debug("Grafana config validated, adding dashboards..")
+        grafana_cmd = [
+            "python3",
+            "/srv/osm-lxc/lib/grafana_api_client/grafana_api_client.py",
+            "add",
+            config,
+        ]
+        if cert:
+            grafana_cmd += ["-c", cert]
+
+        # If it's a test environment, ssl verification can't work easily.
+        if os.path.exists("/usr/bin/pebble"):
+            grafana_cmd += ["--unsafe"]
+
+        self.logger.info(f"grafana_cmd {grafana_cmd}")
+
+        grafana_proc = subprocess.Popen(
+            grafana_cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            out, err = grafana_proc.communicate()
+        except subprocess.SubprocessError as errs:
+            grafana_proc.kill()
+            self.logger.error(errs)
+            return os.EX_CONFIG
+
+        if grafana_proc.returncode:
+            self.logger.error(
+                "grafana_api_client exited with code %s", grafana_proc.returncode
             )
-            try:
-                out, err = grafana_proc.communicate()
-            except subprocess.SubprocessError as errs:
-                grafana_proc.kill()
-                self.logger.error(errs)
-                return os.EX_CONFIG
-            if grafana_proc.returncode:
-                return os.EX_CONFIG
-            return os.EX_OK
-        print("Validate grafana config failed.")
-        return os.EX_CONFIG
+            return os.EX_CONFIG
+        return os.EX_OK
 
     def del_dashboards(
         self, customer_name: str, config: str, cert: Union[str, None] = None
@@ -770,6 +1052,10 @@ class cli_osm_orchestrator_t:
             ]
             if cert:
                 grafana_cmd += ["-c", cert]
+            # If it's a test environment, ssl verification can't work easily.
+            if os.path.exists("/usr/bin/pebble"):
+                grafana_cmd += ["--unsafe"]
+            self.logger.info(f"grafana_cmd {grafana_cmd}")
             grafana_proc = subprocess.Popen(
                 grafana_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE
             )
@@ -859,6 +1145,12 @@ class cli_osm_orchestrator_t:
             f"{mqtt_domain} -p {mqtt_port} -t 'osm/#' -u {user} -P '{pw}'"
         )
         return os.EX_OK
+
+    def transfer_orchestrator(self, host_name: str) -> int:
+        return (
+            os.EX_OK if self._osm_orch.transfer_orchestrator(host_name)
+            else os.EX_UNAVAILABLE
+        )
 
 
 def main():
@@ -983,6 +1275,12 @@ def main():
             "mqtt_listener <customer_name>: Get MQTT listener cmd "
             "Returns bash line of mosquitto_sub to listen to customer",
             cli_obj.get_mosquitto_sub_cmd,
+        ),
+        "transfer_orchestrator": cmd_entry(
+            "transfer_orchestrator <host name>: Migrate orchestrator/pdns "
+            "databases, config.yaml, and master.key to <host name>, "
+            "making it the new master. Source host is left untouched.",
+            cli_obj.transfer_orchestrator,
         ),
     }
 

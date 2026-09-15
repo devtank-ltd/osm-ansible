@@ -1,0 +1,13 @@
+[Unit]
+Description=Prep LetsEncrypt for Pebble. Pebble doesn't remember accounts.
+Description=Pebble doesn't remember accounts between restarts.
+Description=https://community.letsencrypt.org/t/failing-to-make-progress-with-certbot-and-pebble/100085/3
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/bin/rm -rf '/etc/letsencrypt/accounts/10.10.1.2:14000'
+
+[Install]
+WantedBy=multi-user.target

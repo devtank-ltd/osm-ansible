@@ -1,7 +1,7 @@
 ---
 
 - name: Prepare main host
-  when: inventory_hostname == "vosmhost0"
+  when: target_role | default('') == 'main'
   block:
     - name: Set WireGuard interface
       ansible.builtin.set_fact:
@@ -39,6 +39,13 @@
         state: latest
         update_cache: yes
 
+    - name: Install Test env Packages
+      ansible.builtin.apt:
+        pkg: "{{ osmhosttest.packages }}"
+        state: latest
+        update_cache: yes
+      tags: testenv
+
     - name: Install snapper
       ansible.builtin.include_tasks: add_snapper_repo.yaml
       when: inventory_hostname == 'orchestrator'
@@ -68,8 +75,12 @@
         state: present
         reload: true
 
-    - import_tasks: minica.yaml
-    - import_tasks: pebble.yaml
+    - name: Setup Test Main host
+      block:
+        - import_tasks: minica.yaml
+        - import_tasks: pebble.yaml
+      tags: testenv
+
     - import_tasks: db.yaml
     - import_tasks: query_exporter.yaml
     - import_tasks: prometheus.yaml
@@ -77,6 +88,7 @@
 
 - name: Prepare osm host
   when: inventory_hostname != "orchestrator"
+  tags: osm_host
   block:
     - name: Check /srv directory for BTRFS
       ansible.builtin.shell: |
@@ -102,6 +114,19 @@
         pkg: "{{ osmhost.packages }}"
         state: latest
         update_cache: yes
+
+    - name: Install pebble-workround systemd service
+      ansible.builtin.copy:
+        src: pebble-workround.service
+        dest: /etc/systemd/system/
+      tags: testenv
+
+    - name: Start pebble-workround
+      ansible.builtin.systemd_service:
+        name: pebble-workround
+        daemon_reload: true
+        enabled: true
+      tags: testenv
 
     - name: Include Snapper repo setup
       ansible.builtin.include_tasks: add_snapper_repo.yaml
