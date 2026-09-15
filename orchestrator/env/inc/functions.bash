@@ -338,7 +338,7 @@ do_run_environment() {
     fi
 
     # shellcheck disable=SC2044
-    mapfile -t hosts < <(find . -name 'vosmhost*' -type d -print)
+    mapfile -t hosts < <(ls -1 hosts/*/disk.qcow | while read line; do dirname "$line"; done)
 
     for host in "${hosts[@]}"; do
         run_qemu "${host##*/}" "${VOSM_HOSTBR}"
