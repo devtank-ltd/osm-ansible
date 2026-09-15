@@ -9,7 +9,7 @@ Nothing on the old orchestrator host is ever touched or deleted.
 
 ---
 
-## 0. Bring up the test environment and source the library
+## 0. Bring up the test environment and source the library. Stay with this terminal as it has the functions and variables now.
 
 ```bash
 ./run.bash -a setup -c network.cfg
@@ -33,7 +33,7 @@ ssh -i hosts/id_ed25519 root@$OSM_SUBNET.2 \
 
 
 ```bash
-cp -v "${DL_DIR}/${DEB_IMG}" "${DL_DIR}/neworch-base.qcow2"
+mv -v "${DL_DIR}/${DEB_IMG}" "${DL_DIR}/neworch-base.qcow2"
 qemu-img resize "${DL_DIR}/neworch-base.qcow2" "$DISK_SIZE"
 
 gen_base_user_data "" "hosts/id_ed25519"
@@ -51,7 +51,6 @@ gen_hwaddr > hosts/neworch/mac
 ```bash
 run_qemu_cloudinit "neworch" "$VOSM_HOSTBR"
 ipaddr="$(wait_for_ip "neworch" "${OSM_SUBNET}.1")"
-echo "$ipaddr"
 setup_ssh "$ipaddr"
 ```
 
@@ -61,7 +60,7 @@ setup_ssh "$ipaddr"
 OLD_ORCH_IP_VAL="$OSM_SUBNET.2"
 
 cat > /tmp/transfer_vars.env <<EOF
-export ipaddr="${ipaddr}"
+export ipaddr
 export OLD_ORCH_IP="${OLD_ORCH_IP_VAL}"
 export NEW_ORCH_IP="${ipaddr}"
 export TRANSFER_SSH_KEY="hosts/id_ed25519"
@@ -92,7 +91,7 @@ ANSIBLE_LIBRARY=ansible/library \
 ansible-playbook \
   -i /tmp/phase1_inventory.ini \
   --tags "osm_host,image_remote" \
-  -e git_branch=dev_reset \
+  -e git_branch=$(git_branch) \
   -e osm_domain="$OSM_DOMAIN" \
   ansible/incus/deploy.yaml
 ```
@@ -117,11 +116,6 @@ ansible-playbook \
   --tags "wireguard_dns" \
   -e osm_domain="$OSM_DOMAIN" \
   ansible/incus/deploy.yaml
-
-source inc/vars
-source inc/print_functions.bash
-source inc/network_functions.bash
-source inc/functions.bash
 
 request_pebble_cert "neworch" "$OLD_ORCH_IP" "$NEW_ORCH_IP"
 ```
@@ -182,7 +176,7 @@ ansible-playbook \
   --tags "bootstrap" \
   --skip-tags "pebble" \
   -e target_role=main \
-  -e git_branch=dev_reset \
+  -e git_branch=$(git_branch) \
   -e osm_dns="$NEW_ORCH_IP" \
   -e osm_domain="$OSM_DOMAIN" \
   -e smtp_host="$MAIL_SMTP_HOST" \
